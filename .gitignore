@@ -1,0 +1,7 @@
+node_modules/
+.output/
+.vinxi/
+app.config.timestamp*
+input/
+generated/
+*.bundled_*.mjs
