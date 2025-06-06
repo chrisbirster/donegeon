@@ -1,0 +1,12 @@
+{
+  "name": "@donegeon/functions",
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@donegeon/core": "*",
+    "sst": "*"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8"
+  }
+}
