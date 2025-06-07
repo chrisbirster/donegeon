@@ -79,3 +79,7 @@ In the template, we have an `api.ts`, and `storage.ts`. These export the created
 ---
 
 **Join our community** [Discord](https://sst.dev/discord) | [YouTube](https://www.youtube.com/c/sst-dev) | [X.com](https://x.com/SST_dev)
+
+### NOTES
+mv .env.example .env
+npx sst secret load .env

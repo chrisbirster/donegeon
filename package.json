@@ -6,10 +6,11 @@
   ],
   "scripts": {},
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250606.0",
     "@tsconfig/node22": "^22",
     "typescript": "^5"
   },
   "dependencies": {
-    "sst": "^3"
+    "sst": "^3.17.3"
   }
 }
