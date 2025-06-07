@@ -6,12 +6,14 @@ export default $config({
       name: "donegeon",
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage),
-      home: "aws",
+      home: "cloudflare",
     };
   },
   async run() {
+    await import("./infra/database");
+    await import("./infra/secrets");
+    await import("./infra/api");
     await import("./infra/marketing");
-
     return {
       status: "ok",
     };

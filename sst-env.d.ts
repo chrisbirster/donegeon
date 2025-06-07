@@ -6,10 +6,34 @@
 import "sst"
 declare module "sst" {
   export interface Resource {
+    "CloudflareAccountID": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "CloudflareApiToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "EmailAPIKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "Marketing": {
       "type": "sst.cloudflare.StaticSite"
       "url": string
     }
+    "MyDatabaseId": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+  }
+}
+// cloudflare 
+import * as cloudflare from "@cloudflare/workers-types";
+declare module "sst" {
+  export interface Resource {
+    "DonegeonDB": cloudflare.D1Database
+    "Worker": cloudflare.Service
   }
 }
 

@@ -12,9 +12,12 @@
     ]
   },
   "dependencies": {
+    "drizzle-orm": "^0.44.2",
     "sst": "*"
   },
   "devDependencies": {
+    "drizzle-kit": "^0.31.1",
+    "tsx": "^4.19.4",
     "vitest": "^2"
   }
 }
