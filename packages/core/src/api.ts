@@ -1,37 +1,8 @@
-import { Resource } from 'sst';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { listTasks, getTask, deleteTask, createTask } from "./tasks";
+import { joinWaitlist } from './waitlist';
 
-import { drizzle } from 'drizzle-orm/d1';
-import { eq, InferInsertModel, InferSelectModel } from 'drizzle-orm';
-
-import { tasks } from './db/schema';
-import { z } from 'zod';
-
-/* -------------------------------------------------------------------------- */
-/* Types                                                                      */
-/* -------------------------------------------------------------------------- */
-export type Task = InferSelectModel<typeof tasks>;
-export type NewTask = InferInsertModel<typeof tasks>;
-
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                    */
-/* -------------------------------------------------------------------------- */
-const getDb = () => drizzle(Resource.DonegeonDB);
-
-const createTaskSchema = z.object({
-  title: z.string().min(1).max(256),
-  description: z.string().max(512).default(''),
-  dueAt: z.number().int().positive().optional(),
-  scheduledFor: z.number().int().positive().optional(),
-  priority: z.number().int().min(1).max(5).optional(),
-  difficulty: z.number().int().min(1).max(5).optional(),
-  tags: z.array(z.string()).optional(),
-});
-
-/* -------------------------------------------------------------------------- */
-/* API                                                                        */
-/* -------------------------------------------------------------------------- */
 const api = new Hono();
 
 /* CORS for local dev + prod */
@@ -49,34 +20,19 @@ api.use('/*',
 );
 
 /* GET /tasks – list */
-api.get('/tasks', async (c) => {
-  const rows = await getDb().select().from(tasks).all() as Task[];
-  return c.json(rows);
-});
+api.get('/tasks', async (c) => await listTasks(c))
 
 /* GET /tasks/:id – single */
-api.get('/tasks/:id', async (c) => {
-  const id = Number(c.req.param('id'));
-  const [row] = await getDb().select().from(tasks).where(eq(tasks.id, id)).all() as [Task?];
-  return row ? c.json(row) : c.json({ error: 'Task not found' }, 404);
-});
+api.get('/tasks/:id', async (c) => await getTask(c))
 
 /* POST /tasks – create */
-api.post('/tasks', async (c) => {
-  const payload = createTaskSchema.parse(await c.req.json());
-  const now = Date.now();
+api.post('/tasks', async (c) => await createTask(c));
 
-  const [inserted] = await getDb().insert(tasks)
-    .values<NewTask>({
-      ...payload,
-      status: 'pending',
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning() as [Task];
+/* DELETE /tasks/:id – single */
+api.delete('/tasks/:id', async (c) => await deleteTask(c))
 
-  return c.json(inserted, 201);
-});
+/* POST /join-waitlist – create waitlist record */
+api.post('/join-waitlist', async (c) => await joinWaitlist(c));
 
 /* -------------------------------------------------------------------------- */
 /* Mount under /api                                                           */

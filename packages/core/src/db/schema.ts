@@ -37,6 +37,16 @@ export const tasks = sqliteTable('tasks', {
   notes: text('notes'),
 
   /* audit */
-  createdAt: integer('created_at').notNull().default(sql`unixepoch('now') * 1000`),
-  updatedAt: integer('updated_at').notNull().default(sql`unixepoch('now') * 1000`),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const waitlist = sqliteTable("waitlist", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email", { length: 320 }).notNull().unique(),
+  status: text("status", {
+    enum: ["pending", "confirmed", "invited"],
+  }).default("pending").notNull(),
+  createdAt: integer('created_at').notNull(),
+  ipHash: text("ip_hash"),
 });

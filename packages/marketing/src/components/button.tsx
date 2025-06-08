@@ -1,8 +1,6 @@
-import { Button as KButton } from "@kobalte/core/button";
-import { type ComponentProps } from "solid-js";
 import { css, cx } from "@linaria/core";
-
-const base = css`
+import { Button as KBButton } from "@kobalte/core/button";
+const buttonBase = css`
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -11,9 +9,9 @@ const base = css`
   transition: background 0.15s, border 0.15s;
 `;
 const sizes = {
-  sm: css`padding: .375rem .875rem; font-size: .875rem;`,
-  md: css`padding: .5rem 1.25rem; font-size: 1rem;`,
-  lg: css`padding: .75rem 2rem; font-size: 1.125rem;`,
+  sm: css`padding: 0.375rem 0.875rem; font-size: 0.875rem;`,
+  md: css`padding: 0.5rem 1.25rem; font-size: 1rem;`,
+  lg: css`padding: 0.75rem 2rem; font-size: 1.125rem;`,
 };
 const variants = {
   primary: css`
@@ -29,19 +27,22 @@ const variants = {
     &:hover { background: var(--gray800); }
   `,
 };
+type BtnSize = keyof typeof sizes;
+type BtnVariant = keyof typeof variants;
 
-type KBProps = ComponentProps<typeof KButton>;
-export interface ButtonProps extends KBProps {
-  size?: keyof typeof sizes;
-  variant?: keyof typeof variants;
+interface ButtonProps
+  extends Omit<Parameters<typeof KBButton>[0], "class"> {
+  size?: BtnSize;
+  variant?: BtnVariant;
+  class?: string;
 }
 
 export function Button(props: ButtonProps) {
   const { size = "md", variant = "primary", class: cls, ...rest } = props;
   return (
-    <KButton
+    <KBButton
       {...rest}
-      class={cx(base, sizes[size], variants[variant], cls)}
+      class={cx(buttonBase, sizes[size], variants[variant], cls)}
     />
   );
 }

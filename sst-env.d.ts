@@ -26,6 +26,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "TurnstileSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 // cloudflare 
