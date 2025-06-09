@@ -23,6 +23,11 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "EmailApi": {
+      "name": string
+      "type": "sst.aws.Function"
+      "url": string
+    }
     "Marketing": {
       "type": "sst.cloudflare.StaticSite"
       "url": string
@@ -30,6 +35,11 @@ declare module "sst" {
     "MyDatabaseId": {
       "type": "sst.sst.Secret"
       "value": string
+    }
+    "MyEmail": {
+      "configSet": string
+      "sender": string
+      "type": "sst.aws.Email"
     }
     "TurnstileSecret": {
       "type": "sst.sst.Secret"
