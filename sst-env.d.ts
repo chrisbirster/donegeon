@@ -6,6 +6,11 @@
 import "sst"
 declare module "sst" {
   export interface Resource {
+    "Auth": {
+      "publicKey": string
+      "type": "sst.cloudflare.Auth"
+      "url": string
+    }
     "CloudflareAccountID": {
       "type": "sst.sst.Secret"
       "value": string
@@ -40,6 +45,8 @@ declare module "sst" {
 import * as cloudflare from "@cloudflare/workers-types";
 declare module "sst" {
   export interface Resource {
+    "AuthAuthenticator": cloudflare.Service
+    "AuthStorage": cloudflare.KVNamespace
     "DonegeonDB": cloudflare.D1Database
     "Worker": cloudflare.Service
   }
