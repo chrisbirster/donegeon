@@ -14,6 +14,7 @@ export default $config({
     await import("./infra/secrets");
     await import("./infra/api");
     await import("./infra/marketing");
+    await import("./infra/app");
     return {
       status: "ok",
     };

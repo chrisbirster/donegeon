@@ -30,6 +30,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "game": {
+      "type": "sst.cloudflare.StaticSite"
+      "url": string
+    }
   }
 }
 // cloudflare 
