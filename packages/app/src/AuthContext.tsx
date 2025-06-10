@@ -126,11 +126,12 @@ export const AuthProvider: ParentComponent = (props) => {
     window.location.replace('/');
   }
 
-  async function fetchUser(access: string) {
+  async function fetchUser(token: string) {
     console.log(">> start fetch user with: \n")
-    console.log(access)
+    console.log(token)
+
     const r = await fetch(`https://api.donegeon.com/api/me`, {
-      headers: { Authorization: `Bearer ${access}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!r.ok) return;
 

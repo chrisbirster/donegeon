@@ -8,6 +8,7 @@ import { cors } from "hono/cors";
 import { Resource } from "sst";
 import { subjects } from "./subject";
 import { ensureUser } from "./services/user";
+import { User } from "./types";
 
 const app = new Hono()
 
@@ -49,11 +50,8 @@ app.all("*", async (c) => {
     },
     success: async (ctx, value) => {
       if (value.provider === "password") {
-        console.log({ value });
-
-        const user = await ensureUser(value.email);
-        console.log({ user });
-
+        // TODO: tighten this type down
+        const user = await ensureUser(value.email) as User
         return ctx.subject('user', {
           id: user.id,
           email: user.email,

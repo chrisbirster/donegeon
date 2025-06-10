@@ -29,7 +29,7 @@ export const tasks = sqliteTable('tasks', {
   energyCost: integer('energy_cost').default(0),
 
   /* relations */
-  parentId: integer('parent_id').references(() => tasks.id),
+  parentId: integer('parent_id', { mode: 'number' }),
 
   /* metadata */
   tags: text('tags'),              // JSON string

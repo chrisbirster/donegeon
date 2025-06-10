@@ -3,19 +3,20 @@
   "type": "module",
   "version": "0.0.0",
   "scripts": {
+    "build": "tsc -b && vite build",
     "test": "sst shell vitest"
   },
   "exports": {
     "./*": [
-      "./src/*/index.ts",
-      "./src/*.ts"
+      "./src/types.ts"
     ]
   },
   "dependencies": {
     "@openauthjs/openauth": "^0.4.3",
     "drizzle-orm": "^0.44.2",
-    "jose": "^6.0.11",
-    "sst": "*"
+    "hono": "^4.7.11",
+    "sst": "*",
+    "valibot": "^1.1.0"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.1",

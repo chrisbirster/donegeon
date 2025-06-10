@@ -11,7 +11,7 @@ const DonegeonLanding = () => {
   const [status, setStatus] = createSignal("")
 
   async function callApi() {
-    const res = await fetch("https://auth.donegeon.com", {
+    const res = await fetch("https://api.donegeon.com/api/tasks", {
       headers: {
         Authorization: `Bearer ${await auth.getToken()}`,
       },

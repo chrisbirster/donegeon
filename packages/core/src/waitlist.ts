@@ -17,6 +17,7 @@ async function verifyTurnstile(token: string, ip: string) {
     { method: "POST", body },
   );
   const data = await r.json();
+  // @ts-ignore
   return data.success;
 }
 
@@ -39,7 +40,6 @@ export const joinWaitlist = async (c: Context<BlankEnv, "/join-waitlist", BlankI
   // 2) simple per‑IP / per‑email throttle (max 3 per hour)
   const ipHash = await sha256Hex(ip);
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
-  const createdAt = Date.now();
 
   const recent = await getDb()
     .select()
@@ -55,7 +55,7 @@ export const joinWaitlist = async (c: Context<BlankEnv, "/join-waitlist", BlankI
   // 3) insert or ignore duplicates
   await getDb()
     .insert(waitlist)
-    .values({ email, ipHash, createdAt })
+    .values({ email, ipHash })
     .onConflictDoNothing();
 
   // 4) TODO: send confirmation e‑mail here

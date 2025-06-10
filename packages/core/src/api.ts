@@ -3,8 +3,10 @@ import { cors } from 'hono/cors';
 import { listTasks, getTask, deleteTask, createTask } from "./tasks";
 import { joinWaitlist } from './waitlist';
 import { getMe, getUser } from './users';
+import { logger } from 'hono/logger';
 
 const api = new Hono();
+api.use(logger());
 
 /* CORS for local dev + prod */
 api.use('/*',

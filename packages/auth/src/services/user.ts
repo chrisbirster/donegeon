@@ -1,9 +1,10 @@
 export async function ensureUser(email: string) {
+  const token = process.env.API_AUTH_TOKEN || "";
   const res = await fetch("https://api.donegeon.com/api/user", {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Deez-Token': process.env.API_AUTH_TOKEN,
+      'X-Deez-Token': token,
     },
     body: JSON.stringify({ email }),
   });

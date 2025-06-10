@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { Context } from 'hono';
 import { tasks } from './db/schema';
 import { getDb } from './util/api';
-import { createTaskSchema, Task } from './types';
+import { createTaskSchema, Task, NewTask } from './types';
 import { BlankEnv, BlankInput } from 'hono/types';
 
 export const listTasks = async (c: Context<BlankEnv, "/tasks", BlankInput>
@@ -21,14 +21,15 @@ export const createTask = async (c: Context<BlankEnv, "/tasks", BlankInput>) => 
   const payload = createTaskSchema.parse(await c.req.json());
   const now = Date.now();
 
-  const [inserted] = await getDb().insert(tasks)
-    .values({
-      ...payload,
-      status: 'pending',
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning() as [Task];
+  const task = {
+    ...payload,
+    status: 'pending',
+  } as NewTask
+
+  const [inserted] = await getDb()
+    .insert(tasks)
+    .values(task)
+    .returning();
 
   return c.json(inserted, 201);
 }
