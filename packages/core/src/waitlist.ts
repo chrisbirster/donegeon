@@ -20,7 +20,7 @@ async function verifyTurnstile(token: string, ip: string) {
   return data.success;
 }
 
-export const joinWaitlist = async (c: Context<BlankEnv, "/tasks", BlankInput>) => {
+export const joinWaitlist = async (c: Context<BlankEnv, "/join-waitlist", BlankInput>) => {
   const { email, turnstileToken } = await c.req.json<{
     email?: string;
     turnstileToken?: string;

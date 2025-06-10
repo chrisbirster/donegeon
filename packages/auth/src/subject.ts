@@ -1,10 +1,10 @@
-import { createSubjects } from "@openauthjs/openauth/subject";
-import { z } from "zod";
+import { object, string } from "valibot"
+import { createSubjects } from "@openauthjs/openauth/subject"
 
 export const subjects = createSubjects({
-  user: z.object({
-    id: z.string(),
+  user: object({
+    id: string(),
+    email: string(),
+    name: string(),
   }),
-});
-
-export type User = z.infer<typeof subjects.user>;
+})

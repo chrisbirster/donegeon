@@ -127,7 +127,9 @@ export const AuthProvider: ParentComponent = (props) => {
   }
 
   async function fetchUser(access: string) {
-    const r = await fetch(`https://auth.donegeon.com`, {
+    console.log(">> start fetch user with: \n")
+    console.log(access)
+    const r = await fetch(`https://api.donegeon.com/api/me`, {
       headers: { Authorization: `Bearer ${access}` },
     });
     if (!r.ok) return;

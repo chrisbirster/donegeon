@@ -7,4 +7,7 @@ export const worker = new sst.cloudflare.Worker("Worker", {
   domain: "api.donegeon.com",
   url: true,
   handler: "packages/core/src/api.ts",
+  environment: {
+    API_AUTH_TOKEN: process.env.API_AUTH_TOKEN,
+  }
 });

@@ -8,6 +8,9 @@ export const auth = new sst.cloudflare.Auth("Auth", {
     link: [kv],
     domain: "auth.donegeon.com",
     url: true,
+    environment: {
+      API_AUTH_TOKEN: process.env.API_AUTH_TOKEN,
+    }
   },
 });
 

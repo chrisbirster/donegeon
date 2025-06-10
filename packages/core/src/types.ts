@@ -1,7 +1,7 @@
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { tasks, waitlist } from './db/schema';
+import { tasks, users } from './db/schema';
 
 export type Task = InferSelectModel<typeof tasks>;
 export type NewTask = InferInsertModel<typeof tasks>;
@@ -16,3 +16,11 @@ export const createTaskSchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
+
+export type User = InferSelectModel<typeof users>;
+export type NewUser = InferInsertModel<typeof users>;
+
+export const createUserSchema = z.object({
+  email: z.string().email(),
+  displayName: z.string().max(128).optional(),
+});

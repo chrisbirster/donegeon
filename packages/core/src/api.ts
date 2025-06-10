@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { listTasks, getTask, deleteTask, createTask } from "./tasks";
 import { joinWaitlist } from './waitlist';
+import { getMe, getUser } from './users';
 
 const api = new Hono();
 
@@ -14,7 +15,7 @@ api.use('/*',
     ],
     credentials: true,
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type']
+    allowHeaders: ['Content-Type', 'Authorization']
   })
 );
 
@@ -32,6 +33,12 @@ api.delete('/tasks/:id', async (c) => await deleteTask(c))
 
 /* POST /join-waitlist – create waitlist record */
 api.post('/join-waitlist', async (c) => await joinWaitlist(c));
+
+/* GET /me – get loggedIn user */
+api.get('/me', async (c) => await getMe(c));
+
+/* POST /user – create or get user record */
+api.post('/user', async (c) => await getUser(c));
 
 /* -------------------------------------------------------------------------- */
 /* Mount under /api                                                           */

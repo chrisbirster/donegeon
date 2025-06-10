@@ -7,21 +7,14 @@ import { cors } from "hono/cors";
 
 import { Resource } from "sst";
 import { subjects } from "./subject";
+import { ensureUser } from "./services/user";
 
 const app = new Hono()
 
-// TODO: placeholder replace
-async function getUser(email: string) {
-  // Get user from database
-  // Return user ID
-  return "123"
-}
-
 export function getAuthServerCORS() {
   return {
-    credentials: false,
     origin: ["http://localhost:3000", "https://app.donegeon.com"],
-    allowHeaders: ["Content-Type"],
+    allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["POST", "GET", "OPTIONS"],
     exposeHeaders: ["Content-Length", "Access-Control-Allow-Origin"],
     maxAge: 600,
@@ -47,12 +40,26 @@ app.all("*", async (c) => {
         }),
       ),
     },
-    allow: async () => true,
+    allow: async (input) => {
+      const url = new URL(input.redirectURI);
+      const hostname = url.hostname;
+      if (hostname.endsWith("donegeon.com")) return true;
+      if (hostname === "localhost") return true;
+      return false;
+    },
     success: async (ctx, value) => {
       if (value.provider === "password") {
-        return ctx.subject("user", {
-          id: await getUser(value.email),
-        })
+        console.log({ value });
+
+        const user = await ensureUser(value.email);
+        console.log({ user });
+
+        return ctx.subject('user', {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        });
+
       }
       throw new Error("Invalid provider");
     },
