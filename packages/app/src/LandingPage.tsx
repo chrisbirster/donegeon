@@ -1,6 +1,7 @@
 import { createSignal, Show } from "solid-js";
 import { useAuth } from "./AuthContext"
 import { css } from "@linaria/core";
+import { A } from "@solidjs/router";
 
 const bg = css`
   background-color: #bada55;
@@ -9,16 +10,6 @@ const bg = css`
 const DonegeonLanding = () => {
   const auth = useAuth()
   const [status, setStatus] = createSignal("")
-
-  async function callApi() {
-    const res = await fetch("https://api.donegeon.com/api/tasks", {
-      headers: {
-        Authorization: `Bearer ${await auth.getToken()}`,
-      },
-    })
-
-    setStatus(res.ok ? "success" : "error")
-  }
 
   return (
     <Show
@@ -29,12 +20,13 @@ const DonegeonLanding = () => {
         {auth.loggedIn() ? (
           <div>
             <p>
-
               <span>Logged in</span>
               {auth.userId() && <span> as {auth.userId()}</span>}
             </p>
             {status() !== "" && <p>API call: {status()}</p>}
-            <button onClick={callApi}>Call API</button>
+            <div>
+              <A href="/game">Game</A>
+            </div>
             <button onClick={auth.logout}>Logout</button>
           </div>
         ) : (
