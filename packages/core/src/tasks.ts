@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { Context } from 'hono';
 import { tasks } from './db/schema';
-import { getDb } from './util/api';
+import { getDb } from '@donegeon/db';
 import { createTaskSchema, Task, NewTask } from './types';
 import { BlankEnv, BlankInput } from 'hono/types';
 

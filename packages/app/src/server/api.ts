@@ -1,6 +1,7 @@
+import type { Task } from "@donegeon/db";
 import { action } from "@solidjs/router";
 
-const getFetch = async (url: string) => {
+export const getFetch = async (url: string) => {
   const response = await fetch(url, {
     method: "GET",
   });
@@ -13,7 +14,7 @@ const getFetch = async (url: string) => {
   }
 }
 
-const postFetch = async (url: string, data: string) => {
+export const postFetch = async (url: string, data: string) => {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -30,7 +31,7 @@ const postFetch = async (url: string, data: string) => {
   return results;
 }
 
-const deleteFetch = async (url: string) => {
+export const deleteFetch = async (url: string) => {
   const response = await fetch(url, {
     method: "DELETE",
   });
@@ -62,14 +63,15 @@ export const getTask = async (taskId: string) => {
   }
 }
 
-export const updateTask = async (taskId: string) => {
+export const updateTask = async (taskId: number) => {
+  console.log(taskId);
   return "update "
 }
 
-export const createTask = action(async (fd: FormData) => {
+export const createTask = action(async (task: Task) => {
   try {
-    const title = String(fd.get("title"))
-    const description = String(fd.get("description"))
+    const title = task.title
+    const description = task.description
     const data = JSON.stringify({ title, description })
     const response = await postFetch("https://api.donegeon.com/api/tasks", data)
     console.log(response)
@@ -79,7 +81,7 @@ export const createTask = action(async (fd: FormData) => {
   }
 });
 
-export const deleteTask = async (taskId: string) => {
+export const deleteTask = async (taskId: number) => {
   try {
     const response = await getFetch(`https://api.donegeon.com/api/tasks/${taskId}`)
     return response;

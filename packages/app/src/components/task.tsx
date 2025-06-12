@@ -24,6 +24,7 @@ import {
 } from 'lucide-solid';
 import { Sidebar } from './sidebar';
 import { Navbar } from './navbar';
+import type { Task } from '@donegeon/db';
 
 const layout = css`
   display: flex;
@@ -188,7 +189,7 @@ const primaryButton = css`
 `;
 
 export default function DonegeonApp() {
-  const [tasks, { refetch }] = createResource(listTasks);
+  const [tasks, { refetch }] = createResource<Task[]>(listTasks);
   const [showModal, setShowModal] = createSignal(false);
   const [newTitle, setNewTitle] = createSignal('');
   const [newDesc, setNewDesc] = createSignal('');
@@ -211,6 +212,7 @@ export default function DonegeonApp() {
 
   // — createTask handler
   const handleCreate = async () => {
+    console.log(newTitle(), newDesc())
     await createTask({
       title: newTitle(),
       description: newDesc(),

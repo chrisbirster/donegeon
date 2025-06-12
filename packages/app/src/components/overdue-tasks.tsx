@@ -13,7 +13,7 @@ import {
   Circle,
   ChevronDown,
 } from 'lucide-solid';
-import type { Task } from '../types';
+import type { Task } from '@donegeon/db';
 
 
 const sectionHeader = css`

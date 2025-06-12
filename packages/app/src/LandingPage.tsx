@@ -1,4 +1,4 @@
-import { createSignal, Show } from "solid-js";
+import { Show } from "solid-js";
 import { useAuth } from "./AuthContext"
 import { css } from "@linaria/core";
 import { A } from "@solidjs/router";
@@ -9,8 +9,6 @@ const bg = css`
 
 const DonegeonLanding = () => {
   const auth = useAuth()
-  const [status, setStatus] = createSignal("")
-
   return (
     <Show
       when={auth.loaded()}
@@ -23,7 +21,6 @@ const DonegeonLanding = () => {
               <span>Logged in</span>
               {auth.userId() && <span> as {auth.userId()}</span>}
             </p>
-            {status() !== "" && <p>API call: {status()}</p>}
             <div>
               <A href="/game">Game</A>
             </div>

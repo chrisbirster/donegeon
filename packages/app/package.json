@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@donegeon/db": "*",
     "@kobalte/core": "^0.13.10",
     "@solidjs/router": "^0.15.3",
     "dayjs": "^1.11.13",

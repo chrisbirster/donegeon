@@ -1,25 +1,25 @@
 {
-  "name": "@donegeon/core",
+  "name": "@donegeon/db",
   "type": "module",
   "version": "0.0.0",
-  "scripts": {
-    "build": "tsc -b && vite build",
-    "test": "sst shell vitest"
-  },
   "exports": {
-    "./*": [
-      "./src/types.ts"
-    ]
+    ".": "./dist/index.js"
   },
+  "scripts": {
+    "build": "yarn tsc --project tsconfig.build.json",
+    "dev": "yarn build --watch"
+  },
+  "files": [
+    "dist"
+  ],
   "dependencies": {
-    "@openauthjs/openauth": "^0.4.3",
     "drizzle-orm": "^0.44.2",
     "hono": "^4.7.11",
     "sst": "*",
-    "valibot": "^1.1.0",
-    "@donegeon/db": "*"
+    "valibot": "^1.1.0"
   },
   "devDependencies": {
+    "@types/node": "^24.0.1",
     "drizzle-kit": "^0.31.1",
     "tsx": "^4.19.4",
     "vitest": "^2"

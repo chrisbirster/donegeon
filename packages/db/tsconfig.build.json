@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "moduleResolution": "nodenext",
+    "types": [
+      "sst",
+      "node"
+    ],
+    "typeRoots": [
+      "types", // our DonegeonDB shim
+      "../../node_modules/@types" // default @types search path
+    ]
+  },
+  "include": [
+    "src/index.ts"
+  ]
+}
