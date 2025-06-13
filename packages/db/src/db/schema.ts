@@ -6,7 +6,7 @@ export const tasks = sqliteTable('tasks', {
 
   /* core */
   title: text('title', { length: 256 }).notNull(),
-  description: text('description', { length: 512 }).notNull(),
+  description: text('description', { length: 512 }),
 
   /* scheduling */
   dueAt: integer('due_at'),          // ms epoch, nullable

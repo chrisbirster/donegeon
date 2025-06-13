@@ -8,11 +8,13 @@ export type NewTask = InferInsertModel<typeof tasks>;
 
 export const createTaskSchema = z.object({
   title: z.string().min(1).max(256),
-  description: z.string().max(512).default(''),
+  description: z.string().max(512).optional(),
   dueAt: z.number().int().positive().optional(),
   scheduledFor: z.number().int().positive().optional(),
+  status: z.enum(['pending', 'active', 'blocked', 'done', 'archived']).optional(),
   priority: z.number().int().min(1).max(5).optional(),
   difficulty: z.number().int().min(1).max(5).optional(),
+  parentId: z.number().optional(),
   tags: z.array(z.string()).optional(),
 });
 

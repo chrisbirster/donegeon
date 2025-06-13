@@ -71,8 +71,9 @@ export const updateTask = async (taskId: number) => {
 export const createTask = action(async (task: Task) => {
   try {
     const title = task.title
-    const description = task.description
+    const description = task.description ? task.description : ""
     const data = JSON.stringify({ title, description })
+    console.log(data)
     const response = await postFetch("https://api.donegeon.com/api/tasks", data)
     console.log(response)
     return data
