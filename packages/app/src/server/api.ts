@@ -1,93 +1,46 @@
-import type { Task } from "@donegeon/db";
-import { action } from "@solidjs/router";
+import type { NewTask, Task } from "@donegeon/db";
+import type { TaskAPI } from "../components/task-manager";
 
-export const getFetch = async (url: string) => {
-  const response = await fetch(url, {
-    method: "GET",
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Error in response: ${err}`);
-  } else {
-    const result = await response.json();
-    return result;
-  }
-}
+const API_BASE = import.meta.env.VITE_API_URL
 
-export const postFetch = async (url: string, data: string) => {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: data,
-    credentials: "include",
-  });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Unknown error occurred');
-  }
-  const results = await response.json();
-  return results;
-}
+export const taskAPI: TaskAPI = {
+  /* GET /api/tasks */
+  async list() {
+    const r = await fetch(`${API_BASE}/api/tasks`, { credentials: "include" });
+    if (!r.ok) throw new Error("Failed to fetch tasks");
+    return (await r.json()) as Task[];
+  },
 
-export const deleteFetch = async (url: string) => {
-  const response = await fetch(url, {
-    method: "DELETE",
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Error in response: ${err}`);
-  } else {
-    const result = await response.json();
-    return result;
-  }
-}
+  /* POST /api/tasks */
+  async create(body: NewTask) {
+    const r = await fetch(`${API_BASE}/api/tasks`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!r.ok) throw new Error("Failed to create task");
+    return (await r.json()) as Task;
+  },
 
+  /* PATCH /api/tasks/:id */
+  async update(id: number, patch: Partial<Task>) {
+    const r = await fetch(`${API_BASE}/api/tasks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!r.ok) throw new Error("Failed to update task");
+    return (await r.json()) as Task;
+  },
 
-export const listTasks = async () => {
-  try {
-    const response = await getFetch('https://api.donegeon.com/api/tasks')
-    return response;
-  } catch (err) {
-    throw new Error(`Error fetching foo: ${err}`);
-  }
-}
-
-export const getTask = async (taskId: string) => {
-  try {
-    const response = await getFetch(`https://api.donegeon.com/api/tasks/${taskId}`)
-    return response;
-  } catch (err) {
-    throw new Error(`Error fetching foo: ${err}`);
-  }
-}
-
-export const updateTask = async (taskId: number) => {
-  console.log(taskId);
-  return "update "
-}
-
-export const createTask = action(async (task: Task) => {
-  try {
-    const title = task.title
-    const description = task.description ? task.description : ""
-    const data = JSON.stringify({ title, description })
-    console.log(data)
-    const response = await postFetch("https://api.donegeon.com/api/tasks", data)
-    console.log(response)
-    return data
-  } catch (error) {
-    throw new Error(`Error creating account: ${error}`);
-  }
-});
-
-export const deleteTask = async (taskId: number) => {
-  try {
-    const response = await getFetch(`https://api.donegeon.com/api/tasks/${taskId}`)
-    return response;
-  } catch (err) {
-    throw new Error(`Error fetching foo: ${err}`);
-  }
-}
-
+  /* DELETE /api/tasks/:id */
+  async destroy(id: number) {
+    const r = await fetch(`${API_BASE}/api/tasks/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!r.ok) throw new Error("Failed to delete task");
+  },
+};

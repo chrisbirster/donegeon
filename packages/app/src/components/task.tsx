@@ -1,29 +1,22 @@
 import {
-  createMemo,
-  createResource,
   createSignal,
+  For,
   Show,
 } from 'solid-js';
 import { css } from '@linaria/core';
 import dayjs from 'dayjs';
+import { useTasks } from "./context-task-manager";
 import {
-  listTasks,
-  createTask,
-} from '../server/api';
-import {
+  Circle,
   Bell,
   Flag,
   MoreHorizontal,
   X,
   Calendar,
+  ChevronDown,
 } from 'lucide-solid';
 import { Sidebar } from './sidebar';
 import { Navbar } from './navbar';
-import type { Task } from '@donegeon/db';
-import { useAction } from "@solidjs/router";
-import { OverDue } from './overdue-tasks';
-import { TodayTasks } from './today-tasks';
-import { TodayHeader } from './today-header';
 
 const layout = css`
   display: flex;
@@ -43,6 +36,66 @@ const content = css`
   flex: 1;
   padding: 1.5rem;
   overflow-y: auto;
+`;
+
+const smallText = css`
+  font-size: 0.875rem;
+  color: #9ca3af;
+`;
+
+const sectionHeader = css`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+`;
+
+const sectionHeaderLeft = css`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+`;
+
+const sectionHeaderRight = css`
+  font-size: 0.875rem;
+  color: #f87171;
+  cursor: pointer;
+`;
+
+const taskRow = css`
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  transition: background 0.15s;
+  &:hover {
+    background: #1f2937;
+  }
+`;
+
+const taskContent = css`
+  flex: 1;
+`;
+
+const taskTitle = css`
+  color: #e5e7eb;
+  font-size: 1rem;
+`;
+
+const taskMeta = css`
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+`;
+
+const taskMetaItem = css`
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 `;
 
 const modalOverlay = css`
@@ -127,50 +180,106 @@ const primaryButton = css`
   }
 `;
 
-export default function DonegeonApp() {
-  const [tasks, { refetch }] = createResource<Task[]>(listTasks);
+
+
+export const Task = () => {
+  const tasks = useTasks();
   const [showModal, setShowModal] = createSignal(false);
   const [newTitle, setNewTitle] = createSignal('');
   const [newDesc, setNewDesc] = createSignal('');
-  const [newStatus, setNewStatus] = createSignal('pending');
-  const [newPriority, setNewPriority] = createSignal(3);
-  const createTaskAction = useAction(createTask);
 
+  // — grouping
   const overdue = () =>
-    tasks()?.filter(t => t.status === 'pending' &&
+    tasks.tasks?.filter(t => t.status === 'pending' &&
       t.dueAt != null &&
       dayjs(t.dueAt).isBefore(dayjs())
     ) || [];
 
   const today = () =>
-    tasks()?.filter(t =>
+    tasks.tasks?.filter(t =>
       t.status === 'pending' &&
       (!t.dueAt || dayjs(t.dueAt).isSame(dayjs(), 'day'))
     ) || [];
 
-  const todayTasksCount = createMemo(() => (today().length + overdue().length));
-
-  const handleCreate = async () => {
-    await createTaskAction({
+  const handleAddTask = async () => {
+    await tasks.add({
       title: newTitle(),
       description: newDesc(),
-      dueAt: Date.now(),
-      priority: 3,
-    } as Task);
-    setNewTitle('');
-    setNewDesc('');
-    await refetch();
+    });
   };
 
   return (
     <div class={layout}>
       <Sidebar setShowModal={setShowModal} />
+      {/* ——— MAIN AREA ————————————————————————————————————————————————————— */}
       <main class={main}>
         <Navbar />
         <section class={content}>
-          <TodayHeader tasksTodayCount={todayTasksCount} />
-          <OverDue tasks={overdue} />
-          <TodayTasks tasks={today} />
+          {/* — Today header — */}
+          <div class={css`margin-bottom:1.5rem;`}>
+            <h1 class={css`font-size:1.75rem; font-weight:700; margin-bottom:0.25rem;`}>
+              Today
+            </h1>
+            <div class={smallText} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <Circle size={16} /> {(today().length + overdue().length)} tasks
+            </div>
+          </div>
+
+          {/* — Overdue — */}
+          <Show when={overdue().length > 0}>
+            <div class={css`margin-bottom:1.5rem;`}>
+              <div class={sectionHeader}>
+                <div class={sectionHeaderLeft}>
+                  <ChevronDown size={16} color="#9ca3af" />
+                  <span>Overdue</span>
+                </div>
+                <div class={sectionHeaderRight}>Reschedule</div>
+              </div>
+
+              <For each={overdue()}>
+                {(task) => (
+                  <div class={taskRow}>
+                    <Circle size={20} color="#6b7280" />
+
+                    <div class={taskContent}>
+                      <div class={taskTitle}>{task.title}</div>
+                      <div class={taskMeta}>
+                        <span class={taskMetaItem}>📅 {dayjs(task.dueAt).format('MMM D')}</span>
+                        {task.tags && (
+                          <span class={taskMetaItem}>🏷️ {JSON.parse(task.tags).join(', ')}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button class={outlineButton}>
+                      Inbox 📥
+                    </button>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+
+          {/* — Today’s tasks — */}
+          <div class={css`margin-bottom:2rem;`}>
+            <h2 class={css`font-weight:500; color:#9ca3af; margin-bottom:0.5rem;`}>
+              {dayjs().format('MMM D')} • Today • {dayjs().format('dddd')}
+            </h2>
+
+            <For each={today()}>
+              {(task) => (
+                <div class={taskRow}>
+                  <Circle size={20} color="#6b7280" />
+                  <div class={taskContent}>
+                    <div class={taskTitle}>{task.title}</div>
+                  </div>
+                  <button class={outlineButton}>
+                    Inbox 📥
+                  </button>
+                </div>
+              )}
+            </For>
+          </div>
         </section>
       </main>
 
@@ -224,7 +333,7 @@ export default function DonegeonApp() {
                 <button class={outlineButton} onClick={() => setShowModal(false)}>
                   Cancel
                 </button>
-                <button class={primaryButton} onClick={handleCreate}>
+                <button class={primaryButton} onClick={handleAddTask}>
                   Add task
                 </button>
               </div>
@@ -234,4 +343,4 @@ export default function DonegeonApp() {
       </Show>
     </div>
   );
-}
+};

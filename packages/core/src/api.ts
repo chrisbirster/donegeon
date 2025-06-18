@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { listTasks, getTask, deleteTask, createTask } from "./tasks";
-import { joinWaitlist } from './waitlist';
+// import { joinWaitlist } from './waitlist';
 import { getMe, getUser } from './users';
 import { logger } from 'hono/logger';
 
@@ -34,7 +34,7 @@ api.post('/tasks', async (c) => await createTask(c));
 api.delete('/tasks/:id', async (c) => await deleteTask(c))
 
 /* POST /join-waitlist – create waitlist record */
-api.post('/join-waitlist', async (c) => await joinWaitlist(c));
+// api.post('/join-waitlist', async (c) => await joinWaitlist(c));
 
 /* GET /me – get loggedIn user */
 api.get('/me', async (c) => await getMe(c));

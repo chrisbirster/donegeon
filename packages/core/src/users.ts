@@ -1,11 +1,8 @@
-import { eq } from 'drizzle-orm';
 import { Context } from 'hono';
-import { users } from './db/schema';
-import { getDb } from './util/api';
 import { BlankEnv, BlankInput } from 'hono/types';
-import { randomUUID } from 'crypto';
 import { createClient } from '@openauthjs/openauth/client';
 import { subjects } from './subject';
+import { getOrCreateUser } from '@donegeon/db';
 
 
 const SERVICE_TOKEN = process.env.API_AUTH_TOKEN
@@ -14,31 +11,6 @@ const client = createClient({
   clientID: 'game',
   issuer: 'https://auth.donegeon.com',
 });
-
-/** create row if it doesn't exist, return full user record */
-export async function getOrCreateUser(email: string) {
-  const existing = await getDb().select()
-    .from(users)
-    .where(eq(users.email, email))
-    .get();
-  if (existing) return existing;
-
-  const now = new Date();
-  const name = email.split('@')[0];
-
-  const [row] = await getDb().insert(users)
-    .values({
-      id: randomUUID(),
-      name,
-      email,
-      emailVerified: false,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
-  return row;
-}
 
 export const getMe = async (c: Context<BlankEnv, "/user", BlankInput>) => {
   const authHeader = c.req.header('Authorization');

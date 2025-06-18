@@ -1,5 +1,5 @@
-import { Show } from "solid-js";
-import { useAuth } from "./AuthContext"
+import { createMemo, Show } from "solid-js";
+import { useAuth } from "./components/context-openauth"
 import { css } from "@linaria/core";
 import { A } from "@solidjs/router";
 
@@ -9,25 +9,29 @@ const bg = css`
 
 const DonegeonLanding = () => {
   const auth = useAuth()
+
+  const ready = createMemo(() => true);
   return (
     <Show
-      when={auth.loaded()}
+      when={ready()}
       fallback={<div>Loading…</div>}
     >
       <div class={bg}>
-        {auth.loggedIn() ? (
-          <div>
+        {auth.subject ? (
+          <>
             <p>
-              <span>Logged in</span>
-              {auth.userId() && <span> as {auth.userId()}</span>}
+              Logged&nbsp;in as <strong>{auth.subject.id}</strong>
             </p>
-            <div>
-              <A href="/game">Game</A>
-            </div>
-            <button onClick={auth.logout}>Logout</button>
-          </div>
+
+            <A href="/game">Game</A>
+
+            {/* arrow wrapper so onClick receives no event arg */}
+            <button onClick={() => auth.logout()}>Logout</button>
+          </>
         ) : (
-          <button onClick={auth.login}>Login with OAuth</button>
+          <button onClick={() => auth.authorize()}>
+            Login with OAuth
+          </button>
         )}
       </div>
     </Show>

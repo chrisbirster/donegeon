@@ -8,16 +8,28 @@ export type NewTask = InferInsertModel<typeof tasks>;
 
 export const createTaskSchema = z.object({
   title: z.string().min(1).max(256),
-  description: z.string().max(512).optional(),
-  dueAt: z.number().int().positive().optional(),
-  scheduledFor: z.number().int().positive().optional(),
-  status: z.enum(['pending', 'active', 'blocked', 'done', 'archived']).optional(),
+  /* ↓ allow null */
+  description: z.string().max(512).nullable().optional(),
+
+  /* scheduling */
+  dueAt: z.number().int().positive().nullable().optional(),
+  scheduledFor: z.number().int().positive().nullable().optional(),
+
+  /* state & meta stay the same … */
+  status: z
+    .enum(["pending", "active", "blocked", "done", "archived"])
+    .optional(),
   priority: z.number().int().min(1).max(5).optional(),
   difficulty: z.number().int().min(1).max(5).optional(),
+
   parentId: z.number().optional(),
-  tags: z.array(z.string()).optional(),
+  tags: z
+    .array(z.string())
+    .optional()
+    .transform((t) => (t ? JSON.stringify(t) : undefined)),
 });
 
+export const patchTaskSchema = createTaskSchema.partial();
 
 export type User = InferSelectModel<typeof users>;
 export type NewUser = InferInsertModel<typeof users>;
