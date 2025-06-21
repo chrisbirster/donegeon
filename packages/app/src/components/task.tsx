@@ -17,6 +17,7 @@ import {
 } from 'lucide-solid';
 import { Sidebar } from './sidebar';
 import { Navbar } from './navbar';
+import { TaskPriority } from './task-priority';
 
 const layout = css`
   display: flex;
@@ -152,6 +153,19 @@ const formFooter = css`
   align-items: center;
 `;
 
+const primaryButton = css`
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 600;
+  &:hover {
+    background: #b91c1c;
+  }
+`;
+
 const outlineButton = css`
   background: transparent;
   border: 1px solid #4b5563;
@@ -164,19 +178,6 @@ const outlineButton = css`
   gap: 0.5rem;
   &:hover {
     background: #374151;
-  }
-`;
-
-const primaryButton = css`
-  background: #dc2626;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  font-weight: 600;
-  &:hover {
-    background: #b91c1c;
   }
 `;
 
@@ -310,10 +311,7 @@ export const Task = () => {
                 <Calendar size={14} /> Today
                 <X size={12} style={{ cursor: 'pointer' }} onClick={() => {/* clear dueAt */ }} />
               </span>
-
-              <button class={outlineButton}>
-                <Flag size={16} /> Priority
-              </button>
+              <TaskPriority />
               <button class={outlineButton}>
                 <Bell size={16} /> Reminders
               </button>
