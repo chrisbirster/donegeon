@@ -59,6 +59,11 @@ const check = css`
   background: #ef4444; /* red-500 */
 `;
 
+const container = css`
+  position: relative;
+  display: inline-block;
+`;
+
 
 export const TaskPriority = () => {
   const [priority, setPriority] = createSignal<number | null>(null);
@@ -67,7 +72,7 @@ export const TaskPriority = () => {
   const label = () => (priority() == null ? "Priority" : `P${priority()}`);
   const flagColor = (p: number | null) =>
     p == null
-      ? "#6b7280"   // gray-500 for “unset”
+      ? "#6b7280"
       : ["#ef4444", "#eab308", "#3b82f6", "#9ca3af"][p - 1];
 
   let btnRef!: HTMLButtonElement;
@@ -91,7 +96,7 @@ export const TaskPriority = () => {
   };
 
   return (
-    <div class="relative inline-block">
+    <div class={container}>
       <button
         ref={btnRef}
         class={outlineButton}

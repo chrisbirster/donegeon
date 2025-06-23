@@ -6,8 +6,8 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "yarn tsc --project tsconfig.build.json",
-    "dev": "yarn build --watch"
+    "build": "npx tsc --project tsconfig.build.json",
+    "dev": "npm build --watch"
   },
   "files": [
     "dist"

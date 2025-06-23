@@ -9,7 +9,6 @@ import { useTasks } from "./context-task-manager";
 import {
   Circle,
   Bell,
-  Flag,
   MoreHorizontal,
   X,
   Calendar,
@@ -18,6 +17,8 @@ import {
 import { Sidebar } from './sidebar';
 import { Navbar } from './navbar';
 import { TaskPriority } from './task-priority';
+import { TaskProject } from './task-project';
+import { TaskHeader } from './task-header';
 
 const layout = css`
   display: flex;
@@ -37,11 +38,6 @@ const content = css`
   flex: 1;
   padding: 1.5rem;
   overflow-y: auto;
-`;
-
-const smallText = css`
-  font-size: 0.875rem;
-  color: #9ca3af;
 `;
 
 const sectionHeader = css`
@@ -202,11 +198,16 @@ export const Task = () => {
       (!t.dueAt || dayjs(t.dueAt).isSame(dayjs(), 'day'))
     ) || [];
 
+  const headerCount = () => today().length + overdue().length
+
   const handleAddTask = async () => {
     await tasks.add({
       title: newTitle(),
       description: newDesc(),
     });
+    setShowModal(false)
+    setNewTitle('')
+    setNewDesc('')
   };
 
   return (
@@ -216,15 +217,7 @@ export const Task = () => {
       <main class={main}>
         <Navbar />
         <section class={content}>
-          {/* — Today header — */}
-          <div class={css`margin-bottom:1.5rem;`}>
-            <h1 class={css`font-size:1.75rem; font-weight:700; margin-bottom:0.25rem;`}>
-              Today
-            </h1>
-            <div class={smallText} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <Circle size={16} /> {(today().length + overdue().length)} tasks
-            </div>
-          </div>
+          <TaskHeader count={headerCount()} />
 
           {/* — Overdue — */}
           <Show when={overdue().length > 0}>
@@ -321,12 +314,7 @@ export const Task = () => {
             </div>
 
             <div class={formFooter}>
-              <select class={outlineButton}>
-                <option>Inbox</option>
-                <option>Personal</option>
-                <option>Blog Posts</option>
-              </select>
-
+              <TaskProject />
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button class={outlineButton} onClick={() => setShowModal(false)}>
                   Cancel
