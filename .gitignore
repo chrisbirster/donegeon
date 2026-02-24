@@ -13,9 +13,12 @@ web/dist/*
 !web/dist/embed.go
 !web/dist/index.html
 !web/dist/assets/
+web/dist/assets/*
 !web/dist/assets/app.js
 !web/dist/assets/app.css
 web/apps/client/.turbo
 
 # editor
 .DS_Store
+
+legacy

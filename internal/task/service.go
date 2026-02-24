@@ -5,6 +5,7 @@ import (
 
 	apperrors "donegeon/internal/errors"
 	"donegeon/internal/quickadd"
+	"donegeon/internal/rrule"
 )
 
 type Service struct {
@@ -28,6 +29,11 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 	if in.Content == "" {
 		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "content is required"), "content")
 	}
+	if in.Recurrence != nil {
+		if _, err := rrule.Parse(*in.Recurrence); err != nil {
+			return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid recurrence rule: "+err.Error()), "recurrenceRule")
+		}
+	}
 	return s.repo.Create(ctx, in)
 }
 
@@ -36,6 +42,7 @@ func (s *Service) CreateFromQuickAdd(ctx context.Context, text string) (Task, qu
 	created, err := s.repo.Create(ctx, CreateInput{
 		Content:     parsed.Content,
 		Description: parsed.Description,
+		Recurrence:  parsed.RecurrenceRule,
 		Priority:    derefPriority(parsed.Priority, 4),
 		DueText:     parsed.DueText,
 		DueDeadline: parsed.Deadline,
@@ -47,6 +54,11 @@ func (s *Service) CreateFromQuickAdd(ctx context.Context, text string) (Task, qu
 }
 
 func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, error) {
+	if in.Recurrence != nil {
+		if _, err := rrule.Parse(*in.Recurrence); err != nil {
+			return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid recurrence rule: "+err.Error()), "recurrenceRule")
+		}
+	}
 	return s.repo.Update(ctx, id, in)
 }
 

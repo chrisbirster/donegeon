@@ -4,6 +4,8 @@ SELECT
     description,
     project_id,
     section_id,
+    sort_order,
+    recurrence_rule,
     priority,
     due_text,
     due_deadline,

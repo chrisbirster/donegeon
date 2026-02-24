@@ -6,6 +6,8 @@ type Task struct {
 	Description string  `db:"description" json:"description"`
 	ProjectID   *string `db:"project_id" json:"projectId,omitempty"`
 	SectionID   *string `db:"section_id" json:"sectionId,omitempty"`
+	SortOrder   int64   `db:"sort_order" json:"sortOrder"`
+	Recurrence  *string `db:"recurrence_rule" json:"recurrenceRule,omitempty"`
 	Priority    int     `db:"priority" json:"priority"`
 	DueText     *string `db:"due_text" json:"dueText,omitempty"`
 	DueDeadline *string `db:"due_deadline" json:"dueDeadline,omitempty"`
@@ -20,6 +22,8 @@ type CreateInput struct {
 	Description string
 	ProjectID   *string
 	SectionID   *string
+	SortOrder   int64
+	Recurrence  *string
 	Priority    int
 	DueText     *string
 	DueDeadline *string
@@ -30,6 +34,8 @@ type UpdateInput struct {
 	Description *string
 	ProjectID   *string
 	SectionID   *string
+	SortOrder   *int64
+	Recurrence  *string
 	Priority    *int
 	DueText     *string
 	DueDeadline *string

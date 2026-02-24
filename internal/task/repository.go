@@ -118,17 +118,23 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Task, error) {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	id := uuid.NewString()
+	sortOrder := in.SortOrder
+	if sortOrder == 0 {
+		sortOrder = time.Now().UTC().UnixMilli()
+	}
 	args := map[string]any{
-		"id":           id,
-		"content":      in.Content,
-		"description":  in.Description,
-		"project_id":   nullableString(in.ProjectID),
-		"section_id":   nullableString(in.SectionID),
-		"priority":     in.Priority,
-		"due_text":     nullableString(in.DueText),
-		"due_deadline": nullableString(in.DueDeadline),
-		"created_at":   now,
-		"updated_at":   now,
+		"id":              id,
+		"content":         in.Content,
+		"description":     in.Description,
+		"project_id":      nullableString(in.ProjectID),
+		"section_id":      nullableString(in.SectionID),
+		"sort_order":      sortOrder,
+		"recurrence_rule": nullableString(in.Recurrence),
+		"priority":        in.Priority,
+		"due_text":        nullableString(in.DueText),
+		"due_deadline":    nullableString(in.DueDeadline),
+		"created_at":      now,
+		"updated_at":      now,
 	}
 
 	if _, err := r.db.NamedExecContext(ctx, query, args); err != nil {
@@ -151,15 +157,17 @@ func (r *Repository) Update(ctx context.Context, id string, in UpdateInput) (Tas
 	}
 
 	args := map[string]any{
-		"id":           id,
-		"content":      nullableString(in.Content),
-		"description":  nullableString(in.Description),
-		"project_id":   nullableString(in.ProjectID),
-		"section_id":   nullableString(in.SectionID),
-		"priority":     nullableInt(in.Priority),
-		"due_text":     nullableString(in.DueText),
-		"due_deadline": nullableString(in.DueDeadline),
-		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+		"id":              id,
+		"content":         nullableString(in.Content),
+		"description":     nullableString(in.Description),
+		"project_id":      nullableString(in.ProjectID),
+		"section_id":      nullableString(in.SectionID),
+		"sort_order":      nullableInt64(in.SortOrder),
+		"recurrence_rule": nullableString(in.Recurrence),
+		"priority":        nullableInt(in.Priority),
+		"due_text":        nullableString(in.DueText),
+		"due_deadline":    nullableString(in.DueDeadline),
+		"updated_at":      time.Now().UTC().Format(time.RFC3339),
 	}
 
 	res, err := r.db.NamedExecContext(ctx, query, args)
@@ -230,6 +238,13 @@ func nullableString(value *string) any {
 }
 
 func nullableInt(value *int) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func nullableInt64(value *int64) any {
 	if value == nil {
 		return nil
 	}

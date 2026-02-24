@@ -11,10 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"donegeon/internal/board"
 	"donegeon/internal/config"
 	"donegeon/internal/datbase"
 	"donegeon/internal/httpapi"
 	"donegeon/internal/logging"
+	"donegeon/internal/project"
 	"donegeon/internal/quickadd"
 	"donegeon/internal/task"
 	webdist "donegeon/web/dist"
@@ -56,15 +58,19 @@ func run() error {
 	}
 
 	parser := quickadd.NewParser()
-	repo := task.NewRepository(db, queries)
-	service := task.NewService(repo, parser)
+	taskRepo := task.NewRepository(db, queries)
+	taskService := task.NewService(taskRepo, parser)
+	projectRepo := project.NewRepository(db, queries)
+	projectService := project.NewService(projectRepo)
+	boardRepo := board.NewRepository(db, queries)
+	boardService := board.NewService(boardRepo, taskService)
 
 	staticFS, err := fs.Sub(webdist.Files, ".")
 	if err != nil {
 		return fmt.Errorf("load web dist fs: %w", err)
 	}
 
-	handler := httpapi.New(logger, cfg, service, parser, staticFS)
+	handler := httpapi.New(logger, cfg, taskService, projectService, boardService, parser, staticFS)
 	server := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
 		Handler:           handler,

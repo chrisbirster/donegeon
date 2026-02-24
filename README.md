@@ -68,3 +68,23 @@ go test ./...
 ```
 
 Quick-add parser tests are sourced directly from `docs/test-cases.yaml`.
+
+## RRULE Parsing (RFC 5545)
+
+The backend includes an RFC 5545 RRULE parser (`RECUR` grammar) that supports:
+
+- `FREQ` (`SECONDLY`..`YEARLY`)
+- `UNTIL`, `COUNT`, `INTERVAL`
+- `BYSECOND`, `BYMINUTE`, `BYHOUR`
+- `BYDAY`, `BYMONTHDAY`, `BYYEARDAY`, `BYWEEKNO`, `BYMONTH`, `BYSETPOS`
+- `WKST`
+- Extension rule parts (`X-*` and other IANA token names)
+
+Parse endpoint:
+
+```bash
+curl -X POST http://localhost:42069/api/rrule/parse \
+  -H 'Authorization: Bearer TOKEN_VALID' \
+  -H 'Content-Type: application/json' \
+  -d '{"rrule":"FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR"}'
+```

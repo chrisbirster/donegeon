@@ -1,19 +1,22 @@
 package quickadd
 
 import (
+	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 type Parsed struct {
-	Content     string   `json:"content"`
-	Project     *string  `json:"project,omitempty"`
-	Labels      []string `json:"labels"`
-	Assignee    *string  `json:"assignee,omitempty"`
-	Priority    *int     `json:"priority,omitempty"`
-	Deadline    *string  `json:"deadline,omitempty"`
-	DueText     *string  `json:"dueText,omitempty"`
-	Description string   `json:"description"`
+	Content        string   `json:"content"`
+	Project        *string  `json:"project,omitempty"`
+	Labels         []string `json:"labels"`
+	Assignee       *string  `json:"assignee,omitempty"`
+	Priority       *int     `json:"priority,omitempty"`
+	Deadline       *string  `json:"deadline,omitempty"`
+	DueText        *string  `json:"dueText,omitempty"`
+	RecurrenceRule *string  `json:"recurrenceRule,omitempty"`
+	Description    string   `json:"description"`
 }
 
 type Parser struct{}
@@ -28,6 +31,10 @@ var (
 	labelPattern    = regexp.MustCompile(`^@[A-Za-z][A-Za-z0-9_-]*$`)
 	assigneePattern = regexp.MustCompile(`^\+[A-Za-z][A-Za-z0-9_-]*$`)
 	priorityPattern = regexp.MustCompile(`^p([1-4])$`)
+
+	recurrenceIntervalPattern = regexp.MustCompile(`(?i)\bevery\s+(\d+)\s+(day|days|week|weeks|month|months|year|years)\b`)
+	recurrenceSinglePattern   = regexp.MustCompile(`(?i)\bevery\s+(day|week|month|year)\b`)
+	recurrenceWeekdayPattern  = regexp.MustCompile(`(?i)\bevery\s+(weekday|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b`)
 )
 
 var duePatterns = []*regexp.Regexp{
@@ -80,6 +87,11 @@ func (p *Parser) Parse(text string) Parsed {
 	}
 
 	content := normalizeSpaces(strings.Join(contentParts, " "))
+	recurrenceRule, content := extractRecurrenceRule(content)
+	if recurrenceRule != "" {
+		result.RecurrenceRule = stringPtr(recurrenceRule)
+	}
+
 	due, content := extractDueText(content)
 	if due != "" {
 		result.DueText = stringPtr(due)
@@ -114,6 +126,102 @@ func extractDueText(content string) (string, string) {
 
 	without := normalizeSpaces(content[:start] + " " + content[end:])
 	return match, without
+}
+
+func extractRecurrenceRule(content string) (string, string) {
+	if content == "" {
+		return "", ""
+	}
+
+	type recurrenceMatch struct {
+		start int
+		end   int
+		rule  string
+	}
+
+	best := recurrenceMatch{start: -1}
+	register := func(start, end int, rule string) {
+		if start < 0 || end <= start || strings.TrimSpace(rule) == "" {
+			return
+		}
+		if best.start == -1 || start < best.start || (start == best.start && end-start > best.end-best.start) {
+			best = recurrenceMatch{start: start, end: end, rule: rule}
+		}
+	}
+
+	if loc := recurrenceIntervalPattern.FindStringSubmatchIndex(content); loc != nil {
+		interval, err := strconv.Atoi(content[loc[2]:loc[3]])
+		if err == nil && interval > 0 {
+			unit := strings.ToLower(content[loc[4]:loc[5]])
+			freq, ok := recurrenceFrequency(unit)
+			if ok {
+				register(loc[0], loc[1], fmt.Sprintf("FREQ=%s;INTERVAL=%d", freq, interval))
+			}
+		}
+	}
+
+	if loc := recurrenceWeekdayPattern.FindStringSubmatchIndex(content); loc != nil {
+		day := strings.ToLower(content[loc[2]:loc[3]])
+		byDay, ok := recurrenceByDay(day)
+		if ok {
+			register(loc[0], loc[1], fmt.Sprintf("FREQ=WEEKLY;INTERVAL=1;BYDAY=%s", byDay))
+		}
+	}
+
+	if loc := recurrenceSinglePattern.FindStringSubmatchIndex(content); loc != nil {
+		unit := strings.ToLower(content[loc[2]:loc[3]])
+		freq, ok := recurrenceFrequency(unit)
+		if ok {
+			register(loc[0], loc[1], fmt.Sprintf("FREQ=%s;INTERVAL=1", freq))
+		}
+	}
+
+	if best.start == -1 {
+		return "", normalizeSpaces(content)
+	}
+
+	without := normalizeSpaces(content[:best.start] + " " + content[best.end:])
+	return best.rule, without
+}
+
+func recurrenceFrequency(unit string) (string, bool) {
+	switch strings.ToLower(unit) {
+	case "day", "days":
+		return "DAILY", true
+	case "week", "weeks":
+		return "WEEKLY", true
+	case "month", "months":
+		return "MONTHLY", true
+	case "year", "years":
+		return "YEARLY", true
+	default:
+		return "", false
+	}
+}
+
+func recurrenceByDay(day string) (string, bool) {
+	switch strings.ToLower(day) {
+	case "weekday":
+		return "MO,TU,WE,TH,FR", true
+	case "weekend":
+		return "SA,SU", true
+	case "monday":
+		return "MO", true
+	case "tuesday":
+		return "TU", true
+	case "wednesday":
+		return "WE", true
+	case "thursday":
+		return "TH", true
+	case "friday":
+		return "FR", true
+	case "saturday":
+		return "SA", true
+	case "sunday":
+		return "SU", true
+	default:
+		return "", false
+	}
 }
 
 func normalizeSpaces(value string) string {

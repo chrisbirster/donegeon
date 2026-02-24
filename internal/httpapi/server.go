@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,9 +17,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/securecookie"
 
+	"donegeon/internal/board"
 	"donegeon/internal/config"
 	apperrors "donegeon/internal/errors"
+	"donegeon/internal/project"
 	"donegeon/internal/quickadd"
+	rruleparser "donegeon/internal/rrule"
 	"donegeon/internal/task"
 )
 
@@ -42,16 +46,28 @@ type API struct {
 	logger     *slog.Logger
 	cfg        config.Config
 	tasks      *task.Service
+	projects   *project.Service
+	boards     *board.Service
 	parser     *quickadd.Parser
 	webHandler http.Handler
 	cookies    *securecookie.SecureCookie
 }
 
-func New(logger *slog.Logger, cfg config.Config, tasks *task.Service, parser *quickadd.Parser, staticFS fs.FS) http.Handler {
+func New(
+	logger *slog.Logger,
+	cfg config.Config,
+	tasks *task.Service,
+	projects *project.Service,
+	boards *board.Service,
+	parser *quickadd.Parser,
+	staticFS fs.FS,
+) http.Handler {
 	api := &API{
 		logger:     logger,
 		cfg:        cfg,
 		tasks:      tasks,
+		projects:   projects,
+		boards:     boards,
 		parser:     parser,
 		webHandler: newSPAHandler(staticFS),
 		cookies:    securecookie.New([]byte(cfg.CookieSigningKey), nil),
@@ -59,9 +75,14 @@ func New(logger *slog.Logger, cfg config.Config, tasks *task.Service, parser *qu
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", api.handleHealth)
+	mux.HandleFunc("POST /api/rrule/parse", api.handleParseRRule)
 	mux.HandleFunc("POST /api/quick-add/parse", api.handleParseQuickAdd)
 	mux.HandleFunc("POST /api/tasks/quick-add", api.handleQuickAddTask)
 	mux.HandleFunc("GET /api/tasks", api.handleListTasks)
+	mux.HandleFunc("GET /api/projects", api.handleListProjects)
+	mux.HandleFunc("GET /api/board/state", api.handleGetBoardState)
+	mux.HandleFunc("POST /api/board/cmd", api.handleBoardCommand)
+	mux.HandleFunc("PATCH /api/projects/{id}", api.handlePatchProject)
 	mux.HandleFunc("POST /api/tasks", api.handleCreateTask)
 	mux.HandleFunc("GET /api/tasks/{id}", api.handleGetTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}", api.handlePatchTask)
@@ -125,6 +146,37 @@ func (a *API) handleParseQuickAdd(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"parsed": a.parser.Parse(req.Text)})
 }
 
+func (a *API) handleParseRRule(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RRule string `json:"rrule"`
+		Value string `json:"value"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	input := strings.TrimSpace(req.RRule)
+	if input == "" {
+		input = strings.TrimSpace(req.Value)
+	}
+	if input == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "rrule is required"), "rrule"))
+		return
+	}
+
+	parsed, err := rruleparser.Parse(input)
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "rrule"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rule":      parsed,
+		"canonical": parsed.Canonical(),
+	})
+}
+
 func (a *API) handleQuickAddTask(w http.ResponseWriter, r *http.Request) {
 	if err := requireWriteScope(r.Context()); err != nil {
 		writeAPIError(w, err)
@@ -165,6 +217,104 @@ func (a *API) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (a *API) handleListProjects(w http.ResponseWriter, r *http.Request) {
+	includeArchived := parseBoolOrDefault(r.URL.Query().Get("includeArchived"), false)
+
+	result, err := a.projects.List(r.Context(), project.ListParams{
+		IncludeArchived: includeArchived,
+	})
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": result,
+	})
+}
+
+func (a *API) handleGetBoardState(w http.ResponseWriter, r *http.Request) {
+	if a.boards == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "board service unavailable"))
+		return
+	}
+
+	state, err := a.boards.GetState(r.Context(), boardIDFromRequest(r))
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, state)
+}
+
+func (a *API) handleBoardCommand(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.boards == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "board service unavailable"))
+		return
+	}
+
+	var req board.CommandRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	result, err := a.boards.Command(r.Context(), boardIDFromRequest(r), req)
+	if err != nil {
+		var conflict *board.VersionConflictError
+		if errors.As(err, &conflict) {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"ok":         false,
+				"newVersion": conflict.ServerVersion,
+				"error":      conflict.Error(),
+			})
+			return
+		}
+		writeAPIError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *API) handlePatchProject(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project id is required"), "projectId"))
+		return
+	}
+
+	var req struct {
+		Name       *string `json:"name"`
+		IsFavorite *bool   `json:"isFavorite"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	updated, err := a.projects.Upsert(r.Context(), id, project.UpsertInput{
+		Name:       cleanPtr(req.Name),
+		IsFavorite: req.IsFavorite,
+	})
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, updated)
+}
+
 func (a *API) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
@@ -191,6 +341,8 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Description string  `json:"description"`
 		ProjectID   *string `json:"projectId"`
 		SectionID   *string `json:"sectionId"`
+		SortOrder   *int64  `json:"sortOrder"`
+		Recurrence  *string `json:"recurrenceRule"`
 		Priority    int     `json:"priority"`
 		DueText     *string `json:"dueText"`
 		DueDeadline *string `json:"dueDeadline"`
@@ -205,6 +357,8 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Description: strings.TrimSpace(req.Description),
 		ProjectID:   cleanPtr(req.ProjectID),
 		SectionID:   cleanPtr(req.SectionID),
+		SortOrder:   ptrInt64Value(req.SortOrder),
+		Recurrence:  cleanPtr(req.Recurrence),
 		Priority:    req.Priority,
 		DueText:     cleanPtr(req.DueText),
 		DueDeadline: cleanPtr(req.DueDeadline),
@@ -233,6 +387,8 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 		Description *string `json:"description"`
 		ProjectID   *string `json:"projectId"`
 		SectionID   *string `json:"sectionId"`
+		SortOrder   *int64  `json:"sortOrder"`
+		Recurrence  *string `json:"recurrenceRule"`
 		Priority    *int    `json:"priority"`
 		DueText     *string `json:"dueText"`
 		DueDeadline *string `json:"dueDeadline"`
@@ -247,6 +403,8 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 		Description: cleanPtr(req.Description),
 		ProjectID:   cleanPtr(req.ProjectID),
 		SectionID:   cleanPtr(req.SectionID),
+		SortOrder:   req.SortOrder,
+		Recurrence:  cleanPtr(req.Recurrence),
 		Priority:    req.Priority,
 		DueText:     cleanPtr(req.DueText),
 		DueDeadline: cleanPtr(req.DueDeadline),
@@ -511,6 +669,28 @@ func parseIntOrDefault(raw string, fallback int) int {
 		return fallback
 	}
 	return v
+}
+
+func parseBoolOrDefault(raw string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func boardIDFromRequest(r *http.Request) string {
+	return strings.TrimSpace(r.URL.Query().Get("board"))
+}
+
+func ptrInt64Value(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func asAppError(err error, target **apperrors.AppError) bool {
