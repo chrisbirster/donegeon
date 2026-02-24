@@ -1,0 +1,64 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Start development environment
+    cmds:
+      - task: dev
+
+  dev:
+    desc: Run backend and frontend dev servers concurrently
+    deps:
+      - dev:backend
+      - dev:frontend
+
+  dev:backend:
+    desc: Run Go API with hot reload (air)
+    preconditions:
+      - sh: command -v air >/dev/null 2>&1
+        msg: air is required. Install it with `task install:air`.
+    cmds:
+      - air -c .air.toml
+
+  dev:frontend:
+    desc: Run web dev server (bun + turbo + vite)
+    dir: web
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+    cmds:
+      - bun run dev
+
+  install:
+    desc: Install all local development dependencies
+    cmds:
+      - task: install:air
+      - task: install:web
+
+  install:air:
+    desc: Install or update air
+    cmds:
+      - go install github.com/air-verse/air@latest
+
+  install:web:
+    desc: Install web dependencies
+    dir: web
+    cmds:
+      - bun install
+
+  test:
+    desc: Run all Go tests
+    cmds:
+      - go test ./...
+
+  build:
+    desc: Build frontend and backend
+    cmds:
+      - task: build:web
+      - go build ./...
+
+  build:web:
+    desc: Build frontend assets into web/dist
+    dir: web
+    cmds:
+      - bun run build

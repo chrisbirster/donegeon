@@ -1,0 +1,22 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/donegeon ."
+  bin = "./tmp/donegeon"
+  full_bin = "DONEGEON_ENV=dev ./tmp/donegeon"
+  include_ext = ["go", "sql", "yaml", "yml", "toml"]
+  include_file = ["go.mod", "go.sum", "main.go"]
+  include_dir = ["cmd", "internal", "web/dist"]
+  exclude_dir = ["tmp", "web/node_modules", "web/.turbo", "web/apps/client/node_modules"]
+  exclude_regex = ["_test\\.go"]
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = "1s"
+  delay = 300
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true
