@@ -2924,6 +2924,582 @@ tests:
       deadline: null
       due_text: null
       description: ''
+- test_id: PARSE_121
+  description: 'Parse quick-add text: every 2 months'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every 2 months
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=MONTHLY;INTERVAL=2'
+      description: ''
+- test_id: PARSE_122
+  description: 'Parse quick-add text: daily at 3am'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: daily at 3am
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=DAILY;INTERVAL=1;BYHOUR=3;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_123
+  description: 'Parse quick-add text: on the 23rd every month'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: on the 23rd every month
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=23'
+      description: ''
+- test_id: PARSE_124
+  description: 'Parse quick-add text: every 2 weeks'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every 2 weeks
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=2'
+      description: ''
+- test_id: PARSE_125
+  description: 'Parse quick-add text: thursday at 5pm'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: thursday at 5pm
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: thursday at 5pm
+      recurrence_rule: null
+      description: ''
+- test_id: PARSE_126
+  description: 'Parse quick-add text: 4 weeks from now'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 4 weeks from now
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: 4 weeks from now
+      recurrence_rule: null
+      description: ''
+- test_id: PARSE_127
+  description: 'Parse quick-add text: every other week'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every other week
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=2'
+      description: ''
+- test_id: PARSE_128
+  description: 'Parse quick-add text: every two weeks'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every two weeks
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=2'
+      description: ''
+- test_id: PARSE_129
+  description: 'Parse quick-add text: biweekly'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: biweekly
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=2'
+      description: ''
+- test_id: PARSE_130
+  description: 'Parse quick-add text: twice a month'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: twice a month
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1,15'
+      description: ''
+- test_id: PARSE_131
+  description: 'Parse quick-add text: every month on the 23rd'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every month on the 23rd
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=23'
+      description: ''
+- test_id: PARSE_132
+  description: 'Parse quick-add text: on the 23rd of each month'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: on the 23rd of each month
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=23'
+      description: ''
+- test_id: PARSE_133
+  description: 'Parse quick-add text: first monday of every month'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: first monday of every month
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=MONTHLY;INTERVAL=1;BYDAY=1MO'
+      description: ''
+- test_id: PARSE_134
+  description: 'Parse quick-add text: last friday of every month'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: last friday of every month
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=MONTHLY;INTERVAL=1;BYDAY=-1FR'
+      description: ''
+- test_id: PARSE_135
+  description: 'Parse quick-add text: every weekday at 9am'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every weekday at 9am
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_136
+  description: 'Parse quick-add text: weekdays at 9'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: weekdays at 9
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_137
+  description: 'Parse quick-add text: every weekend'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every weekend
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=SA,SU'
+      description: ''
+- test_id: PARSE_138
+  description: 'Parse quick-add text: every thursday at 5pm'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every thursday at 5pm
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=TH;BYHOUR=17;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_139
+  description: 'Parse quick-add text: thursdays at 5pm'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: thursdays at 5pm
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=TH;BYHOUR=17;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_140
+  description: 'Parse quick-add text: every day at 3am'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every day at 3am
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=DAILY;INTERVAL=1;BYHOUR=3;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_141
+  description: 'Parse quick-add text: every morning'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every morning
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_142
+  description: 'Parse quick-add text: every night'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: every night
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: null
+      recurrence_rule: 'FREQ=DAILY;INTERVAL=1;BYHOUR=21;BYMINUTE=0'
+      description: ''
+- test_id: PARSE_143
+  description: 'Parse quick-add text: in 4 weeks'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: in 4 weeks
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: in 4 weeks
+      recurrence_rule: null
+      description: ''
+- test_id: PARSE_144
+  description: 'Parse quick-add text: next thursday at 5pm'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: next thursday at 5pm
+  then:
+    success: true
+    parsed:
+      content: ''
+      project: null
+      labels: []
+      assignee: null
+      priority: null
+      deadline: null
+      due_text: next thursday at 5pm
+      recurrence_rule: null
+      description: ''
 - test_id: TRN_ACCEPTWORKSPACEINVITATION_001
   description: 'acceptWorkspaceInvitation: missing auth token'
   given:

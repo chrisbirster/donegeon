@@ -139,17 +139,25 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
+    let body: any;
     let message = `HTTP ${response.status}`;
     try {
-      const body = await response.json();
-      const apiMessage = body?.error?.message || body?.error?.code;
+      body = await response.json();
+      const apiMessage =
+        body?.error?.message ||
+        body?.error?.code ||
+        (typeof body?.error === "string" ? body.error : undefined) ||
+        (typeof body?.message === "string" ? body.message : undefined);
       if (typeof apiMessage === "string" && apiMessage.trim().length > 0) {
-        message = apiMessage;
+        message = apiMessage.trim();
       }
     } catch {
       // Ignore malformed error body and preserve HTTP status message.
     }
-    throw new Error(message);
+    const error = new Error(message) as Error & { status?: number; body?: any };
+    error.status = response.status;
+    error.body = body;
+    throw error;
   }
 
   if (response.status === 204) {

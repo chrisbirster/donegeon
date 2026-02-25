@@ -34,7 +34,10 @@ type TokenPiece = {
 };
 
 const QUICK_ADD_TOKEN_PATTERN =
-  /(\{[^{}]+\}|#[A-Za-z][A-Za-z0-9_-]*|@[A-Za-z][A-Za-z0-9_-]*|\+[A-Za-z][A-Za-z0-9_-]*|\bp[1-4]\b|\bevery\s+\d+\s+(?:day|days|week|weeks|month|months|year|years)\b|\bevery\s+(?:day|week|month|year|weekday|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\bon\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?(?:am|pm)\b|\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week)\b|\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b|\btomorrow\b)/gi;
+  /(\{[^{}]+\}|#[A-Za-z][A-Za-z0-9_-]*|@[A-Za-z][A-Za-z0-9_-]*|\+[A-Za-z][A-Za-z0-9_-]*|\bp[1-4]\b|\bevery\s+(?:\d+(?:st|nd|rd|th)?|one|two|three|four|five|six|seven|eight|nine|ten|other)\s+(?:day|days|week|weeks|month|months|year|years)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b|\bevery\s+(?:day|week|month|year)\b|\b(?:daily|every\s+day)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bevery\s+(?:weekday|weekdays|weekend|weekends|monday|mondays|tuesday|tuesdays|wednesday|wednesdays|thursday|thursdays|friday|fridays|saturday|saturdays|sunday|sundays)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b|\b(?:weekdays|weekends|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bbiweekly\b|\btwice\s+a\s+month\b|\bevery\s+month\s+on\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b|\bon\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:each|every)\s+month\b|\b(?:first|second|third|fourth|last)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+of\s+(?:each|every)\s+month\b|\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\b(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week)\b|\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b|\b\d+\s+(?:day|days|week|weeks|month|months)\s+from\s+now\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b|\btomorrow\b)/gi;
+
+const RECURRENCE_TOKEN_PATTERN =
+  /^(?:every\b|daily\b|biweekly\b|twice\s+a\s+month\b|weekdays\s+at\b|weekends\s+at\b|mondays\s+at\b|tuesdays\s+at\b|wednesdays\s+at\b|thursdays\s+at\b|fridays\s+at\b|saturdays\s+at\b|sundays\s+at\b|first\b|second\b|third\b|fourth\b|last\b|on\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:each|every)\s+month\b)/i;
 
 function classifyToken(value: string): TokenKind {
   if (value.startsWith("#")) return "project";
@@ -42,7 +45,7 @@ function classifyToken(value: string): TokenKind {
   if (value.startsWith("+")) return "assignee";
   if (/^p[1-4]$/i.test(value)) return "priority";
   if (value.startsWith("{") && value.endsWith("}")) return "deadline";
-  if (/^every\b/i.test(value)) return "recurrence";
+  if (RECURRENCE_TOKEN_PATTERN.test(value)) return "recurrence";
   return "due";
 }
 
@@ -224,6 +227,7 @@ export default function HomeRoute() {
   let parseTimer: number | undefined;
   let searchInputRef: HTMLInputElement | undefined;
   let globalKeyHandler: ((event: KeyboardEvent) => void) | undefined;
+  let lastParsedText = "";
 
   const inputTokens = createMemo(() => tokenizeQuickAdd(content()));
   const currentView = createMemo(() => parseTaskView(location.pathname));
@@ -371,10 +375,6 @@ export default function HomeRoute() {
     return chips;
   });
 
-  const hasQuickAddSyntax = createMemo(
-    () => inputTokens().some((piece) => piece.kind !== "text") || !!parsedInput()?.dueText,
-  );
-
   const searchResults = createMemo(() => {
     const query = searchText().trim().toLowerCase();
     if (!query) return [] as Task[];
@@ -495,8 +495,14 @@ export default function HomeRoute() {
     const trimmed = text.trim();
     if (!trimmed) {
       setParsedInput(null);
+      lastParsedText = "";
       return;
     }
+
+    if (trimmed === lastParsedText) {
+      return;
+    }
+    lastParsedText = trimmed;
 
     try {
       const parsed = await parseApi.quickAdd(trimmed);
@@ -515,7 +521,7 @@ export default function HomeRoute() {
 
     parseTimer = window.setTimeout(() => {
       void parseMainInput(value);
-    }, 120);
+    }, 260);
   }
 
   async function addTask(e: SubmitEvent) {
@@ -524,13 +530,10 @@ export default function HomeRoute() {
     if (!text) return;
 
     try {
-      if (hasQuickAddSyntax()) {
-        await taskApi.quickAdd(text);
-      } else {
-        await taskApi.create(text);
-      }
+      await taskApi.quickAdd(text);
       setContent("");
       setParsedInput(null);
+      lastParsedText = "";
       setError("");
       await refreshData();
     } catch (err) {
@@ -680,6 +683,12 @@ export default function HomeRoute() {
     event.dataTransfer?.setData("text/plain", taskId);
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = "move";
+      const dragHandle = event.currentTarget as HTMLElement | null;
+      const taskRow = dragHandle?.closest("li");
+      if (taskRow) {
+        const rect = taskRow.getBoundingClientRect();
+        event.dataTransfer.setDragImage(taskRow, event.clientX - rect.left, event.clientY - rect.top);
+      }
     }
   }
 
@@ -962,18 +971,10 @@ export default function HomeRoute() {
                     >
                       <button
                         type="button"
-                        class="h-5 w-5 rounded-full border border-[#4b6da5] bg-transparent transition hover:border-[var(--accent)]"
-                        aria-label="Complete task"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void completeTask(item);
-                        }}
-                      />
-
-                      <button
-                        type="button"
                         draggable={true}
-                        class="cursor-grab select-none rounded px-1 text-[#91a4c6] hover:bg-[#1e2b43] hover:text-white"
+                        class={`cursor-grab select-none rounded px-1 text-[#91a4c6] transition hover:bg-[#1e2b43] hover:text-white ${
+                          dragTaskId() === item.id ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                        }`}
                         aria-label="Drag to reorder"
                         onClick={(event) => event.stopPropagation()}
                         onDragStart={(event) => onDragStart(event, item.id)}
@@ -981,6 +982,16 @@ export default function HomeRoute() {
                       >
                         ::
                       </button>
+
+                      <button
+                        type="button"
+                        class="h-5 w-5 rounded-full border border-[#4b6da5] bg-transparent transition hover:border-[var(--accent)]"
+                        aria-label="Complete task"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void completeTask(item);
+                        }}
+                      />
 
                       <div class="min-w-0 flex-1">
                         <Show

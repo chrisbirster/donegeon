@@ -42,6 +42,7 @@ func (s *Service) CreateFromQuickAdd(ctx context.Context, text string) (Task, qu
 	created, err := s.repo.Create(ctx, CreateInput{
 		Content:     parsed.Content,
 		Description: parsed.Description,
+		ProjectID:   parsed.Project,
 		Recurrence:  parsed.RecurrenceRule,
 		Priority:    derefPriority(parsed.Priority, 4),
 		DueText:     parsed.DueText,

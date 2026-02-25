@@ -63,7 +63,11 @@ func run() error {
 	projectRepo := project.NewRepository(db, queries)
 	projectService := project.NewService(projectRepo)
 	boardRepo := board.NewRepository(db, queries)
-	boardService := board.NewService(boardRepo, taskService)
+	boardCfg, err := board.LoadGameplayConfig(cfg.BoardConfigPath)
+	if err != nil {
+		return fmt.Errorf("load board config: %w", err)
+	}
+	boardService := board.NewService(boardRepo, taskService, board.WithGameplayConfig(boardCfg))
 
 	staticFS, err := fs.Sub(webdist.Files, ".")
 	if err != nil {

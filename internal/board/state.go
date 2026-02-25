@@ -17,6 +17,21 @@ type Pan struct {
 	Y int `json:"y"`
 }
 
+type VillagerProgress struct {
+	Stamina int      `json:"stamina"`
+	XP      int      `json:"xp"`
+	Level   int      `json:"level"`
+	Perks   []string `json:"perks,omitempty"`
+}
+
+type BoardMeta struct {
+	Inventory    map[string]int               `json:"inventory,omitempty"`
+	Villagers    map[string]*VillagerProgress `json:"villagers,omitempty"`
+	Metrics      map[string]int               `json:"metrics,omitempty"`
+	DeckOpen     map[string]int               `json:"deckOpen,omitempty"`
+	DayTickCount int                          `json:"dayTickCount,omitempty"`
+}
+
 type Stack struct {
 	ID    string   `json:"id"`
 	Pos   Point    `json:"pos"`
@@ -35,6 +50,7 @@ type State struct {
 	Cards  map[string]*Card  `json:"cards"`
 	NextZ  int               `json:"nextZ"`
 	Pan    Pan               `json:"pan"`
+	Meta   BoardMeta         `json:"meta,omitempty"`
 }
 
 func NewState() *State {
@@ -52,6 +68,45 @@ func (s *State) normalize() {
 	}
 	if s.Cards == nil {
 		s.Cards = map[string]*Card{}
+	}
+	if s.Meta.Inventory == nil {
+		s.Meta.Inventory = map[string]int{
+			"coin":  0,
+			"paper": 0,
+			"ink":   0,
+			"gear":  0,
+			"parts": 0,
+		}
+	}
+	if s.Meta.Villagers == nil {
+		s.Meta.Villagers = map[string]*VillagerProgress{}
+	}
+	if s.Meta.Metrics == nil {
+		s.Meta.Metrics = map[string]int{
+			"zombies_seen":    0,
+			"overrun_level":   0,
+			"tasks_completed": 0,
+			"zombies_cleared": 0,
+			"day_ticks":       0,
+		}
+	}
+	if s.Meta.DeckOpen == nil {
+		s.Meta.DeckOpen = map[string]int{}
+	}
+	for villagerID, progress := range s.Meta.Villagers {
+		if progress == nil {
+			s.Meta.Villagers[villagerID] = &VillagerProgress{
+				Stamina: 6,
+				Level:   1,
+			}
+			continue
+		}
+		if progress.Level <= 0 {
+			progress.Level = 1
+		}
+		if progress.Stamina < 0 {
+			progress.Stamina = 0
+		}
 	}
 
 	maxZ := 0

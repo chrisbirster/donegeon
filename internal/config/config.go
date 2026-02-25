@@ -12,6 +12,7 @@ import (
 type Config struct {
 	HTTPPort         string
 	DBPath           string
+	BoardConfigPath  string
 	RequireAuth      bool
 	WriteToken       string
 	ReadOnlyToken    string
@@ -25,6 +26,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		HTTPPort:         envOr("DONEGEON_HTTP_PORT", "42069"),
 		DBPath:           envOr("DONEGEON_DB_PATH", "donegeon.db"),
+		BoardConfigPath:  firstNonEmptyEnv("DONEGEON_BOARD_CONFIG_PATH", "DONEGEON_CONFIG_PATH"),
 		WriteToken:       envOr("DONEGEON_API_TOKEN", "TOKEN_VALID"),
 		ReadOnlyToken:    envOr("DONEGEON_READONLY_API_TOKEN", "TOKEN_READONLY"),
 		RequestTimeout:   envDurationOr("DONEGEON_REQUEST_TIMEOUT", 15*time.Second),
@@ -63,6 +65,15 @@ func envOr(key, fallback string) string {
 		return fallback
 	}
 	return val
+}
+
+func firstNonEmptyEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func envBoolOr(key string, fallback bool) (bool, error) {

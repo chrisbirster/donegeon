@@ -1,0 +1,130 @@
+seeded_rng:
+  enabled: true
+  deterministic_deck_draws: true
+
+world:
+  day_tick:
+    max_zombies_spawn_per_day: 6
+    stamina_reset:
+      enabled: true
+      mode: full
+    overdue_rules:
+      zombie_spawn:
+        enabled: true
+        per_overdue_task: 1
+        cap_per_day: 6
+        spawn_chance: 1.0
+    recurrence_rules:
+      spawn_if_due: true
+
+villagers:
+  defaults:
+    max_level: 10
+    base_max_stamina: 6
+  leveling:
+    xp_sources:
+      complete_task:
+        base_xp: 1
+      clear_zombie:
+        base_xp: 1
+      gather_resource_cycle:
+        base_xp: 1
+    thresholds:
+      2: 10
+      3: 20
+      4: 30
+    choices_per_level: 1
+    perk_pool:
+      - id: perk_stamina_plus_1
+        label: Stamina +1
+        apply:
+          max_stamina_add: 1
+      - id: perk_zombie_slayer
+        label: Zombie Slayer
+        apply:
+          zombie_clear_stamina_cost_add: -1
+          min_zombie_clear_cost: 1
+  actions:
+    clear_zombie:
+      stamina_cost: 2
+      min_cost_after_perks: 1
+    gather_start:
+      stamina_cost: 1
+    eat_food:
+      stamina_cost: 0
+
+tasks:
+  due_date:
+    grace_hours: 0
+
+modifiers:
+  global_rules:
+    max_modifiers_per_task: 6
+    allow_duplicate_types: false
+    duplicate_type_allowlist:
+      - mod.next_action
+
+rules:
+  stacking:
+    disallowed:
+      - [task, zombie]
+      - [villager, zombie]
+      - [resource, zombie]
+      - [food, zombie]
+  uniqueness:
+    global_unique_modifiers:
+      - mod.deadline_pin
+
+resources:
+  nodes:
+    - id: tree
+      charges: { min: 3, max: 3 }
+    - id: ore
+      charges: { min: 3, max: 3 }
+    - id: paper
+      charges: { min: 3, max: 3 }
+
+food:
+  items:
+    - id: apple
+      stamina_restore: 1
+    - id: bread
+      stamina_restore: 3
+    - id: berries
+      stamina_restore: 2
+
+decks:
+  economy:
+    base_cost_currency: coin
+    zombie_cost_multiplier_per_zombie: 0.08
+    overrun_cost_multiplier_per_level: 0.05
+  list:
+    - id: deck.first_day
+      status: unlocked
+      base_cost: 0
+      free_opens: 9999
+      unlock_condition: { type: always }
+      draws:
+        count: 3
+        rng_pool:
+          - { card_type: blank, weight: 40 }
+          - { card_type: resource, resource_id: tree, weight: 20 }
+          - { card_type: food, food_id: apple, amount: 1, weight: 20 }
+          - { card_type: loot, loot_id: coin, amount: 1, weight: 20 }
+
+zombies:
+  types:
+    - id: default_zombie
+      cleanup:
+        stamina_cost: 2
+        reward_on_clear:
+          rng_pool:
+            - { type: loot, id: coin, amount: 1, weight: 100 }
+
+ui_hints:
+  board:
+    default_spawn_layout:
+      zombies:
+        start_x: 1500
+        start_y: 150
+        dx: 150

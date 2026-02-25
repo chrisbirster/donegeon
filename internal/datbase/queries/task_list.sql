@@ -9,6 +9,7 @@ SELECT
     priority,
     due_text,
     due_deadline,
+    processed_count,
     checked,
     is_deleted,
     created_at,

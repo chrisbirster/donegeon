@@ -31,6 +31,7 @@ type quickAddSpecTest struct {
 			Priority    *int     `yaml:"priority"`
 			Deadline    *string  `yaml:"deadline"`
 			DueText     *string  `yaml:"due_text"`
+			Recurrence  *string  `yaml:"recurrence_rule"`
 			Description string   `yaml:"description"`
 		} `yaml:"parsed"`
 	} `yaml:"then"`
@@ -78,6 +79,9 @@ func TestParserFromSourceOfTruth(t *testing.T) {
 		}
 		if !equalStringPtr(got.DueText, expected.DueText) {
 			t.Errorf("%s due_text mismatch: got=%v want=%v", testCase.TestID, strOrNil(got.DueText), strOrNil(expected.DueText))
+		}
+		if !equalStringPtr(got.RecurrenceRule, expected.Recurrence) {
+			t.Errorf("%s recurrence_rule mismatch: got=%v want=%v", testCase.TestID, strOrNil(got.RecurrenceRule), strOrNil(expected.Recurrence))
 		}
 		if got.Description != expected.Description {
 			t.Errorf("%s description mismatch: got=%q want=%q", testCase.TestID, got.Description, expected.Description)

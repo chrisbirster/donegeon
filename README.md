@@ -40,9 +40,14 @@ Environment variables:
 
 - `DONEGEON_HTTP_PORT` (default `42069`)
 - `DONEGEON_DB_PATH` (default `donegeon.db`)
+- `DONEGEON_BOARD_CONFIG_PATH` (optional YAML gameplay tuning file; legacy alias `DONEGEON_CONFIG_PATH`)
 - `DONEGEON_REQUIRE_AUTH` (default `true`)
 - `DONEGEON_API_TOKEN` (default `TOKEN_VALID`)
 - `DONEGEON_READONLY_API_TOKEN` (default `TOKEN_READONLY`)
+
+Example gameplay config:
+
+- [`docs/board-gameplay-config.example.yml`](/Users/gm/dev/personal/newtasks/docs/board-gameplay-config.example.yml)
 
 ## Run frontend (dev)
 
@@ -64,7 +69,7 @@ bun run build
 ## Tests
 
 ```bash
-go test ./...
+go test ./internal/... ./cmd/...
 ```
 
 Quick-add parser tests are sourced directly from `docs/test-cases.yaml`.
