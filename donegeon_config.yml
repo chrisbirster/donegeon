@@ -1,0 +1,481 @@
+# Canonical Donegeon gameplay config (supported by internal/board/gameplay_config.go)
+
+seeded_rng:
+  enabled: true
+  deterministic_deck_draws: true
+
+world:
+  day_tick:
+    max_zombies_spawn_per_day: 5
+    stamina_reset:
+      enabled: true
+      mode: full
+    overdue_rules:
+      zombie_spawn:
+        enabled: true
+        per_overdue_task: 1
+        cap_per_day: 5
+        spawn_chance: 0.65
+    recurrence_rules:
+      spawn_if_due: true
+
+villagers:
+  defaults:
+    max_level: 10
+    base_max_stamina: 6
+  leveling:
+    xp_sources:
+      complete_task:
+        base_xp: 10
+        by_priority:
+          none: 0
+          low: 0
+          medium: 2
+          high: 5
+      clear_zombie:
+        base_xp: 6
+      gather_resource_cycle:
+        base_xp: 2
+    thresholds:
+      1: 0
+      2: 40
+      3: 100
+      4: 180
+      5: 280
+      6: 400
+      7: 540
+      8: 700
+      9: 880
+      10: 1080
+    choices_per_level: 1
+    perk_pool:
+      - id: perk_stamina_plus_1
+        label: "+1 max stamina"
+        apply:
+          max_stamina_add: 1
+      - id: perk_zombie_slayer
+        label: "Zombie slayer"
+        apply:
+          zombie_clear_stamina_cost_add: -1
+          min_zombie_clear_cost: 1
+  actions:
+    clear_zombie:
+      stamina_cost: 2
+      min_cost_after_perks: 1
+    gather_start:
+      stamina_cost: 1
+    eat_food:
+      stamina_cost: 0
+
+tasks:
+  due_date:
+    grace_hours: 0
+
+modifiers:
+  global_rules:
+    max_modifiers_per_task: 4
+    allow_duplicate_types: false
+    duplicate_type_allowlist:
+      - mod.next_action
+
+rules:
+  stacking:
+    allowed_pairs:
+      - [villager, task]
+      - [task, modifier]
+      - [villager, zombie]
+      - [villager, resource]
+      - [villager, food]
+      - [resource, resource]
+      - [food, food]
+      - [task, task]
+    disallowed:
+      - [zombie, task]
+      - [modifier, villager]
+      - [food, task]
+  uniqueness:
+    global_unique_modifiers:
+      - mod.next_action
+
+resources:
+  nodes:
+    - id: berry_bush
+      charges:
+        min: 2
+        max: 5
+      gather:
+        base_time_s: 6
+    - id: mushroom_patch
+      charges:
+        min: 2
+        max: 4
+      gather:
+        base_time_s: 8
+    - id: scrap_pile
+      charges:
+        min: 3
+        max: 6
+      gather:
+        base_time_s: 10
+
+food:
+  items:
+    - id: berries
+      stamina_restore: 2
+    - id: mushroom
+      stamina_restore: 3
+    - id: bread
+      stamina_restore: 4
+    - id: apple
+      stamina_restore: 2
+
+decks:
+  economy:
+    base_cost_currency: coin
+    zombie_cost_multiplier_per_zombie: 0.05
+    overrun_cost_multiplier_per_level: 0.02
+  list:
+    - id: deck.first_day
+      status: unlocked
+      base_cost: 0
+      free_opens: 5
+      unlock_condition:
+        type: always
+      draws:
+        count: 9
+        rng_pool:
+          - card_type: blank
+            weight: 55
+          - card_type: modifier
+            modifier_id: recurring
+            weight: 12
+          - card_type: modifier
+            modifier_id: next_action
+            weight: 12
+          - card_type: modifier
+            modifier_id: deadline_pin
+            weight: 8
+          - card_type: loot
+            loot_id: coin
+            amount: 1
+            weight: 9
+          - card_type: loot
+            loot_id: parts
+            amount: 1
+            weight: 4
+          - card_type: resource
+            resource_id: berry_bush
+            weight: 15
+
+    # Collector deck: does not spawn packs; used as drag target for loot.collect_stack.
+    - id: deck.collect
+      status: unlocked
+      base_cost: 0
+      free_opens: 0
+      unlock_condition:
+        type: always
+      draws:
+        count: 1
+        rng_pool:
+          - card_type: loot
+            loot_id: coin
+            amount: 1
+            weight: 1
+
+    - id: deck.humble_beginnings
+      status: unlocked
+      base_cost: 3
+      free_opens: 1
+      unlock_condition:
+        type: always
+      draws:
+        count: 3
+        rng_pool:
+          - card_type: blank
+            weight: 30
+          - card_type: modifier
+            modifier_id: next_action
+            weight: 8
+          - card_type: modifier
+            modifier_id: recurring_contract
+            weight: 8
+          - card_type: modifier
+            modifier_id: deadline_pin
+            weight: 5
+          - card_type: loot
+            loot_id: coin
+            amount: 2
+            weight: 18
+          - card_type: loot
+            loot_id: paper
+            amount: 1
+            weight: 12
+          - card_type: resource
+            resource_id: berry_bush
+            weight: 14
+          - card_type: resource
+            resource_id: scrap_pile
+            weight: 5
+
+    - id: deck.seeking_wisdom
+      status: unlocked
+      base_cost: 4
+      free_opens: 0
+      unlock_condition:
+        type: always
+      draws:
+        count: 4
+        rng_pool:
+          - card_type: modifier
+            modifier_id: context_filter
+            weight: 14
+          - card_type: modifier
+            modifier_id: next_action
+            weight: 10
+          - card_type: modifier
+            modifier_id: importance_seal
+            weight: 9
+          - card_type: modifier
+            modifier_id: deadline_pin
+            weight: 8
+          - card_type: loot
+            loot_id: paper
+            amount: 2
+            weight: 12
+          - card_type: loot
+            loot_id: ink
+            amount: 2
+            weight: 12
+          - card_type: loot
+            loot_id: blueprint_shard
+            amount: 1
+            weight: 2
+          - card_type: resource
+            resource_id: mushroom_patch
+            weight: 8
+          - card_type: blank
+            weight: 10
+
+    - id: deck.reap_sow
+      status: locked
+      base_cost: 10
+      free_opens: 0
+      unlock_condition:
+        type: processed_tasks_gte
+        value: 6
+      draws:
+        count: 4
+        rng_pool:
+          - card_type: resource
+            resource_id: berry_bush
+            weight: 18
+          - card_type: resource
+            resource_id: mushroom_patch
+            weight: 18
+          - card_type: food
+            food_id: berries
+            amount: 1
+            weight: 12
+          - card_type: food
+            food_id: mushroom
+            amount: 1
+            weight: 12
+          - card_type: food
+            food_id: bread
+            amount: 1
+            weight: 8
+          - card_type: loot
+            loot_id: coin
+            amount: 3
+            weight: 10
+          - card_type: modifier
+            modifier_id: schedule_token
+            weight: 8
+          - card_type: loot
+            loot_id: paper
+            amount: 1
+            weight: 6
+
+    - id: deck.organization
+      status: locked
+      base_cost: 15
+      free_opens: 0
+      unlock_condition:
+        type: processed_tasks_gte
+        value: 12
+      draws:
+        count: 3
+        rng_pool:
+          - card_type: modifier
+            modifier_id: recurring_contract
+            weight: 14
+          - card_type: modifier
+            modifier_id: deadline_pin
+            weight: 12
+          - card_type: modifier
+            modifier_id: importance_seal
+            weight: 10
+          - card_type: modifier
+            modifier_id: context_filter
+            weight: 14
+          - card_type: modifier
+            modifier_id: next_action
+            weight: 8
+          - card_type: loot
+            loot_id: ink
+            amount: 2
+            weight: 12
+          - card_type: loot
+            loot_id: paper
+            amount: 2
+            weight: 12
+          - card_type: loot
+            loot_id: blueprint_shard
+            amount: 1
+            weight: 2
+          - card_type: blank
+            weight: 6
+
+    - id: deck.survival
+      status: locked
+      base_cost: 12
+      free_opens: 0
+      unlock_condition:
+        type: processed_tasks_gte
+        value: 8
+      draws:
+        count: 3
+        rng_pool:
+          - card_type: resource
+            resource_id: berry_bush
+            weight: 16
+          - card_type: resource
+            resource_id: mushroom_patch
+            weight: 16
+          - card_type: food
+            food_id: berries
+            amount: 1
+            weight: 10
+          - card_type: food
+            food_id: mushroom
+            amount: 1
+            weight: 10
+          - card_type: food
+            food_id: bread
+            amount: 1
+            weight: 12
+          - card_type: loot
+            loot_id: coin
+            amount: 3
+            weight: 12
+          - card_type: modifier
+            modifier_id: schedule_token
+            weight: 8
+
+    - id: deck.armory
+      status: locked
+      base_cost: 15
+      free_opens: 0
+      unlock_condition:
+        type: zombies_seen_gte
+        value: 2
+      draws:
+        count: 3
+        rng_pool:
+          - card_type: modifier
+            modifier_id: deadline_pin
+            weight: 14
+          - card_type: modifier
+            modifier_id: schedule_token
+            weight: 14
+          - card_type: modifier
+            modifier_id: importance_seal
+            weight: 10
+          - card_type: loot
+            loot_id: coin
+            amount: 4
+            weight: 14
+          - card_type: loot
+            loot_id: parts
+            amount: 2
+            weight: 12
+          - card_type: loot
+            loot_id: gear
+            amount: 1
+            weight: 8
+          - card_type: loot
+            loot_id: paper
+            amount: 1
+            weight: 6
+          - card_type: blank
+            weight: 4
+
+    - id: deck.explorers
+      status: locked
+      base_cost: 20
+      free_opens: 0
+      unlock_condition:
+        type: processed_tasks_gte
+        value: 18
+      draws:
+        count: 3
+        rng_pool:
+          - card_type: resource
+            resource_id: scrap_pile
+            weight: 16
+          - card_type: resource
+            resource_id: mushroom_patch
+            weight: 8
+          - card_type: loot
+            loot_id: blueprint_shard
+            amount: 1
+            weight: 8
+          - card_type: loot
+            loot_id: gear
+            amount: 1
+            weight: 10
+          - card_type: loot
+            loot_id: parts
+            amount: 2
+            weight: 12
+          - card_type: loot
+            loot_id: coin
+            amount: 5
+            weight: 12
+          - card_type: modifier
+            modifier_id: next_action
+            weight: 8
+          - card_type: modifier
+            modifier_id: context_filter
+            weight: 6
+          - card_type: food
+            food_id: bread
+            amount: 1
+            weight: 6
+
+zombies:
+  types:
+    - id: default_zombie
+      cleanup:
+        stamina_cost: 2
+        reward_on_clear:
+          rng_pool:
+            - type: loot
+              id: coin
+              amount: 2
+              weight: 12
+            - type: loot
+              id: paper
+              amount: 1
+              weight: 6
+            - type: none
+              amount: 0
+              weight: 12
+
+ui_hints:
+  board:
+    default_spawn_layout:
+      zombies:
+        start_x: 1500
+        start_y: 150
+        dx: 150

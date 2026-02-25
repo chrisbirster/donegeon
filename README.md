@@ -41,6 +41,7 @@ Environment variables:
 - `DONEGEON_HTTP_PORT` (default `42069`)
 - `DONEGEON_DB_PATH` (default `donegeon.db`)
 - `DONEGEON_BOARD_CONFIG_PATH` (optional YAML gameplay tuning file; legacy alias `DONEGEON_CONFIG_PATH`)
+  - if unset, server auto-loads `donegeon_config.yml` (or `donegeon_config.yaml`) when present in cwd
 - `DONEGEON_REQUIRE_AUTH` (default `true`)
 - `DONEGEON_API_TOKEN` (default `TOKEN_VALID`)
 - `DONEGEON_READONLY_API_TOKEN` (default `TOKEN_READONLY`)

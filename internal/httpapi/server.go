@@ -143,7 +143,8 @@ func (a *API) handleParseQuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"parsed": a.parser.Parse(req.Text)})
+	parsed := a.tasks.ParseQuickAdd(task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone"))), req.Text)
+	writeJSON(w, http.StatusOK, map[string]any{"parsed": parsed})
 }
 
 func (a *API) handleParseRRule(w http.ResponseWriter, r *http.Request) {
@@ -191,7 +192,8 @@ func (a *API) handleQuickAddTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, parsed, err := a.tasks.CreateFromQuickAdd(r.Context(), strings.TrimSpace(req.Text))
+	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
+	created, parsed, err := a.tasks.CreateFromQuickAdd(ctx, strings.TrimSpace(req.Text))
 	if err != nil {
 		writeAPIError(w, err)
 		return
@@ -352,7 +354,8 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := a.tasks.Create(r.Context(), task.CreateInput{
+	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
+	created, err := a.tasks.Create(ctx, task.CreateInput{
 		Content:     strings.TrimSpace(req.Content),
 		Description: strings.TrimSpace(req.Description),
 		ProjectID:   cleanPtr(req.ProjectID),
@@ -398,7 +401,8 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := a.tasks.Update(r.Context(), id, task.UpdateInput{
+	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
+	updated, err := a.tasks.Update(ctx, id, task.UpdateInput{
 		Content:     cleanPtr(req.Content),
 		Description: cleanPtr(req.Description),
 		ProjectID:   cleanPtr(req.ProjectID),
@@ -429,7 +433,8 @@ func (a *API) handleCloseTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.tasks.Close(r.Context(), id); err != nil {
+	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
+	if err := a.tasks.Close(ctx, id); err != nil {
 		writeAPIError(w, err)
 		return
 	}

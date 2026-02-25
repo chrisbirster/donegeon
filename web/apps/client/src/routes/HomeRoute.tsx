@@ -375,6 +375,13 @@ export default function HomeRoute() {
     return chips;
   });
 
+  const parsedGuidance = createMemo(() => {
+    const parsed = parsedInput();
+    if (!parsed || !parsed.recurrenceRule) return "";
+    if (parsed.dueText || parsed.deadline) return "";
+    return "Recurrence sets repeat cadence only. Add due text (for example, tomorrow) and/or {deadline} to fill those fields.";
+  });
+
   const searchResults = createMemo(() => {
     const query = searchText().trim().toLowerCase();
     if (!query) return [] as Task[];
@@ -544,16 +551,7 @@ export default function HomeRoute() {
   async function completeTask(item: Task) {
     try {
       await taskApi.close(item.id);
-      setTasks((current) =>
-        current.map((task) =>
-          task.id === item.id
-            ? {
-                ...task,
-                checked: true,
-              }
-            : task,
-        ),
-      );
+      await refreshData();
       if (detailTaskId() === item.id) {
         closeDetailModal();
       }
@@ -935,6 +933,11 @@ export default function HomeRoute() {
                 </For>
               </div>
             </Show>
+            <Show when={parsedGuidance()}>
+              <p class="mt-2 rounded-lg border border-[#2f4a39] bg-[#0f2219] px-3 py-2 text-xs text-[#b5efce]">
+                {parsedGuidance()}
+              </p>
+            </Show>
 
             <div class="mt-3 flex justify-end">
               <button
@@ -1251,6 +1254,9 @@ export default function HomeRoute() {
                   />
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Recurrence (RRULE)</label>
+                  <p class="text-xs text-[var(--text-dim)]">
+                    Recurrence controls how often the task repeats. Due and Deadline are separate fields.
+                  </p>
                   <input
                     value={detailRecurrence()}
                     onInput={(event) => setDetailRecurrence(event.currentTarget.value)}

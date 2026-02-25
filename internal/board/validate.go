@@ -168,6 +168,12 @@ func (v *Validator) ValidateStackMerge(state *State, targetID, sourceID string) 
 
 	targetKinds := v.stackCardKinds(state, target)
 	sourceKinds := v.stackCardKinds(state, source)
+
+	// Deck stacks are immutable anchors; collection is handled via loot.collect_stack.
+	if targetKinds["deck"] || sourceKinds["deck"] {
+		return ErrInvalidStackPair
+	}
+
 	hasTaskAcrossMerge := targetKinds["task"] || sourceKinds["task"]
 
 	if isPureModifierStack(targetKinds) && isPureModifierStack(sourceKinds) {

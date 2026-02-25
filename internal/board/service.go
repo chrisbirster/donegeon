@@ -190,7 +190,7 @@ func (s *Service) executeCommand(ctx context.Context, state *State, cmd string, 
 	case "stack.bringToFront":
 		return cmdStackBringToFront(state, args)
 	case "stack.merge":
-		return s.cmdStackMerge(state, args)
+		return s.cmdStackMerge(ctx, state, args)
 	case "stack.split":
 		return cmdStackSplit(state, args)
 	case "stack.unstack":
@@ -268,7 +268,7 @@ func cmdStackBringToFront(state *State, args map[string]any) (any, error) {
 	}, nil
 }
 
-func (s *Service) cmdStackMerge(state *State, args map[string]any) (any, error) {
+func (s *Service) cmdStackMerge(ctx context.Context, state *State, args map[string]any) (any, error) {
 	targetID, err := getString(args, "targetId")
 	if err != nil {
 		return nil, err
@@ -286,6 +286,20 @@ func (s *Service) cmdStackMerge(state *State, args map[string]any) (any, error) 
 	if source == nil {
 		return nil, fmt.Errorf("source stack not found: %s", sourceID)
 	}
+
+	// Dragging any collectible stack onto deck.collect consumes it into inventory.
+	if isCollectDeckStack(state, target) && !stackHasKind(state, source, "deck") {
+		return s.cmdLootCollectStack(ctx, state, map[string]any{"stackId": sourceID})
+	}
+	if isCollectDeckStack(state, source) && !stackHasKind(state, target, "deck") {
+		return s.cmdLootCollectStack(ctx, state, map[string]any{"stackId": targetID})
+	}
+
+	// Deck stacks are not mergeable in normal stack flow.
+	if stackHasKind(state, target, "deck") || stackHasKind(state, source, "deck") {
+		return nil, ErrInvalidStackPair
+	}
+
 	if s.validator != nil {
 		if err := s.validator.ValidateStackMerge(state, targetID, sourceID); err != nil {
 			return nil, err
@@ -294,12 +308,7 @@ func (s *Service) cmdStackMerge(state *State, args map[string]any) (any, error) 
 	if err := state.MergeStacks(targetID, sourceID); err != nil {
 		return nil, err
 	}
-	if stackHasKind(state, target, "task") {
-		ensureTaskFaceCard(state, target)
-	}
-	if stackHasKind(state, target, "resource") {
-		ensureResourceFaceCard(state, target)
-	}
+	ensurePriorityFaceCard(state, target)
 
 	return map[string]any{
 		"target":        target,
@@ -336,6 +345,8 @@ func cmdStackSplit(state *State, args map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	ensurePriorityFaceCard(state, source)
+	ensurePriorityFaceCard(state, newStack)
 	if newX != nil && newY != nil {
 		newStack.Pos = Point{X: *newX, Y: *newY}
 	}
@@ -713,8 +724,31 @@ func (s *Service) cmdBoardSeedDefault(state *State, args map[string]any) (any, e
 
 	created = append(created, createSingleCardStack(state, "villager.basic", Point{X: 300, Y: 200}, map[string]any{"name": "Flicker"}))
 	created = append(created, createSingleCardStack(state, "villager.basic", Point{X: 420, Y: 200}, map[string]any{"name": "Pip"}))
-	created = append(created, createSingleCardStack(state, "resource.tree", Point{X: 260, Y: 340}, map[string]any{"charges": 3}))
-	created = append(created, createSingleCardStack(state, "food.apple", Point{X: 440, Y: 340}, map[string]any{"amount": 2}))
+
+	resourceDefID := "resource.tree"
+	resourceData := map[string]any{"charges": 3}
+	if len(s.cfg.Resources.Nodes) > 0 {
+		node := s.cfg.Resources.Nodes[0]
+		if id := strings.TrimSpace(node.ID); id != "" {
+			resourceDefID = "resource." + id
+		}
+		resourceData["charges"] = randomResourceCharges(node.Charges.Min, node.Charges.Max, nil)
+		if node.Gather.BaseTimeS > 0 {
+			resourceData["gatherTimeS"] = node.Gather.BaseTimeS
+		}
+	}
+
+	foodDefID := "food.apple"
+	foodData := map[string]any{"amount": 2}
+	if len(s.cfg.Food.Items) > 0 {
+		item := s.cfg.Food.Items[0]
+		if id := strings.TrimSpace(item.ID); id != "" {
+			foodDefID = "food." + id
+		}
+	}
+
+	created = append(created, createSingleCardStack(state, resourceDefID, Point{X: 260, Y: 340}, resourceData))
+	created = append(created, createSingleCardStack(state, foodDefID, Point{X: 440, Y: 340}, foodData))
 
 	return map[string]any{
 		"seeded":  true,
@@ -774,6 +808,9 @@ func (s *Service) cmdDeckSpawnPack(ctx context.Context, state *State, args map[s
 	deckCfg, ok := s.deckConfigByID(deckCard.DefID)
 	if !ok {
 		return nil, fmt.Errorf("deck not found in config: %s", deckCard.DefID)
+	}
+	if deckCfg.ID == "deck.collect" {
+		return nil, fmt.Errorf("deck.collect cannot spawn packs")
 	}
 	if unlocked, reason := s.isDeckUnlocked(ctx, state, deckCfg); !unlocked {
 		return nil, fmt.Errorf("deck is locked: %s", reason)
@@ -875,12 +912,25 @@ func (s *Service) cmdDeckOpenPack(ctx context.Context, state *State, args map[st
 	delete(state.Stacks, packStackID)
 
 	rng := s.newDeckRand(state, deckCfg.ID, packStackID, seedArg)
-	created := make([]*Stack, 0, count)
-	for i := 0; i < count; i++ {
+	drawPlan := make([]weightedDeckDraw, 0, count)
+	if deckCfg.ID == "deck.first_day" && deckOpenCount == 0 {
+		for _, starter := range s.firstDayStarterDraws() {
+			if len(drawPlan) >= count {
+				break
+			}
+			drawPlan = append(drawPlan, starter)
+		}
+	}
+	for len(drawPlan) < count {
 		drawn, err := pickWeightedDeckEntry(deckCfg.DrawPool, rng)
 		if err != nil {
 			return nil, err
 		}
+		drawPlan = append(drawPlan, drawn)
+	}
+
+	created := make([]*Stack, 0, count)
+	for i, drawn := range drawPlan {
 		defID, data, err := s.mapDeckDrawToCard(drawn, rng)
 		if err != nil {
 			return nil, err
@@ -906,6 +956,24 @@ func (s *Service) cmdDeckOpenPack(ctx context.Context, state *State, args map[st
 		},
 		"inventory": copyIntMap(meta.Inventory),
 	}, nil
+}
+
+func (s *Service) firstDayStarterDraws() []weightedDeckDraw {
+	resourceID := "tree"
+	if len(s.cfg.Resources.Nodes) > 0 && strings.TrimSpace(s.cfg.Resources.Nodes[0].ID) != "" {
+		resourceID = strings.TrimSpace(s.cfg.Resources.Nodes[0].ID)
+	}
+	foodID := "apple"
+	if len(s.cfg.Food.Items) > 0 && strings.TrimSpace(s.cfg.Food.Items[0].ID) != "" {
+		foodID = strings.TrimSpace(s.cfg.Food.Items[0].ID)
+	}
+	return []weightedDeckDraw{
+		{CardType: "villager", Weight: 1},
+		{CardType: "resource", ResourceID: resourceID, Weight: 1},
+		{CardType: "food", FoodID: foodID, Amount: 1, Weight: 1},
+		{CardType: "blank", Weight: 1},
+		{CardType: "loot", LootID: "coin", Amount: 1, Weight: 1},
+	}
 }
 
 func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, args map[string]any) (any, error) {
@@ -961,7 +1029,7 @@ func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, args m
 	card := state.CreateCard("task.instance", cardData)
 	cardIDs = append(cardIDs, card.ID)
 	stack := state.CreateStack(Point{X: x, Y: y}, cardIDs)
-	ensureTaskFaceCard(state, stack)
+	ensurePriorityFaceCard(state, stack)
 
 	return map[string]any{
 		"stack": stack,
@@ -997,7 +1065,7 @@ func (s *Service) cmdTaskAddModifier(state *State, args map[string]any) (any, er
 	}
 	modCard := state.CreateCard(modifierDefID, nil)
 	stack.Cards = append(stack.Cards, modCard.ID)
-	ensureTaskFaceCard(state, stack)
+	ensurePriorityFaceCard(state, stack)
 
 	return map[string]any{
 		"stack":    stack,
@@ -1041,7 +1109,7 @@ func cmdTaskAssignVillager(state *State, args map[string]any) (any, error) {
 	if err := state.MergeStacks(taskStackID, villagerStackID); err != nil {
 		return nil, err
 	}
-	ensureTaskFaceCard(state, taskStack)
+	ensurePriorityFaceCard(state, taskStack)
 
 	assignedVillagerID := taskStackID
 	_ = ensureVillager(ensureMeta(state), assignedVillagerID)
@@ -1242,7 +1310,7 @@ func (s *Service) cmdZombieClear(state *State, args map[string]any) (any, error)
 		delete(state.Stacks, zombieStackID)
 	} else {
 		zombieStack.Cards = kept
-		ensureTaskFaceCard(state, zombieStack)
+		ensurePriorityFaceCard(state, zombieStack)
 	}
 
 	if targetStackID == zombieStackID && zombieStackID != villagerStackID {
@@ -1332,7 +1400,7 @@ func (s *Service) cmdResourceGather(state *State, args map[string]any) (any, err
 		if err := state.MergeStacks(resourceStackID, villagerStackID); err != nil {
 			return nil, err
 		}
-		ensureResourceFaceCard(state, resourceStack)
+		ensurePriorityFaceCard(state, resourceStack)
 	}
 
 	resourceCard := firstCardByKind(state, resourceStack, "resource")
@@ -1622,6 +1690,14 @@ func topCard(state *State, stack *Stack) *Card {
 	return state.GetCard(stack.Cards[len(stack.Cards)-1])
 }
 
+func isCollectDeckStack(state *State, stack *Stack) bool {
+	card := topCard(state, stack)
+	if card == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(card.DefID), "deck.collect")
+}
+
 func cardKind(defID string) string {
 	defID = strings.TrimSpace(defID)
 	if defID == "" {
@@ -1666,54 +1742,36 @@ func firstCardByKind(state *State, stack *Stack, kind string) *Card {
 	return nil
 }
 
-func ensureTaskFaceCard(state *State, stack *Stack) {
+func ensurePriorityFaceCard(state *State, stack *Stack) {
 	if state == nil || stack == nil || len(stack.Cards) <= 1 {
 		return
 	}
 
-	taskIndex := -1
-	for i := len(stack.Cards) - 1; i >= 0; i-- {
-		card := state.GetCard(stack.Cards[i])
-		if card == nil {
-			continue
+	priorityKinds := []string{"task", "resource", "food"}
+	targetIndex := -1
+	for _, kind := range priorityKinds {
+		for i := len(stack.Cards) - 1; i >= 0; i-- {
+			card := state.GetCard(stack.Cards[i])
+			if card == nil {
+				continue
+			}
+			if cardKind(card.DefID) == kind {
+				targetIndex = i
+				break
+			}
 		}
-		if cardKind(card.DefID) == "task" {
-			taskIndex = i
+		if targetIndex >= 0 {
 			break
 		}
 	}
-	if taskIndex < 0 || taskIndex == len(stack.Cards)-1 {
+
+	if targetIndex < 0 || targetIndex == len(stack.Cards)-1 {
 		return
 	}
 
-	taskCardID := stack.Cards[taskIndex]
-	stack.Cards = append(stack.Cards[:taskIndex], stack.Cards[taskIndex+1:]...)
-	stack.Cards = append(stack.Cards, taskCardID)
-}
-
-func ensureResourceFaceCard(state *State, stack *Stack) {
-	if state == nil || stack == nil || len(stack.Cards) <= 1 {
-		return
-	}
-
-	resourceIndex := -1
-	for i := len(stack.Cards) - 1; i >= 0; i-- {
-		card := state.GetCard(stack.Cards[i])
-		if card == nil {
-			continue
-		}
-		if cardKind(card.DefID) == "resource" {
-			resourceIndex = i
-			break
-		}
-	}
-	if resourceIndex < 0 || resourceIndex == len(stack.Cards)-1 {
-		return
-	}
-
-	resourceCardID := stack.Cards[resourceIndex]
-	stack.Cards = append(stack.Cards[:resourceIndex], stack.Cards[resourceIndex+1:]...)
-	stack.Cards = append(stack.Cards, resourceCardID)
+	faceCardID := stack.Cards[targetIndex]
+	stack.Cards = append(stack.Cards[:targetIndex], stack.Cards[targetIndex+1:]...)
+	stack.Cards = append(stack.Cards, faceCardID)
 }
 
 func removeCardFromStack(state *State, stackID string, cardID string) {

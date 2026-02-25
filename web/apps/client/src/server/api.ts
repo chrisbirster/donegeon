@@ -40,9 +40,26 @@ export type BoardCard = {
   data?: Record<string, unknown>;
 };
 
+export type BoardMeta = {
+  inventory?: Record<string, number>;
+  villagers?: Record<
+    string,
+    {
+      stamina?: number;
+      xp?: number;
+      level?: number;
+      perks?: string[];
+    }
+  >;
+  metrics?: Record<string, number>;
+  deckOpen?: Record<string, number>;
+  dayTickCount?: number;
+};
+
 export type BoardStateResponse = {
   stacks: Record<string, BoardStack>;
   cards: Record<string, BoardCard>;
+  meta?: BoardMeta;
   version: string;
 };
 
@@ -122,11 +139,22 @@ export type BoardCommandResponse = {
 };
 
 function getAuthHeaders() {
+  let timezone: string | undefined;
+  try {
+    timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    timezone = undefined;
+  }
+
   const token = localStorage.getItem("donegeon_token") || DEFAULT_TOKEN;
-  return {
+  const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
+  if (timezone) {
+    headers["X-Timezone"] = timezone;
+  }
+  return headers;
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {

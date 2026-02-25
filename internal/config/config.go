@@ -23,10 +23,15 @@ type Config struct {
 }
 
 func Load() (Config, error) {
+	boardConfigPath := firstNonEmptyEnv("DONEGEON_BOARD_CONFIG_PATH", "DONEGEON_CONFIG_PATH")
+	if boardConfigPath == "" {
+		boardConfigPath = defaultBoardConfigPath()
+	}
+
 	cfg := Config{
 		HTTPPort:         envOr("DONEGEON_HTTP_PORT", "42069"),
 		DBPath:           envOr("DONEGEON_DB_PATH", "donegeon.db"),
-		BoardConfigPath:  firstNonEmptyEnv("DONEGEON_BOARD_CONFIG_PATH", "DONEGEON_CONFIG_PATH"),
+		BoardConfigPath:  boardConfigPath,
 		WriteToken:       envOr("DONEGEON_API_TOKEN", "TOKEN_VALID"),
 		ReadOnlyToken:    envOr("DONEGEON_READONLY_API_TOKEN", "TOKEN_READONLY"),
 		RequestTimeout:   envDurationOr("DONEGEON_REQUEST_TIMEOUT", 15*time.Second),
@@ -72,6 +77,21 @@ func firstNonEmptyEnv(keys ...string) string {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			return value
 		}
+	}
+	return ""
+}
+
+func defaultBoardConfigPath() string {
+	candidates := []string{
+		"donegeon_config.yml",
+		"donegeon_config.yaml",
+	}
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		return candidate
 	}
 	return ""
 }

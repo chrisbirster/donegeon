@@ -568,6 +568,188 @@ func TestWorldEndDayRecurrenceAndOverdueZombiePipeline(t *testing.T) {
 	}
 }
 
+func TestStackMergeCollectDeckConsumesSourceAndDecksDoNotMerge(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	state := env.state(t)
+	collectDeck := findStackWithTopDef(state, "deck.collect")
+	if collectDeck == nil {
+		t.Fatal("expected collect deck in seeded board")
+	}
+	firstDayDeck := findStackWithTopDef(state, "deck.first_day")
+	if firstDayDeck == nil {
+		t.Fatal("expected first day deck in seeded board")
+	}
+
+	lootStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "loot.coin",
+		"x":     520,
+		"y":     320,
+		"data": map[string]any{
+			"amount": 3,
+		},
+	}), "stack")
+	beforeCoin := env.state(t).Meta.Inventory["coin"]
+
+	result := env.command(t, "stack.merge", map[string]any{
+		"targetId": collectDeck.ID,
+		"sourceId": lootStack.ID,
+	})
+	patch, ok := result.Patch.(map[string]any)
+	if !ok {
+		t.Fatalf("expected patch map from collect merge, got %T", result.Patch)
+	}
+	if removed, _ := patch["removedStack"].(string); removed != lootStack.ID {
+		t.Fatalf("expected removedStack=%s, got %q", lootStack.ID, removed)
+	}
+	after := env.state(t)
+	if after.Meta.Inventory["coin"] <= beforeCoin {
+		t.Fatalf("expected collect merge to increase coin inventory, before=%d after=%d", beforeCoin, after.Meta.Inventory["coin"])
+	}
+	if after.Stacks[collectDeck.ID] == nil {
+		t.Fatal("expected collect deck stack to persist after collection")
+	}
+
+	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     640,
+		"y":     280,
+		"data": map[string]any{
+			"title": "Deck merge should fail",
+		},
+	}), "stack")
+	err := env.commandExpectError(t, "stack.merge", map[string]any{
+		"targetId": firstDayDeck.ID,
+		"sourceId": taskStack.ID,
+	})
+	if !strings.Contains(strings.ToLower(err.Error()), "cannot") &&
+		!strings.Contains(strings.ToLower(err.Error()), "invalid") {
+		t.Fatalf("expected deck merge rejection error, got: %v", err)
+	}
+}
+
+func TestFirstDayPackFirstOpenIncludesStarterCards(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	state := env.state(t)
+	firstDayDeck := findStackWithTopDef(state, "deck.first_day")
+	if firstDayDeck == nil {
+		t.Fatal("expected first day deck")
+	}
+
+	env.command(t, "deck.spawn_pack", map[string]any{
+		"deckStackId": firstDayDeck.ID,
+		"x":           240,
+		"y":           360,
+	})
+	pack := findStackWithTopDef(env.state(t), "deck.first_day_pack")
+	if pack == nil {
+		t.Fatal("expected first day pack stack")
+	}
+
+	openResult := env.command(t, "deck.open_pack", map[string]any{
+		"packStackId": pack.ID,
+		"deckId":      "deck.first_day",
+		"radius":      100,
+		"count":       5,
+	})
+	created := patchStacks(t, openResult, "createdStacks")
+	if len(created) != 5 {
+		t.Fatalf("expected 5 created stacks, got %d", len(created))
+	}
+
+	after := env.state(t)
+	hasVillager := false
+	hasResource := false
+	hasFood := false
+	for _, stack := range created {
+		if stack == nil || len(stack.Cards) == 0 {
+			continue
+		}
+		top := after.Cards[stack.Cards[len(stack.Cards)-1]]
+		if top == nil {
+			continue
+		}
+		switch cardKind(top.DefID) {
+		case "villager":
+			hasVillager = true
+		case "resource":
+			hasResource = true
+		case "food":
+			hasFood = true
+		}
+	}
+	if !hasVillager || !hasResource || !hasFood {
+		t.Fatalf("expected first open starter set (villager/resource/food), got villager=%t resource=%t food=%t", hasVillager, hasResource, hasFood)
+	}
+}
+
+func TestMergePrioritizesTaskResourceFoodAsFaceCards(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     540,
+		"y":     220,
+		"data": map[string]any{
+			"title": "Face card task",
+		},
+	}), "stack")
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.tree",
+		"x":     600,
+		"y":     220,
+	}), "stack")
+	foodStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "food.apple",
+		"x":     660,
+		"y":     220,
+	}), "stack")
+
+	env.command(t, "stack.merge", map[string]any{
+		"targetId": resourceStack.ID,
+		"sourceId": foodStack.ID,
+	})
+	afterResourceFood := env.state(t)
+	resourceFoodStack := afterResourceFood.Stacks[resourceStack.ID]
+	if resourceFoodStack == nil {
+		t.Fatal("expected merged resource+food stack")
+	}
+	resourceFoodTop := afterResourceFood.Cards[resourceFoodStack.Cards[len(resourceFoodStack.Cards)-1]]
+	if resourceFoodTop == nil {
+		t.Fatal("expected top card on merged resource+food stack")
+	}
+	if cardKind(resourceFoodTop.DefID) != "resource" {
+		t.Fatalf("expected resource face card for resource+food stack, got %s", resourceFoodTop.DefID)
+	}
+
+	env.command(t, "stack.merge", map[string]any{
+		"targetId": taskStack.ID,
+		"sourceId": resourceStack.ID,
+	})
+	afterTaskMerge := env.state(t)
+	merged := afterTaskMerge.Stacks[taskStack.ID]
+	if merged == nil {
+		t.Fatal("expected merged task stack")
+	}
+	top := afterTaskMerge.Cards[merged.Cards[len(merged.Cards)-1]]
+	if top == nil {
+		t.Fatal("expected top card on merged task stack")
+	}
+	if cardKind(top.DefID) != "task" {
+		t.Fatalf("expected task face card when task/resource/food are merged, got %s", top.DefID)
+	}
+}
+
 func findStackWithTopDef(state StateResponse, defID string) *Stack {
 	for _, stack := range state.Stacks {
 		if stack == nil || len(stack.Cards) == 0 {
