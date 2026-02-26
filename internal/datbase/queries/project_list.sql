@@ -5,6 +5,8 @@ WITH task_counts AS (
     FROM tasks
     WHERE is_deleted = 0
       AND checked = 0
+      AND user_id = :user_id
+      AND workspace_id = :workspace_id
       AND project_id IS NOT NULL
       AND project_id <> ''
     GROUP BY project_id
@@ -20,22 +22,40 @@ project_rows AS (
         p.created_at,
         p.updated_at
     FROM projects p
-    WHERE (:include_archived = 1 OR p.is_archived = 0)
+    WHERE p.user_id = :user_id
+      AND (
+          p.workspace_id = :workspace_id
+          OR p.workspace_id IS NULL
+          OR p.workspace_id = ''
+      )
+      AND (:include_archived = 1 OR p.is_archived = 0)
 ),
 orphan_rows AS (
     SELECT
         t.project_id AS id,
-        t.project_id AS name,
+        CASE
+            WHEN INSTR(t.project_id, '::') > 0 THEN SUBSTR(t.project_id, INSTR(t.project_id, '::') + 2)
+            ELSE t.project_id
+        END AS name,
         0 AS is_inbox_project,
         0 AS is_archived,
         0 AS is_favorite,
-        NULL AS workspace_id,
+        :workspace_id AS workspace_id,
         MIN(t.created_at) AS created_at,
         MAX(t.updated_at) AS updated_at
     FROM tasks t
-    LEFT JOIN projects p ON p.id = t.project_id
+    LEFT JOIN projects p
+      ON p.id = t.project_id
+     AND p.user_id = :user_id
+     AND (
+          p.workspace_id = :workspace_id
+          OR p.workspace_id IS NULL
+          OR p.workspace_id = ''
+     )
     WHERE t.project_id IS NOT NULL
       AND t.project_id <> ''
+      AND t.user_id = :user_id
+      AND t.workspace_id = :workspace_id
       AND p.id IS NULL
     GROUP BY t.project_id
 ),

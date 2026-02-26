@@ -26,11 +26,12 @@ func NewParser() *Parser {
 }
 
 var (
-	deadlinePattern = regexp.MustCompile(`\{([^{}]+)\}`)
-	projectPattern  = regexp.MustCompile(`^#[A-Za-z][A-Za-z0-9_-]*$`)
-	labelPattern    = regexp.MustCompile(`^@[A-Za-z][A-Za-z0-9_-]*$`)
-	assigneePattern = regexp.MustCompile(`^\+[A-Za-z][A-Za-z0-9_-]*$`)
-	priorityPattern = regexp.MustCompile(`^p([1-4])$`)
+	deadlinePattern  = regexp.MustCompile(`\{([^{}]+)\}`)
+	projectPattern   = regexp.MustCompile(`^#[A-Za-z][A-Za-z0-9_-]*$`)
+	labelPattern     = regexp.MustCompile(`^@[A-Za-z][A-Za-z0-9_-]*$`)
+	assigneePattern  = regexp.MustCompile(`^\+[A-Za-z][A-Za-z0-9_-]*$`)
+	priorityPattern  = regexp.MustCompile(`^p([1-4])$`)
+	duePrefixPattern = regexp.MustCompile(`(?i)^due\s+(?:on\s+)?`)
 
 	numberWithOrdinalPattern = regexp.MustCompile(`^(\d+)(?:st|nd|rd|th)?$`)
 
@@ -48,6 +49,7 @@ var (
 )
 
 var duePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\bdue\s+(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b`),
 	regexp.MustCompile(`(?i)\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b`),
 	regexp.MustCompile(`(?i)\b(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b`),
 	regexp.MustCompile(`(?i)\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week)\b`),
@@ -128,7 +130,7 @@ func extractDueText(content string) (string, string) {
 		if start == -1 || loc[0] < start || (loc[0] == start && loc[1]-loc[0] > end-start) {
 			start = loc[0]
 			end = loc[1]
-			match = strings.TrimSpace(content[loc[0]:loc[1]])
+			match = normalizeDueMatch(strings.TrimSpace(content[loc[0]:loc[1]]))
 		}
 	}
 
@@ -455,6 +457,15 @@ func readGroup(content string, loc []int, group int) string {
 
 func normalizeSpaces(value string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+}
+
+func normalizeDueMatch(value string) string {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return ""
+	}
+	normalized = strings.TrimSpace(duePrefixPattern.ReplaceAllString(normalized, ""))
+	return normalized
 }
 
 func stringPtr(value string) *string {

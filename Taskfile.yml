@@ -26,8 +26,15 @@ tasks:
     preconditions:
       - sh: command -v bun >/dev/null 2>&1
         msg: bun is required. Install bun first.
+      - sh: command -v curl >/dev/null 2>&1
+        msg: curl is required to wait for backend readiness.
     cmds:
-      - bun run dev
+      - |
+        echo "waiting for backend on http://localhost:42069/api/health ..."
+        until curl -sf http://localhost:42069/api/health >/dev/null; do
+          sleep 0.2
+        done
+        bun run dev
 
   install:
     desc: Install all local development dependencies

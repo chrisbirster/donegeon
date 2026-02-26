@@ -24,12 +24,94 @@ type VillagerProgress struct {
 	Perks   []string `json:"perks,omitempty"`
 }
 
+type QuestObjectiveState struct {
+	Op         string `json:"op"`
+	Count      int    `json:"count,omitempty"`
+	Value      int    `json:"value,omitempty"`
+	Ref        string `json:"ref,omitempty"`
+	TimeWindow string `json:"timeWindow,omitempty"`
+	Baseline   int    `json:"baseline,omitempty"`
+	Current    int    `json:"current"`
+	Target     int    `json:"target"`
+	Complete   bool   `json:"complete"`
+}
+
+type QuestRewardState struct {
+	Kind       string `json:"kind"`
+	Currency   string `json:"currency,omitempty"`
+	Amount     int    `json:"amount,omitempty"`
+	TableID    string `json:"tableId,omitempty"`
+	CardType   string `json:"cardType,omitempty"`
+	CardCount  int    `json:"cardCount,omitempty"`
+	CardCharge int    `json:"cardCharge,omitempty"`
+	XP         int    `json:"xp,omitempty"`
+}
+
+type QuestUnlockState struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+}
+
+type QuestConsequenceState struct {
+	Kind         string `json:"kind"`
+	Amount       int    `json:"amount,omitempty"`
+	DurationDays int    `json:"durationDays,omitempty"`
+}
+
+type QuestRuntime struct {
+	ID           string                  `json:"id"`
+	TemplateID   string                  `json:"templateId,omitempty"`
+	Title        string                  `json:"title"`
+	Type         string                  `json:"type"`
+	Scope        string                  `json:"scope"`
+	Day          int                     `json:"day,omitempty"`
+	Week         int                     `json:"week,omitempty"`
+	Objectives   []QuestObjectiveState   `json:"objectives,omitempty"`
+	Rewards      []QuestRewardState      `json:"rewards,omitempty"`
+	Unlocks      []QuestUnlockState      `json:"unlocks,omitempty"`
+	Consequences []QuestConsequenceState `json:"consequences,omitempty"`
+	Completed    bool                    `json:"completed"`
+	Claimable    bool                    `json:"claimable"`
+	Claimed      bool                    `json:"claimed"`
+	Failed       bool                    `json:"failed,omitempty"`
+	CompletedDay int                     `json:"completedDay,omitempty"`
+	ClaimedDay   int                     `json:"claimedDay,omitempty"`
+}
+
+type QuestHistoryEntry struct {
+	ID           string `json:"id"`
+	TemplateID   string `json:"templateId,omitempty"`
+	Title        string `json:"title"`
+	Type         string `json:"type"`
+	Scope        string `json:"scope"`
+	Day          int    `json:"day,omitempty"`
+	Week         int    `json:"week,omitempty"`
+	Completed    bool   `json:"completed"`
+	Claimed      bool   `json:"claimed"`
+	Failed       bool   `json:"failed,omitempty"`
+	CompletedDay int    `json:"completedDay,omitempty"`
+	ClaimedDay   int    `json:"claimedDay,omitempty"`
+}
+
+type QuestState struct {
+	CurrentDay             int                 `json:"currentDay,omitempty"`
+	CurrentWeek            int                 `json:"currentWeek,omitempty"`
+	DailyStreak            int                 `json:"dailyStreak,omitempty"`
+	LastDailyRefreshDay    int                 `json:"lastDailyRefreshDay,omitempty"`
+	LastDailyClaimDay      int                 `json:"lastDailyClaimDay,omitempty"`
+	RecentDailyTemplateIDs []string            `json:"recentDailyTemplateIds,omitempty"`
+	Active                 []*QuestRuntime     `json:"active,omitempty"`
+	History                []QuestHistoryEntry `json:"history,omitempty"`
+	Unlocked               []QuestUnlockState  `json:"unlocked,omitempty"`
+}
+
 type BoardMeta struct {
 	Inventory    map[string]int               `json:"inventory,omitempty"`
 	Villagers    map[string]*VillagerProgress `json:"villagers,omitempty"`
 	Metrics      map[string]int               `json:"metrics,omitempty"`
 	DeckOpen     map[string]int               `json:"deckOpen,omitempty"`
 	DayTickCount int                          `json:"dayTickCount,omitempty"`
+	Quests       *QuestState                  `json:"quests,omitempty"`
 }
 
 type Stack struct {
@@ -92,6 +174,27 @@ func (s *State) normalize() {
 	}
 	if s.Meta.DeckOpen == nil {
 		s.Meta.DeckOpen = map[string]int{}
+	}
+	if s.Meta.Quests == nil {
+		s.Meta.Quests = &QuestState{
+			RecentDailyTemplateIDs: []string{},
+			Active:                 []*QuestRuntime{},
+			History:                []QuestHistoryEntry{},
+			Unlocked:               []QuestUnlockState{},
+		}
+	} else {
+		if s.Meta.Quests.RecentDailyTemplateIDs == nil {
+			s.Meta.Quests.RecentDailyTemplateIDs = []string{}
+		}
+		if s.Meta.Quests.Active == nil {
+			s.Meta.Quests.Active = []*QuestRuntime{}
+		}
+		if s.Meta.Quests.History == nil {
+			s.Meta.Quests.History = []QuestHistoryEntry{}
+		}
+		if s.Meta.Quests.Unlocked == nil {
+			s.Meta.Quests.Unlocked = []QuestUnlockState{}
+		}
 	}
 	for villagerID, progress := range s.Meta.Villagers {
 		if progress == nil {

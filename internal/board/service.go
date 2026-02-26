@@ -17,6 +17,7 @@ import (
 	apperrors "donegeon/internal/errors"
 	"donegeon/internal/rrule"
 	"donegeon/internal/task"
+	"donegeon/internal/tenant"
 )
 
 const DefaultBoardID = "default"
@@ -29,6 +30,10 @@ const (
 )
 
 var defaultLootTypes = []string{"coin", "paper", "ink", "gear", "parts"}
+
+const (
+	boardLiveLabelValue = "board_live"
+)
 
 type TaskService interface {
 	Create(context.Context, task.CreateInput) (task.Task, error)
@@ -108,6 +113,9 @@ func (s *Service) GetState(ctx context.Context, boardID string) (StateResponse, 
 	if err != nil {
 		return StateResponse{}, err
 	}
+	if err := s.refreshQuestState(ctx, state); err != nil {
+		return StateResponse{}, err
+	}
 
 	return StateResponse{
 		Stacks:  state.Stacks,
@@ -143,14 +151,20 @@ func (s *Service) Command(ctx context.Context, boardID string, req CommandReques
 	if strings.TrimSpace(req.ClientVersion) != "" && strings.TrimSpace(req.ClientVersion) != serverVersion {
 		return CommandResult{}, &VersionConflictError{ServerVersion: serverVersion}
 	}
+	if err := s.refreshQuestState(ctx, state); err != nil {
+		return CommandResult{}, err
+	}
 
-	patch, err := s.executeCommand(ctx, state, cmd, req.Args)
+	patch, err := s.executeCommand(ctx, state, boardID, cmd, req.Args)
 	if err != nil {
 		var appErr *apperrors.AppError
 		if errors.As(err, &appErr) {
 			return CommandResult{}, err
 		}
 		return CommandResult{}, apperrors.New(apperrors.CodeValidationError, err.Error())
+	}
+	if err := s.refreshQuestState(ctx, state); err != nil {
+		return CommandResult{}, err
 	}
 
 	if err := s.repo.Save(ctx, boardID, state); err != nil {
@@ -175,7 +189,7 @@ func NormalizeBoardID(raw string) (string, error) {
 	return boardID, nil
 }
 
-func (s *Service) executeCommand(ctx context.Context, state *State, cmd string, args map[string]any) (any, error) {
+func (s *Service) executeCommand(ctx context.Context, state *State, boardID string, cmd string, args map[string]any) (any, error) {
 	switch cmd {
 	case "board.seed_default":
 		return s.cmdBoardSeedDefault(state, args)
@@ -198,23 +212,29 @@ func (s *Service) executeCommand(ctx context.Context, state *State, cmd string, 
 	case "stack.remove":
 		return cmdStackRemove(state, args)
 	case "task.create_blank":
-		return s.cmdTaskCreateBlank(ctx, state, args)
+		return s.cmdTaskCreateBlank(ctx, state, boardID, args)
 	case "task.spawn_existing":
-		return s.cmdTaskSpawnExisting(ctx, state, args)
+		return s.cmdTaskSpawnExisting(ctx, state, boardID, args)
+	case "task.activate":
+		return s.cmdTaskActivate(ctx, state, boardID, args)
 	case "task.set_title":
 		return s.cmdTaskSetTitle(ctx, state, args)
 	case "task.set_description":
 		return s.cmdTaskSetDescription(ctx, state, args)
+	case "task.set_priority":
+		return s.cmdTaskSetPriority(ctx, state, args)
 	case "task.set_task_id":
-		return cmdTaskSetTaskID(state, args)
+		return s.cmdTaskSetTaskID(ctx, state, args)
 	case "task.add_modifier":
-		return s.cmdTaskAddModifier(state, args)
+		return s.cmdTaskAddModifier(ctx, state, args)
 	case "task.assign_villager":
-		return cmdTaskAssignVillager(state, args)
+		return s.cmdTaskAssignVillager(state, args)
 	case "task.complete_stack":
 		return s.cmdTaskCompleteStack(ctx, state, args)
 	case "task.complete_by_task_id":
 		return s.cmdTaskCompleteByTaskID(ctx, state, args)
+	case "quest.claim_reward":
+		return s.cmdQuestClaimReward(ctx, state, args)
 	case "world.end_day":
 		return s.cmdWorldEndDay(ctx, state, args)
 	case "zombie.clear":
@@ -396,7 +416,7 @@ func cmdStackRemove(state *State, args map[string]any) (any, error) {
 	}, nil
 }
 
-func (s *Service) cmdTaskCreateBlank(ctx context.Context, state *State, args map[string]any) (any, error) {
+func (s *Service) cmdTaskCreateBlank(ctx context.Context, state *State, boardID string, args map[string]any) (any, error) {
 	x, err := getInt(args, "x")
 	if err != nil {
 		return nil, err
@@ -409,24 +429,37 @@ func (s *Service) cmdTaskCreateBlank(ctx context.Context, state *State, args map
 	description := strings.TrimSpace(getStringOr(args, "description"))
 	project := strings.TrimSpace(getStringOr(args, "project"))
 	if project == "" {
-		project = "inbox"
+		project = boardProjectIDForBoard(boardID)
 	}
 
 	taskID := ""
+	createdTaskCount := 0
 	if s.tasks != nil {
 		content := title
 		if content == "" {
 			content = "Untitled task"
 		}
+		projectID := project
+		labels := []string{}
+		if matchesBoardProject(projectID, boardID) {
+			labels = append(labels, boardLiveLabelValue)
+		}
 		created, err := s.tasks.Create(ctx, task.CreateInput{
 			Content:     content,
 			Description: description,
+			ProjectID:   &projectID,
 			Priority:    4,
+			Labels:      labels,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create task: %w", err)
 		}
 		taskID = created.ID
+		createdTaskCount = 1
+	}
+	if createdTaskCount > 0 {
+		meta := ensureMeta(state)
+		incrementQuestMetric(meta, "create_task", "", createdTaskCount)
 	}
 
 	cardData := map[string]any{
@@ -528,7 +561,48 @@ func (s *Service) cmdTaskSetDescription(ctx context.Context, state *State, args 
 	}, nil
 }
 
-func cmdTaskSetTaskID(state *State, args map[string]any) (any, error) {
+func (s *Service) cmdTaskSetPriority(ctx context.Context, state *State, args map[string]any) (any, error) {
+	cardID, err := getString(args, "taskCardId")
+	if err != nil {
+		return nil, err
+	}
+	priority, err := getInt(args, "priority")
+	if err != nil {
+		return nil, err
+	}
+	if priority < 1 || priority > 4 {
+		return nil, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "priority must be 1..4"), "priority")
+	}
+
+	card := state.GetCard(cardID)
+	if card == nil {
+		return nil, fmt.Errorf("card not found: %s", cardID)
+	}
+	if !isTaskCard(card) {
+		return nil, fmt.Errorf("card is not a task: %s", cardID)
+	}
+
+	if card.Data == nil {
+		card.Data = map[string]any{}
+	}
+	card.DefID = "task.instance"
+	card.Data["priority"] = priority
+
+	if s.tasks != nil {
+		if taskID := cardTaskID(card); taskID != "" {
+			_, err := s.tasks.Update(ctx, taskID, task.UpdateInput{Priority: &priority})
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return map[string]any{
+		"card": card,
+	}, nil
+}
+
+func (s *Service) cmdTaskSetTaskID(ctx context.Context, state *State, args map[string]any) (any, error) {
 	cardID, err := getString(args, "taskCardId")
 	if err != nil {
 		return nil, err
@@ -551,6 +625,12 @@ func cmdTaskSetTaskID(state *State, args map[string]any) (any, error) {
 	}
 	card.DefID = "task.instance"
 	card.Data["taskId"] = strings.TrimSpace(taskID)
+
+	if stack := findStackByCardID(state, card.ID); stack != nil && stackHasCardDefID(state, stack, "mod.next_action") {
+		if err := s.ensureTaskHasNextActionLabel(ctx, strings.TrimSpace(taskID)); err != nil {
+			return nil, err
+		}
+	}
 
 	return map[string]any{
 		"card":   card,
@@ -632,6 +712,7 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 		}
 	}
 	meta.Metrics["tasks_completed"] += len(completedTaskIDs)
+	incrementQuestMetric(meta, "complete_task", "", len(completedTaskIDs))
 
 	xpGained := 0
 	villagerProgressPatch := map[string]any{
@@ -696,6 +777,7 @@ func (s *Service) cmdTaskCompleteByTaskID(ctx context.Context, state *State, arg
 	}
 	meta := ensureMeta(state)
 	meta.Metrics["tasks_completed"]++
+	incrementQuestMetric(meta, "complete_task", "", 1)
 
 	return map[string]any{
 		"completedTaskId": taskID,
@@ -714,7 +796,15 @@ func (s *Service) cmdBoardSeedDefault(state *State, args map[string]any) (any, e
 	deckY := getIntOr(args, "deckRowY", 500)
 	deckStartX := 60
 	deckSpacing := 110
-	decks := append([]string{"deck.first_day"}, s.cfg.ProgressionDeckDefIDs()...)
+	decks := []string{"deck.first_day"}
+	if s.cfg.DeckByID("deck.collect") != nil {
+		decks = append(decks, "deck.collect")
+	} else {
+		progression := s.cfg.ProgressionDeckDefIDs()
+		if len(progression) > 0 {
+			decks = append(decks, progression[0])
+		}
+	}
 
 	created := make([]*Stack, 0, len(decks)+5)
 	for i, deckID := range decks {
@@ -815,16 +905,52 @@ func (s *Service) cmdDeckSpawnPack(ctx context.Context, state *State, args map[s
 	if unlocked, reason := s.isDeckUnlocked(ctx, state, deckCfg); !unlocked {
 		return nil, fmt.Errorf("deck is locked: %s", reason)
 	}
+
+	meta := ensureMeta(state)
+	deckOpenCount := meta.DeckOpen[deckCfg.ID]
+	freeOpenUsed := deckOpenCount < deckCfg.FreeOpens
+	zombieCount := countZombieStacks(state)
+	overrunLevel := meta.Metrics["overrun_level"]
+	baseCost := s.deckOpenCost(deckCfg, zombieCount, overrunLevel)
+	costCurrency := strings.TrimSpace(s.cfg.Decks.Economy.BaseCostCurrency)
+	if costCurrency == "" {
+		costCurrency = "coin"
+	}
+	costCharged := 0
+	if !freeOpenUsed {
+		costCharged = baseCost
+		if meta.Inventory[costCurrency] < costCharged {
+			return nil, fmt.Errorf("not enough %s for deck spawn (need %d)", costCurrency, costCharged)
+		}
+		meta.Inventory[costCurrency] -= costCharged
+	}
+
 	if packDefID == "" {
 		packDefID = packDefIDForDeck(deckCfg.ID)
 	}
 
 	stack := createSingleCardStack(state, packDefID, Point{X: x, Y: y}, map[string]any{
-		"deckId": deckCfg.ID,
+		"deckId":               deckCfg.ID,
+		"deckOpenCountAtSpawn": deckOpenCount,
+		"costCharged":          costCharged,
+		"baseCost":             baseCost,
+		"costCurrency":         costCurrency,
+		"freeOpenUsed":         freeOpenUsed,
 	})
+	meta.DeckOpen[deckCfg.ID] = deckOpenCount + 1
+
 	return map[string]any{
 		"stack": stack,
 		"card":  topCard(state, stack),
+		"deck": map[string]any{
+			"id":            deckCfg.ID,
+			"costCharged":   costCharged,
+			"baseCost":      baseCost,
+			"costCurrency":  costCurrency,
+			"freeOpenUsed":  freeOpenUsed,
+			"deckOpenCount": meta.DeckOpen[deckCfg.ID],
+		},
+		"inventory": copyIntMap(meta.Inventory),
 	}, nil
 }
 
@@ -888,21 +1014,38 @@ func (s *Service) cmdDeckOpenPack(ctx context.Context, state *State, args map[st
 
 	meta := ensureMeta(state)
 	deckOpenCount := meta.DeckOpen[deckCfg.ID]
-	freeOpenUsed := deckOpenCount < deckCfg.FreeOpens
-	zombieCount := countZombieStacks(state)
-	overrunLevel := meta.Metrics["overrun_level"]
-	baseCost := s.deckOpenCost(deckCfg, zombieCount, overrunLevel)
 	costCurrency := strings.TrimSpace(s.cfg.Decks.Economy.BaseCostCurrency)
 	if costCurrency == "" {
 		costCurrency = "coin"
 	}
+	deckOpenCountAtSpawn := deckOpenCount
 	costCharged := 0
-	if !freeOpenUsed {
-		costCharged = baseCost
-		if meta.Inventory[costCurrency] < costCharged {
-			return nil, fmt.Errorf("not enough %s for deck open (need %d)", costCurrency, costCharged)
+	baseCost := s.deckOpenCost(deckCfg, countZombieStacks(state), meta.Metrics["overrun_level"])
+	freeOpenUsed := deckOpenCountAtSpawn < deckCfg.FreeOpens
+	if packCard.Data != nil {
+		if raw, ok := packCard.Data["deckOpenCountAtSpawn"]; ok {
+			deckOpenCountAtSpawn = intFromAny(raw)
 		}
-		meta.Inventory[costCurrency] -= costCharged
+		if raw, ok := packCard.Data["costCharged"]; ok {
+			costCharged = intFromAny(raw)
+		}
+		if raw, ok := packCard.Data["baseCost"]; ok {
+			if fromData := intFromAny(raw); fromData > 0 {
+				baseCost = fromData
+			}
+		}
+		if raw, ok := packCard.Data["costCurrency"]; ok {
+			if fromData, ok := raw.(string); ok && strings.TrimSpace(fromData) != "" {
+				costCurrency = strings.TrimSpace(fromData)
+			}
+		}
+		if raw, ok := packCard.Data["freeOpenUsed"]; ok {
+			if fromData, ok := raw.(bool); ok {
+				freeOpenUsed = fromData
+			}
+		} else {
+			freeOpenUsed = deckOpenCountAtSpawn < deckCfg.FreeOpens
+		}
 	}
 
 	origin := packStack.Pos
@@ -913,7 +1056,7 @@ func (s *Service) cmdDeckOpenPack(ctx context.Context, state *State, args map[st
 
 	rng := s.newDeckRand(state, deckCfg.ID, packStackID, seedArg)
 	drawPlan := make([]weightedDeckDraw, 0, count)
-	if deckCfg.ID == "deck.first_day" && deckOpenCount == 0 {
+	if deckCfg.ID == "deck.first_day" && deckOpenCountAtSpawn == 0 {
 		for _, starter := range s.firstDayStarterDraws() {
 			if len(drawPlan) >= count {
 				break
@@ -940,8 +1083,7 @@ func (s *Service) cmdDeckOpenPack(ctx context.Context, state *State, args map[st
 		y := origin.Y + int(math.Sin(angle)*(float64(radius)*0.72))
 		created = append(created, createSingleCardStack(state, defID, Point{X: x, Y: y}, data))
 	}
-	meta.DeckOpen[deckCfg.ID] = deckOpenCount + 1
-
+	incrementQuestMetric(meta, "open_deck", deckCfg.ID, 1)
 	return map[string]any{
 		"removedStack":  packStackID,
 		"createdStacks": created,
@@ -952,7 +1094,7 @@ func (s *Service) cmdDeckOpenPack(ctx context.Context, state *State, args map[st
 			"baseCost":      baseCost,
 			"costCurrency":  costCurrency,
 			"freeOpenUsed":  freeOpenUsed,
-			"deckOpenCount": meta.DeckOpen[deckCfg.ID],
+			"deckOpenCount": deckOpenCount,
 		},
 		"inventory": copyIntMap(meta.Inventory),
 	}, nil
@@ -976,7 +1118,7 @@ func (s *Service) firstDayStarterDraws() []weightedDeckDraw {
 	}
 }
 
-func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, args map[string]any) (any, error) {
+func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, boardID string, args map[string]any) (any, error) {
 	if s.tasks == nil {
 		return nil, fmt.Errorf("task service unavailable")
 	}
@@ -998,27 +1140,22 @@ func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, args m
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %s", taskID)
 	}
+	if matchesBoardProjectPtr(row.ProjectID, boardID) {
+		if err := s.ensureTaskHasBoardLiveLabel(ctx, row.ID); err != nil {
+			return nil, err
+		}
+		row, err = s.tasks.Get(ctx, taskID)
+		if err != nil {
+			return nil, fmt.Errorf("task not found: %s", taskID)
+		}
+	}
 	if row.Checked || row.IsDeleted {
 		return nil, fmt.Errorf("cannot move completed task to board")
 	}
 	if stackID := findTaskStackIDByTaskID(state, row.ID); stackID != "" {
 		return nil, fmt.Errorf("task is already on the board")
 	}
-
-	project := ""
-	if row.ProjectID != nil {
-		project = strings.TrimSpace(*row.ProjectID)
-	}
-	cardData := map[string]any{
-		"taskId":      row.ID,
-		"title":       row.Content,
-		"description": row.Description,
-		"project":     project,
-		"priority":    row.Priority,
-		"dueText":     row.DueText,
-		"dueDeadline": row.DueDeadline,
-		"recurrence":  row.Recurrence,
-	}
+	cardData := taskCardDataFromTaskRow(row)
 
 	modifierDefs := buildSpawnModifierDefIDs(row)
 	cardIDs := make([]string, 0, len(modifierDefs)+1)
@@ -1030,6 +1167,9 @@ func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, args m
 	cardIDs = append(cardIDs, card.ID)
 	stack := state.CreateStack(Point{X: x, Y: y}, cardIDs)
 	ensurePriorityFaceCard(state, stack)
+	if row.ProjectID != nil && strings.EqualFold(tenant.ProjectSlug(*row.ProjectID), "inbox") {
+		incrementQuestMetric(ensureMeta(state), "process_inbox_count", "", 1)
+	}
 
 	return map[string]any{
 		"stack": stack,
@@ -1037,7 +1177,173 @@ func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, args m
 	}, nil
 }
 
-func (s *Service) cmdTaskAddModifier(state *State, args map[string]any) (any, error) {
+type modifierCardRef struct {
+	StackID string
+	CardID  string
+	DefID   string
+}
+
+func (s *Service) cmdTaskActivate(ctx context.Context, state *State, boardID string, args map[string]any) (any, error) {
+	if s.tasks == nil {
+		return nil, fmt.Errorf("task service unavailable")
+	}
+
+	taskID, err := getString(args, "taskId")
+	if err != nil {
+		return nil, err
+	}
+	preview := getBoolOr(args, "preview", false)
+
+	row, err := s.tasks.Get(ctx, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %s", taskID)
+	}
+	if row.Checked || row.IsDeleted {
+		return nil, fmt.Errorf("cannot activate completed task")
+	}
+	if !matchesBoardProjectPtr(row.ProjectID, boardID) {
+		return nil, fmt.Errorf("task project must match board %q to activate", boardProjectIDForBoard(boardID))
+	}
+
+	meta := ensureMeta(state)
+	requiredModifierCounts := modifierRequirementCounts(buildSpawnModifierDefIDs(row))
+	availableModifierCards := collectConsumableModifierCards(state)
+	modifierRequirementRows := make([]map[string]any, 0, len(requiredModifierCounts))
+
+	modifierDefs := sortedModifierDefIDs(requiredModifierCounts)
+	canActivate := true
+	for _, defID := range modifierDefs {
+		required := requiredModifierCounts[defID]
+		available := len(availableModifierCards[defID])
+		missing := maxInt(required-available, 0)
+		if missing > 0 {
+			canActivate = false
+		}
+		modifierRequirementRows = append(modifierRequirementRows, map[string]any{
+			"defId":     defID,
+			"required":  required,
+			"available": available,
+			"missing":   missing,
+		})
+	}
+
+	requiredModifierTotal := 0
+	for _, count := range requiredModifierCounts {
+		requiredModifierTotal += count
+	}
+
+	costCurrency := strings.TrimSpace(s.cfg.Decks.Economy.BaseCostCurrency)
+	if costCurrency == "" {
+		costCurrency = "coin"
+	}
+	coinRequired := taskActivationCoinCost(requiredModifierTotal)
+	coinAvailable := meta.Inventory[costCurrency]
+	coinMissing := maxInt(coinRequired-coinAvailable, 0)
+	if coinMissing > 0 {
+		canActivate = false
+	}
+
+	requirements := map[string]any{
+		"coin": map[string]any{
+			"currency":  costCurrency,
+			"required":  coinRequired,
+			"available": coinAvailable,
+			"missing":   coinMissing,
+		},
+		"modifiers": modifierRequirementRows,
+	}
+
+	if stackID := findTaskStackIDByTaskID(state, row.ID); stackID != "" {
+		if err := s.ensureTaskHasBoardLiveLabel(ctx, row.ID); err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"taskId":       row.ID,
+			"stackId":      stackID,
+			"alreadyLive":  true,
+			"activated":    false,
+			"canActivate":  true,
+			"requirements": requirements,
+			"inventory":    copyIntMap(meta.Inventory),
+		}, nil
+	}
+
+	if preview || !canActivate {
+		return map[string]any{
+			"taskId":       row.ID,
+			"alreadyLive":  false,
+			"activated":    false,
+			"canActivate":  canActivate,
+			"requirements": requirements,
+			"inventory":    copyIntMap(meta.Inventory),
+		}, nil
+	}
+
+	x := getIntOr(args, "x", 120+(len(state.Stacks)*37)%720)
+	y := getIntOr(args, "y", 120+(len(state.Stacks)*23)%380)
+
+	consumedModifierCards := make([]modifierCardRef, 0, requiredModifierTotal)
+	for _, defID := range modifierDefs {
+		refs := availableModifierCards[defID]
+		need := requiredModifierCounts[defID]
+		if need <= 0 {
+			continue
+		}
+		consumedModifierCards = append(consumedModifierCards, refs[:need]...)
+	}
+
+	if coinRequired > 0 {
+		meta.Inventory[costCurrency] -= coinRequired
+	}
+
+	consumedModifierCounts := map[string]int{}
+	consumedModifierCardIDs := make([]string, 0, len(consumedModifierCards))
+	for _, ref := range consumedModifierCards {
+		detachCardFromStack(state, ref.StackID, ref.CardID)
+		consumedModifierCardIDs = append(consumedModifierCardIDs, ref.CardID)
+		consumedModifierCounts[ref.DefID]++
+	}
+
+	cardData := taskCardDataFromTaskRow(row)
+	card := state.CreateCard("task.instance", cardData)
+	cardIDs := make([]string, 0, len(consumedModifierCardIDs)+1)
+	cardIDs = append(cardIDs, consumedModifierCardIDs...)
+	cardIDs = append(cardIDs, card.ID)
+	stack := state.CreateStack(Point{X: x, Y: y}, cardIDs)
+	ensurePriorityFaceCard(state, stack)
+
+	if err := s.ensureTaskHasBoardLiveLabel(ctx, row.ID); err != nil {
+		return nil, err
+	}
+
+	consumedModifierRows := make([]map[string]any, 0, len(consumedModifierCounts))
+	for _, defID := range sortedModifierDefIDs(consumedModifierCounts) {
+		consumedModifierRows = append(consumedModifierRows, map[string]any{
+			"defId": defID,
+			"count": consumedModifierCounts[defID],
+		})
+	}
+
+	return map[string]any{
+		"taskId":       row.ID,
+		"stack":        stack,
+		"card":         card,
+		"alreadyLive":  false,
+		"activated":    true,
+		"canActivate":  true,
+		"requirements": requirements,
+		"consumed": map[string]any{
+			"coin": map[string]any{
+				"currency": costCurrency,
+				"amount":   coinRequired,
+			},
+			"modifiers": consumedModifierRows,
+		},
+		"inventory": copyIntMap(meta.Inventory),
+	}, nil
+}
+
+func (s *Service) cmdTaskAddModifier(ctx context.Context, state *State, args map[string]any) (any, error) {
 	stackID, err := getString(args, "taskStackId")
 	if err != nil {
 		return nil, err
@@ -1067,13 +1373,23 @@ func (s *Service) cmdTaskAddModifier(state *State, args map[string]any) (any, er
 	stack.Cards = append(stack.Cards, modCard.ID)
 	ensurePriorityFaceCard(state, stack)
 
+	if strings.EqualFold(modifierDefID, "mod.next_action") {
+		taskCard := firstCardByKind(state, stack, "task")
+		if taskCard != nil {
+			if err := s.ensureTaskHasNextActionLabel(ctx, cardTaskID(taskCard)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	incrementQuestMetric(ensureMeta(state), "attach_modifier", modifierDefID, 1)
+
 	return map[string]any{
 		"stack":    stack,
 		"modifier": modCard,
 	}, nil
 }
 
-func cmdTaskAssignVillager(state *State, args map[string]any) (any, error) {
+func (s *Service) cmdTaskAssignVillager(state *State, args map[string]any) (any, error) {
 	taskStackID, err := getString(args, "taskStackId")
 	if err != nil {
 		return nil, err
@@ -1123,6 +1439,7 @@ func cmdTaskAssignVillager(state *State, args map[string]any) (any, error) {
 		}
 		card.Data["assignedVillagerId"] = assignedVillagerID
 	}
+	incrementQuestMetric(ensureMeta(state), "assign_villager", "", 1)
 
 	return map[string]any{
 		"stack":              taskStack,
@@ -1321,6 +1638,7 @@ func (s *Service) cmdZombieClear(state *State, args map[string]any) (any, error)
 	meta.Inventory[rewardType] += rewardAmount
 	meta.Metrics["zombies_cleared"]++
 	meta.Metrics["overrun_level"] = countZombieStacks(state)
+	incrementQuestMetric(meta, "clear_zombie", "", 1)
 
 	xpGained := s.zombieClearXP()
 	updatedVillager, newPerks := s.awardVillagerXP(meta, actualVillagerID, xpGained)
@@ -1726,6 +2044,47 @@ func stackHasKind(state *State, stack *Stack, kind string) bool {
 	return false
 }
 
+func stackHasCardDefID(state *State, stack *Stack, defID string) bool {
+	if state == nil || stack == nil {
+		return false
+	}
+	normalized := strings.TrimSpace(strings.ToLower(defID))
+	if normalized == "" {
+		return false
+	}
+	for _, cardID := range stack.Cards {
+		card := state.GetCard(cardID)
+		if card == nil {
+			continue
+		}
+		if strings.TrimSpace(strings.ToLower(card.DefID)) == normalized {
+			return true
+		}
+	}
+	return false
+}
+
+func findStackByCardID(state *State, cardID string) *Stack {
+	if state == nil {
+		return nil
+	}
+	cardID = strings.TrimSpace(cardID)
+	if cardID == "" {
+		return nil
+	}
+	for _, stack := range state.Stacks {
+		if stack == nil {
+			continue
+		}
+		for _, current := range stack.Cards {
+			if current == cardID {
+				return stack
+			}
+		}
+	}
+	return nil
+}
+
 func firstCardByKind(state *State, stack *Stack, kind string) *Card {
 	if state == nil || stack == nil {
 		return nil
@@ -2085,7 +2444,275 @@ func buildSpawnModifierDefIDs(row task.Task) []string {
 	if row.Recurrence != nil && strings.TrimSpace(*row.Recurrence) != "" {
 		add("mod.recurring")
 	}
+	if hasNextActionLabel(row.Labels) {
+		add("mod.next_action")
+	}
 	return mods
+}
+
+func taskCardDataFromTaskRow(row task.Task) map[string]any {
+	title := strings.TrimSpace(row.Content)
+	if title == "" {
+		title = "Untitled task"
+	}
+
+	priority := row.Priority
+	if priority < 1 || priority > 4 {
+		priority = 4
+	}
+
+	data := map[string]any{
+		"taskId":      strings.TrimSpace(row.ID),
+		"title":       title,
+		"description": strings.TrimSpace(row.Description),
+		"priority":    priority,
+	}
+
+	if row.ProjectID != nil && strings.TrimSpace(*row.ProjectID) != "" {
+		data["project"] = strings.TrimSpace(*row.ProjectID)
+	}
+	if row.Recurrence != nil && strings.TrimSpace(*row.Recurrence) != "" {
+		data["recurrence"] = strings.TrimSpace(*row.Recurrence)
+	}
+	if row.DueText != nil && strings.TrimSpace(*row.DueText) != "" {
+		data["dueText"] = strings.TrimSpace(*row.DueText)
+	}
+	if row.DueDeadline != nil && strings.TrimSpace(*row.DueDeadline) != "" {
+		data["dueDeadline"] = strings.TrimSpace(*row.DueDeadline)
+	}
+
+	labels := make([]string, 0, len(row.Labels))
+	for _, label := range row.Labels {
+		normalized := strings.TrimSpace(label)
+		if normalized == "" {
+			continue
+		}
+		labels = append(labels, normalized)
+	}
+	if len(labels) > 0 {
+		data["labels"] = labels
+	}
+
+	return data
+}
+
+func modifierRequirementCounts(defIDs []string) map[string]int {
+	counts := map[string]int{}
+	for _, defID := range defIDs {
+		normalized := strings.TrimSpace(strings.ToLower(defID))
+		if normalized == "" {
+			continue
+		}
+		counts[normalized]++
+	}
+	return counts
+}
+
+func sortedModifierDefIDs(counts map[string]int) []string {
+	ordered := make([]string, 0, len(counts))
+	for defID, count := range counts {
+		if strings.TrimSpace(defID) == "" || count <= 0 {
+			continue
+		}
+		ordered = append(ordered, defID)
+	}
+	sort.Strings(ordered)
+	return ordered
+}
+
+func collectConsumableModifierCards(state *State) map[string][]modifierCardRef {
+	available := map[string][]modifierCardRef{}
+	if state == nil {
+		return available
+	}
+
+	stackIDs := make([]string, 0, len(state.Stacks))
+	for stackID := range state.Stacks {
+		stackIDs = append(stackIDs, stackID)
+	}
+	sort.Strings(stackIDs)
+
+	for _, stackID := range stackIDs {
+		stack := state.GetStack(stackID)
+		if stack == nil || len(stack.Cards) == 0 {
+			continue
+		}
+
+		refs := make([]modifierCardRef, 0, len(stack.Cards))
+		modifierOnly := true
+		for _, cardID := range stack.Cards {
+			card := state.GetCard(cardID)
+			if card == nil {
+				modifierOnly = false
+				break
+			}
+			defID := strings.TrimSpace(strings.ToLower(card.DefID))
+			if !strings.HasPrefix(defID, "mod.") {
+				modifierOnly = false
+				break
+			}
+			refs = append(refs, modifierCardRef{
+				StackID: stackID,
+				CardID:  cardID,
+				DefID:   defID,
+			})
+		}
+		if !modifierOnly {
+			continue
+		}
+
+		for _, ref := range refs {
+			available[ref.DefID] = append(available[ref.DefID], ref)
+		}
+	}
+
+	return available
+}
+
+func taskActivationCoinCost(requiredModifierTotal int) int {
+	if requiredModifierTotal <= 0 {
+		return 0
+	}
+	return requiredModifierTotal
+}
+
+func detachCardFromStack(state *State, stackID, cardID string) {
+	if state == nil {
+		return
+	}
+	stack := state.GetStack(stackID)
+	if stack == nil {
+		return
+	}
+
+	filtered := make([]string, 0, len(stack.Cards))
+	removed := false
+	for _, current := range stack.Cards {
+		if !removed && current == cardID {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, current)
+	}
+	stack.Cards = filtered
+
+	if len(stack.Cards) == 0 {
+		delete(state.Stacks, stackID)
+		return
+	}
+	ensurePriorityFaceCard(state, stack)
+}
+
+func boardProjectIDForBoard(boardID string) string {
+	normalized := strings.TrimSpace(boardID)
+	if normalized == "" || strings.EqualFold(normalized, DefaultBoardID) {
+		return "board"
+	}
+	return normalized
+}
+
+func matchesBoardProject(raw string, boardID string) bool {
+	return strings.EqualFold(tenant.ProjectSlug(raw), tenant.ProjectSlug(boardProjectIDForBoard(boardID)))
+}
+
+func matchesBoardProjectPtr(value *string, boardID string) bool {
+	if value == nil {
+		return false
+	}
+	return matchesBoardProject(*value, boardID)
+}
+
+func isBoardLiveLabel(raw string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(raw))
+	normalized = strings.TrimPrefix(normalized, "@")
+	normalized = strings.NewReplacer("_", "", "-", "", " ", "").Replace(normalized)
+	return normalized == "boardlive"
+}
+
+func hasBoardLiveLabel(labels []string) bool {
+	for _, label := range labels {
+		if isBoardLiveLabel(label) {
+			return true
+		}
+	}
+	return false
+}
+
+func appendBoardLiveLabel(labels []string) []string {
+	if hasBoardLiveLabel(labels) {
+		return append([]string{}, labels...)
+	}
+	next := append([]string{}, labels...)
+	next = append(next, boardLiveLabelValue)
+	return next
+}
+
+func (s *Service) ensureTaskHasBoardLiveLabel(ctx context.Context, taskID string) error {
+	if s == nil || s.tasks == nil {
+		return nil
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil
+	}
+
+	item, err := s.tasks.Get(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	labels := appendBoardLiveLabel(item.Labels)
+	if len(labels) == len(item.Labels) {
+		return nil
+	}
+	_, err = s.tasks.Update(ctx, taskID, task.UpdateInput{Labels: &labels})
+	return err
+}
+
+func hasNextActionLabel(labels []string) bool {
+	for _, label := range labels {
+		if isNextActionLabel(label) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNextActionLabel(raw string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(raw))
+	normalized = strings.TrimPrefix(normalized, "@")
+	normalized = strings.NewReplacer("_", "", "-", "", " ", "").Replace(normalized)
+	return normalized == "nextaction"
+}
+
+func appendNextActionLabel(labels []string) []string {
+	if hasNextActionLabel(labels) {
+		return append([]string{}, labels...)
+	}
+	next := append([]string{}, labels...)
+	next = append(next, "next_action")
+	return next
+}
+
+func (s *Service) ensureTaskHasNextActionLabel(ctx context.Context, taskID string) error {
+	if s == nil || s.tasks == nil {
+		return nil
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil
+	}
+
+	item, err := s.tasks.Get(ctx, taskID)
+	if err != nil {
+		return err
+	}
+
+	labels := appendNextActionLabel(item.Labels)
+	if len(labels) == len(item.Labels) {
+		return nil
+	}
+	_, err = s.tasks.Update(ctx, taskID, task.UpdateInput{Labels: &labels})
+	return err
 }
 
 func normalizeModifierDefID(raw string) string {
@@ -3000,6 +3627,32 @@ func getIntOr(args map[string]any, key string, fallback int) int {
 		return fallback
 	}
 	return num
+}
+
+func getBoolOr(args map[string]any, key string, fallback bool) bool {
+	value, ok := args[key]
+	if !ok || value == nil {
+		return fallback
+	}
+	switch raw := value.(type) {
+	case bool:
+		return raw
+	case string:
+		normalized := strings.TrimSpace(strings.ToLower(raw))
+		switch normalized {
+		case "true", "t", "1", "yes", "y":
+			return true
+		case "false", "f", "0", "no", "n":
+			return false
+		default:
+			return fallback
+		}
+	default:
+		if num, ok := asInt(raw); ok {
+			return num != 0
+		}
+	}
+	return fallback
 }
 
 func getIntPtr(args map[string]any, key string) (*int, error) {

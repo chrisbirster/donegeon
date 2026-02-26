@@ -10,6 +10,7 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	apperrors "donegeon/internal/errors"
+	"donegeon/internal/sessionctx"
 )
 
 type Repository struct {
@@ -34,9 +35,12 @@ func (r *Repository) List(ctx context.Context, params ListParams) ([]Project, er
 	if err != nil {
 		return nil, err
 	}
+	principal := sessionctx.PrincipalFromContext(ctx)
 
 	args := map[string]any{
 		"include_archived": boolAsInt(params.IncludeArchived),
+		"user_id":          principal.UserID,
+		"workspace_id":     principal.WorkspaceID,
 	}
 
 	rows := []Project{}
@@ -57,8 +61,20 @@ func (r *Repository) Get(ctx context.Context, id string) (Project, error) {
 		return Project{}, err
 	}
 
+	principal := sessionctx.PrincipalFromContext(ctx)
+	args := map[string]any{
+		"id":           id,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+	}
+
 	var row Project
-	if err := r.db.GetContext(ctx, &row, query, id); err != nil {
+	named, bindArgs, err := sqlx.Named(query, args)
+	if err != nil {
+		return Project{}, err
+	}
+	named = r.db.Rebind(named)
+	if err := r.db.GetContext(ctx, &row, named, bindArgs...); err != nil {
 		if err == sql.ErrNoRows {
 			return Project{}, apperrors.WithField(apperrors.New(apperrors.CodeNotFound, "project not found"), "projectId")
 		}
@@ -72,6 +88,7 @@ func (r *Repository) Upsert(ctx context.Context, id string, in UpsertInput) (Pro
 	if err != nil {
 		return Project{}, err
 	}
+	principal := sessionctx.PrincipalFromContext(ctx)
 
 	name := cleanName(id)
 	if in.Name != nil && strings.TrimSpace(*in.Name) != "" {
@@ -79,11 +96,13 @@ func (r *Repository) Upsert(ctx context.Context, id string, in UpsertInput) (Pro
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	args := map[string]any{
-		"id":          id,
-		"name":        name,
-		"is_favorite": nullableBoolAsInt(in.IsFavorite),
-		"updated_at":  now,
-		"created_at":  now,
+		"id":           id,
+		"name":         name,
+		"is_favorite":  nullableBoolAsInt(in.IsFavorite),
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+		"updated_at":   now,
+		"created_at":   now,
 	}
 
 	if _, err := r.db.NamedExecContext(ctx, query, args); err != nil {

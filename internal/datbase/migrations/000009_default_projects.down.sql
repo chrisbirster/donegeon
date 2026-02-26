@@ -1,0 +1,1 @@
+-- no-op: default project seeding is intentional and safe to keep on rollback.

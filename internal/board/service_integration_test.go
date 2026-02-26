@@ -206,6 +206,10 @@ func TestServiceCommandMatrixLegacyParity(t *testing.T) {
 		"taskCardId": taskCard.ID,
 		"taskId":     linkedTask.ID,
 	})
+	run("task.set_priority", map[string]any{
+		"taskCardId": taskCard.ID,
+		"priority":   1,
+	})
 	run("task.add_modifier", map[string]any{
 		"taskStackId":   taskStack.ID,
 		"modifierDefId": "next_action",
@@ -345,6 +349,7 @@ func TestServiceCommandMatrixLegacyParity(t *testing.T) {
 		"task.spawn_existing",
 		"task.set_title",
 		"task.set_description",
+		"task.set_priority",
 		"task.set_task_id",
 		"task.add_modifier",
 		"task.assign_villager",
@@ -361,6 +366,295 @@ func TestServiceCommandMatrixLegacyParity(t *testing.T) {
 		if !executed[cmd] {
 			t.Fatalf("expected command not exercised in matrix: %s", cmd)
 		}
+	}
+}
+
+func TestTaskCreateBlankDefaultsToBoardProject(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	result := env.command(t, "task.create_blank", map[string]any{
+		"x":     420,
+		"y":     180,
+		"title": "Created from board",
+	})
+
+	patch, ok := result.Patch.(map[string]any)
+	if !ok {
+		t.Fatalf("expected patch map from task.create_blank, got %T", result.Patch)
+	}
+	taskID, _ := patch["taskId"].(string)
+	if strings.TrimSpace(taskID) == "" {
+		t.Fatal("expected task.create_blank to create persistent task id")
+	}
+
+	created, err := env.taskService.Get(env.ctx, taskID)
+	if err != nil {
+		t.Fatalf("failed to load created task: %v", err)
+	}
+	if created.ProjectID == nil || strings.TrimSpace(*created.ProjectID) != "board" {
+		t.Fatalf("expected created task project_id=board, got %v", created.ProjectID)
+	}
+}
+
+func TestTaskSetPriorityPersistsCardAndTask(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:  "Priority sync task",
+		Priority: 4,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	spawnResult := env.command(t, "task.spawn_existing", map[string]any{
+		"taskId": created.ID,
+		"x":      520,
+		"y":      220,
+	})
+	card := patchCard(t, spawnResult, "card")
+
+	env.command(t, "task.set_priority", map[string]any{
+		"taskCardId": card.ID,
+		"priority":   2,
+	})
+
+	state := env.state(t)
+	updatedCard := state.Cards[card.ID]
+	if updatedCard == nil {
+		t.Fatalf("expected updated board card %s", card.ID)
+	}
+	if got := intFromPatch(updatedCard.Data["priority"]); got != 2 {
+		t.Fatalf("expected board card priority 2, got %d", got)
+	}
+
+	updatedTask, err := env.taskService.Get(env.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("load updated task: %v", err)
+	}
+	if updatedTask.Priority != 2 {
+		t.Fatalf("expected task priority 2, got %d", updatedTask.Priority)
+	}
+}
+
+func TestTaskAddModifierNextActionPersistsTaskLabel(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:  "Label sync task",
+		Priority: 4,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	spawnResult := env.command(t, "task.spawn_existing", map[string]any{
+		"taskId": created.ID,
+		"x":      420,
+		"y":      220,
+	})
+	stack := patchStack(t, spawnResult, "stack")
+
+	env.command(t, "task.add_modifier", map[string]any{
+		"taskStackId":   stack.ID,
+		"modifierDefId": "next_action",
+	})
+
+	updatedTask, err := env.taskService.Get(env.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("load updated task: %v", err)
+	}
+	if !contains(updatedTask.Labels, "next_action") {
+		t.Fatalf("expected task labels to include next_action, got %v", updatedTask.Labels)
+	}
+}
+
+func TestTaskSpawnExistingIncludesNextActionModifierFromLabel(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:  "Spawn label modifier",
+		Priority: 4,
+		Labels:   []string{"next_action"},
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	spawnResult := env.command(t, "task.spawn_existing", map[string]any{
+		"taskId": created.ID,
+		"x":      460,
+		"y":      260,
+	})
+	stack := patchStack(t, spawnResult, "stack")
+
+	state := env.state(t)
+	stackFromState := state.Stacks[stack.ID]
+	if stackFromState == nil {
+		t.Fatalf("expected spawned stack %s", stack.ID)
+	}
+	if !stackContainsDefID(state, stackFromState, "mod.next_action") {
+		t.Fatalf("expected spawned stack to include mod.next_action, stack=%+v", stackFromState)
+	}
+}
+
+func TestTaskActivatePreviewReportsMissingRequirements(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	recurrence := "FREQ=WEEKLY;INTERVAL=1;BYDAY=TH"
+	deadline := "2026-03-05T19:00:00-05:00"
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:     "Activate preview task",
+		Priority:    3,
+		ProjectID:   strPtr("board"),
+		Recurrence:  &recurrence,
+		DueDeadline: &deadline,
+	})
+	if err != nil {
+		t.Fatalf("create board task: %v", err)
+	}
+
+	result := env.command(t, "task.activate", map[string]any{
+		"taskId":  created.ID,
+		"preview": true,
+	})
+	patch := patchMap(t, result, "requirements")
+	coin := patchAnyMap(t, patch, "coin")
+	if intFromPatch(coin["required"]) != 2 {
+		t.Fatalf("expected coin requirement=2, got %v", coin["required"])
+	}
+	if intFromPatch(coin["missing"]) <= 0 {
+		t.Fatalf("expected missing coin requirement, got %v", coin["missing"])
+	}
+
+	fullPatch := patchMap(t, result, "")
+	if boolFromPatch(fullPatch["canActivate"]) {
+		t.Fatalf("expected canActivate=false for missing requirements, patch=%v", fullPatch)
+	}
+}
+
+func TestTaskActivateConsumesResourcesAndMarksTaskLive(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	recurrence := "FREQ=WEEKLY;INTERVAL=1;BYDAY=TH"
+	deadline := "2026-03-05T19:00:00-05:00"
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:     "Activate live task",
+		Priority:    1,
+		ProjectID:   strPtr("board"),
+		Recurrence:  &recurrence,
+		DueDeadline: &deadline,
+		Labels:      []string{"next_action"},
+	})
+	if err != nil {
+		t.Fatalf("create board task: %v", err)
+	}
+
+	env.command(t, "card.spawn", map[string]any{
+		"defId": "mod.recurring",
+		"x":     220,
+		"y":     300,
+	})
+	env.command(t, "card.spawn", map[string]any{
+		"defId": "mod.deadline_pin",
+		"x":     260,
+		"y":     300,
+	})
+	env.command(t, "card.spawn", map[string]any{
+		"defId": "mod.next_action",
+		"x":     300,
+		"y":     300,
+	})
+	lootStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "loot.coin",
+		"x":     360,
+		"y":     300,
+		"data": map[string]any{
+			"amount": 10,
+		},
+	}), "stack")
+	env.command(t, "loot.collect_stack", map[string]any{
+		"stackId": lootStack.ID,
+	})
+
+	beforeCoin := env.state(t).Meta.Inventory["coin"]
+	result := env.command(t, "task.activate", map[string]any{
+		"taskId":  created.ID,
+		"preview": false,
+		"x":       600,
+		"y":       260,
+	})
+
+	patch := patchMap(t, result, "")
+	if !boolFromPatch(patch["activated"]) {
+		t.Fatalf("expected activated=true, patch=%v", patch)
+	}
+	if !boolFromPatch(patch["canActivate"]) {
+		t.Fatalf("expected canActivate=true, patch=%v", patch)
+	}
+	stack, ok := patch["stack"].(*Stack)
+	if !ok || stack == nil {
+		t.Fatalf("expected activated stack in patch, got %T", patch["stack"])
+	}
+
+	state := env.state(t)
+	createdStack := state.Stacks[stack.ID]
+	if createdStack == nil {
+		t.Fatalf("expected activated stack %s in state", stack.ID)
+	}
+	if !stackContainsDefID(state, createdStack, "task.instance") {
+		t.Fatalf("expected activated stack to include task.instance, stack=%+v", createdStack)
+	}
+	if !stackContainsDefID(state, createdStack, "mod.recurring") {
+		t.Fatalf("expected activated stack to include mod.recurring, stack=%+v", createdStack)
+	}
+	if !stackContainsDefID(state, createdStack, "mod.deadline_pin") {
+		t.Fatalf("expected activated stack to include mod.deadline_pin, stack=%+v", createdStack)
+	}
+	if !stackContainsDefID(state, createdStack, "mod.next_action") {
+		t.Fatalf("expected activated stack to include mod.next_action, stack=%+v", createdStack)
+	}
+
+	afterCoin := state.Meta.Inventory["coin"]
+	if beforeCoin-afterCoin != 3 {
+		t.Fatalf("expected activation coin cost=3, before=%d after=%d", beforeCoin, afterCoin)
+	}
+
+	updatedTask, err := env.taskService.Get(env.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get activated task: %v", err)
+	}
+	if !contains(updatedTask.Labels, "board_live") {
+		t.Fatalf("expected activated task labels to include board_live, got %v", updatedTask.Labels)
+	}
+
+	secondBeforeCoin := env.state(t).Meta.Inventory["coin"]
+	second := env.command(t, "task.activate", map[string]any{
+		"taskId":  created.ID,
+		"preview": false,
+	})
+	secondPatch := patchMap(t, second, "")
+	if !boolFromPatch(secondPatch["alreadyLive"]) {
+		t.Fatalf("expected alreadyLive=true on second activate, patch=%v", secondPatch)
+	}
+	if boolFromPatch(secondPatch["activated"]) {
+		t.Fatalf("expected activated=false on second activate, patch=%v", secondPatch)
+	}
+	secondAfterCoin := env.state(t).Meta.Inventory["coin"]
+	if secondAfterCoin != secondBeforeCoin {
+		t.Fatalf("expected no additional coin spend on second activate, before=%d after=%d", secondBeforeCoin, secondAfterCoin)
 	}
 }
 
@@ -396,6 +690,7 @@ func TestDeckUnlockAndEconomyCostParity(t *testing.T) {
 
 	env := newBoardIntegrationEnv(t)
 	env.command(t, "board.seed_default", map[string]any{"deckRowY": 500})
+	env.command(t, "world.end_day", map[string]any{})
 
 	state := env.state(t)
 	orgDeck := findStackWithTopDef(state, "deck.organization")
@@ -425,11 +720,15 @@ func TestDeckUnlockAndEconomyCostParity(t *testing.T) {
 		}
 	}
 
-	env.command(t, "deck.spawn_pack", map[string]any{
+	spawnFirst := env.command(t, "deck.spawn_pack", map[string]any{
 		"deckStackId": orgDeck.ID,
 		"x":           380,
 		"y":           380,
 	})
+	spawnFirstDeck := patchMap(t, spawnFirst, "deck")
+	if got := intFromPatch(spawnFirstDeck["costCharged"]); got != 0 {
+		t.Fatalf("expected free open to be charged at spawn, got cost=%d", got)
+	}
 	pack := findStackWithTopDef(env.state(t), "deck.organization_pack")
 	if pack == nil {
 		t.Fatal("expected organization pack after unlock")
@@ -458,11 +757,20 @@ func TestDeckUnlockAndEconomyCostParity(t *testing.T) {
 		t.Fatalf("expected free open for first organization deck open, got cost=%d", got)
 	}
 
-	env.command(t, "deck.spawn_pack", map[string]any{
+	beforeSpawnCoin := env.state(t).Meta.Inventory["coin"]
+	spawnSecond := env.command(t, "deck.spawn_pack", map[string]any{
 		"deckStackId": orgDeck.ID,
 		"x":           460,
 		"y":           380,
 	})
+	spawnSecondDeck := patchMap(t, spawnSecond, "deck")
+	if got := intFromPatch(spawnSecondDeck["costCharged"]); got <= 0 {
+		t.Fatalf("expected non-zero cost at spawn after free opens exhausted, got=%d", got)
+	}
+	afterSpawnCoin := env.state(t).Meta.Inventory["coin"]
+	if afterSpawnCoin >= beforeSpawnCoin {
+		t.Fatalf("expected coin spend on second spawn, before=%d after=%d", beforeSpawnCoin, afterSpawnCoin)
+	}
 	pack2 := findStackWithTopDef(env.state(t), "deck.organization_pack")
 	if pack2 == nil {
 		t.Fatal("expected second organization pack")
@@ -475,12 +783,55 @@ func TestDeckUnlockAndEconomyCostParity(t *testing.T) {
 		"seed":        99,
 	})
 	deckPatch2 := patchMap(t, openSecond, "deck")
-	if got := intFromPatch(deckPatch2["costCharged"]); got <= 0 {
-		t.Fatalf("expected non-zero cost after free opens exhausted, got=%d", got)
+	if got := intFromPatch(deckPatch2["costCharged"]); got != intFromPatch(spawnSecondDeck["costCharged"]) {
+		t.Fatalf("expected open payload to report spawn-time charge, want=%d got=%d", intFromPatch(spawnSecondDeck["costCharged"]), got)
 	}
 	afterCoin := env.state(t).Meta.Inventory["coin"]
-	if afterCoin >= beforeCoin {
-		t.Fatalf("expected coin spend on second open, before=%d after=%d", beforeCoin, afterCoin)
+	if afterCoin != beforeCoin {
+		t.Fatalf("expected no additional coin spend on open, before=%d after=%d", beforeCoin, afterCoin)
+	}
+}
+
+func TestDeckSpawnPackRequiresCurrencyBeforePackAppears(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{"deckRowY": 500})
+	env.command(t, "world.end_day", map[string]any{})
+
+	state := env.state(t)
+	orgDeck := findStackWithTopDef(state, "deck.organization")
+	if orgDeck == nil {
+		t.Fatal("expected organization deck stack from seed")
+	}
+
+	for i := 0; i < 3; i++ {
+		item, createErr := env.taskService.Create(env.ctx, task.CreateInput{
+			Content:  "unlock task",
+			Priority: 4,
+		})
+		if createErr != nil {
+			t.Fatalf("create unlock task: %v", createErr)
+		}
+		if closeErr := env.taskService.Close(env.ctx, item.ID); closeErr != nil {
+			t.Fatalf("close unlock task: %v", closeErr)
+		}
+	}
+
+	env.command(t, "deck.spawn_pack", map[string]any{
+		"deckStackId": orgDeck.ID,
+		"x":           320,
+		"y":           360,
+	})
+
+	err := env.commandExpectError(t, "deck.spawn_pack", map[string]any{
+		"deckStackId": orgDeck.ID,
+		"x":           420,
+		"y":           360,
+	})
+	lower := strings.ToLower(err.Error())
+	if !strings.Contains(lower, "not enough") || !strings.Contains(lower, "spawn") {
+		t.Fatalf("expected spawn-time currency error, got: %v", err)
 	}
 }
 
@@ -750,6 +1101,143 @@ func TestMergePrioritizesTaskResourceFoodAsFaceCards(t *testing.T) {
 	}
 }
 
+func TestQuestWeekOneStoryCanBeClaimed(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	initial := env.state(t)
+	if initial.Meta.Quests == nil {
+		t.Fatal("expected quests state in board meta")
+	}
+	if initial.Meta.Quests.CurrentWeek != 1 {
+		t.Fatalf("expected week=1 on fresh board, got %d", initial.Meta.Quests.CurrentWeek)
+	}
+	story := findActiveQuestByID(initial.Meta.Quests.Active, "W01_Awakening")
+	if story == nil {
+		t.Fatalf("expected week-one story quest, active=%v", questIDs(initial.Meta.Quests.Active))
+	}
+
+	firstDayDeck := findStackWithTopDef(initial, "deck.first_day")
+	if firstDayDeck == nil {
+		t.Fatal("expected first day deck stack")
+	}
+	env.command(t, "deck.spawn_pack", map[string]any{
+		"deckStackId": firstDayDeck.ID,
+		"x":           300,
+		"y":           360,
+	})
+	pack := findStackWithTopDef(env.state(t), "deck.first_day_pack")
+	if pack == nil {
+		t.Fatal("expected spawned first day pack")
+	}
+	env.command(t, "deck.open_pack", map[string]any{
+		"packStackId": pack.ID,
+		"deckId":      "deck.first_day",
+		"radius":      100,
+		"count":       3,
+	})
+
+	create := env.command(t, "task.create_blank", map[string]any{
+		"x":     520,
+		"y":     220,
+		"title": "Quest completion task",
+	})
+	taskStack := patchStack(t, create, "stack")
+	villagerStack := findFirstStackWithKind(env.state(t), "villager")
+	if villagerStack == nil {
+		t.Fatal("expected villager stack before assignment")
+	}
+	env.command(t, "task.assign_villager", map[string]any{
+		"taskStackId":     taskStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+
+	afterProgress := env.state(t)
+	if afterProgress.Meta.Quests == nil {
+		t.Fatal("expected quests after progress")
+	}
+	story = findActiveQuestByID(afterProgress.Meta.Quests.Active, "W01_Awakening")
+	if story == nil {
+		t.Fatalf("expected story quest to remain active, active=%v", questIDs(afterProgress.Meta.Quests.Active))
+	}
+	if !story.Claimable {
+		t.Fatalf("expected story quest to be claimable, objectives=%+v", story.Objectives)
+	}
+	beforeHistory := len(afterProgress.Meta.Quests.History)
+
+	result := env.command(t, "quest.claim_reward", map[string]any{
+		"questId": story.ID,
+	})
+	patch := patchMap(t, result, "")
+	if got, _ := patch["questId"].(string); got != story.ID {
+		t.Fatalf("expected questId=%s in claim patch, got %q", story.ID, got)
+	}
+
+	afterClaim := env.state(t)
+	if afterClaim.Meta.Quests == nil {
+		t.Fatal("expected quests after claim")
+	}
+	if findActiveQuestByID(afterClaim.Meta.Quests.Active, story.ID) != nil {
+		t.Fatalf("expected claimed quest removed from active list: %s", story.ID)
+	}
+	historyEntry := findHistoryQuestByID(afterClaim.Meta.Quests.History, story.ID)
+	if historyEntry == nil {
+		t.Fatalf("expected claimed quest in history: %s", story.ID)
+	}
+	if !historyEntry.Claimed {
+		t.Fatalf("expected history entry to be marked claimed: %+v", *historyEntry)
+	}
+	if len(afterClaim.Meta.Quests.History) <= beforeHistory {
+		t.Fatalf("expected history length to grow, before=%d after=%d", beforeHistory, len(afterClaim.Meta.Quests.History))
+	}
+	if !hasQuestUnlock(afterClaim.Meta.Quests.Unlocked, "system_feature", "board_view") {
+		t.Fatalf("expected week-one quest unlock to include system_feature/board_view, got=%+v", afterClaim.Meta.Quests.Unlocked)
+	}
+}
+
+func findActiveQuestByID(active []*QuestRuntime, id string) *QuestRuntime {
+	for _, item := range active {
+		if item == nil {
+			continue
+		}
+		if strings.EqualFold(item.ID, id) {
+			return item
+		}
+	}
+	return nil
+}
+
+func findHistoryQuestByID(history []QuestHistoryEntry, id string) *QuestHistoryEntry {
+	for index := range history {
+		if strings.EqualFold(history[index].ID, id) {
+			return &history[index]
+		}
+	}
+	return nil
+}
+
+func hasQuestUnlock(unlocks []QuestUnlockState, kind, id string) bool {
+	for _, unlock := range unlocks {
+		if strings.EqualFold(unlock.Kind, kind) && strings.EqualFold(unlock.ID, id) {
+			return true
+		}
+	}
+	return false
+}
+
+func questIDs(active []*QuestRuntime) []string {
+	ids := make([]string, 0, len(active))
+	for _, item := range active {
+		if item == nil {
+			continue
+		}
+		ids = append(ids, item.ID)
+	}
+	return ids
+}
+
 func findStackWithTopDef(state StateResponse, defID string) *Stack {
 	for _, stack := range state.Stacks {
 		if stack == nil || len(stack.Cards) == 0 {
@@ -826,9 +1314,21 @@ func patchMap(t *testing.T, result CommandResult, key string) map[string]any {
 	if !ok {
 		t.Fatalf("patch is not a map for key %s", key)
 	}
+	if key == "" {
+		return patch
+	}
 	value, ok := patch[key].(map[string]any)
 	if !ok {
 		t.Fatalf("patch[%q] missing map[string]any", key)
+	}
+	return value
+}
+
+func patchAnyMap(t *testing.T, source map[string]any, key string) map[string]any {
+	t.Helper()
+	value, ok := source[key].(map[string]any)
+	if !ok {
+		t.Fatalf("expected %q to be map[string]any, got %T", key, source[key])
 	}
 	return value
 }
@@ -844,6 +1344,11 @@ func intFromPatch(value any) int {
 	default:
 		return 0
 	}
+}
+
+func boolFromPatch(value any) bool {
+	typed, ok := value.(bool)
+	return ok && typed
 }
 
 func patchStringSlice(t *testing.T, value any) []string {
@@ -881,6 +1386,19 @@ func stackHasKindFromResponse(state StateResponse, stack *Stack, kind string) bo
 			continue
 		}
 		if cardKind(card.DefID) == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func stackContainsDefID(state StateResponse, stack *Stack, defID string) bool {
+	for _, cardID := range stack.Cards {
+		card := state.Cards[cardID]
+		if card == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(card.DefID), strings.TrimSpace(defID)) {
 			return true
 		}
 	}

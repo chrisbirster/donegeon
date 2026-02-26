@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+
+	"donegeon/internal/sessionctx"
 )
 
 type Repository struct {
@@ -33,8 +35,20 @@ func (r *Repository) Load(ctx context.Context, boardID string) (*State, error) {
 		return nil, err
 	}
 
+	principal := sessionctx.PrincipalFromContext(ctx)
+	args := map[string]any{
+		"board_id":     boardID,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+	}
+
 	var raw string
-	if err := r.db.GetContext(ctx, &raw, query, boardID); err != nil {
+	named, bindArgs, err := sqlx.Named(query, args)
+	if err != nil {
+		return nil, err
+	}
+	named = r.db.Rebind(named)
+	if err := r.db.GetContext(ctx, &raw, named, bindArgs...); err != nil {
 		if err == sql.ErrNoRows {
 			return NewState(), nil
 		}
@@ -64,10 +78,13 @@ func (r *Repository) Save(ctx context.Context, boardID string, state *State) err
 		return fmt.Errorf("encode board state: %w", err)
 	}
 
+	principal := sessionctx.PrincipalFromContext(ctx)
 	args := map[string]any{
-		"board_id":   boardID,
-		"state_json": string(b),
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		"board_id":     boardID,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+		"state_json":   string(b),
+		"updated_at":   time.Now().UTC().Format(time.RFC3339),
 	}
 
 	if _, err := r.db.NamedExecContext(ctx, query, args); err != nil {

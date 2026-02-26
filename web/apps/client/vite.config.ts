@@ -2,13 +2,15 @@ import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 
+const apiTarget = process.env.DONEGEON_API_URL || "http://localhost:42069";
+
 export default defineConfig({
   plugins: [solid(), tailwindcss()],
   server: {
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:42069",
+        target: apiTarget,
         changeOrigin: true,
       },
     },

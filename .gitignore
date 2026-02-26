@@ -17,6 +17,9 @@ web/dist/assets/*
 !web/dist/assets/app.js
 !web/dist/assets/app.css
 web/apps/client/.turbo
+web/apps/client/playwright-report/
+web/apps/client/test-results/
+web/apps/client/blob-report/
 
 # editor
 .DS_Store

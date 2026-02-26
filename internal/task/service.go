@@ -2,11 +2,14 @@ package task
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	apperrors "donegeon/internal/errors"
 	"donegeon/internal/quickadd"
 	"donegeon/internal/rrule"
+	"donegeon/internal/sessionctx"
+	"donegeon/internal/tenant"
 )
 
 type Service struct {
@@ -24,15 +27,33 @@ func NewService(repo *Repository, parser *quickadd.Parser) *Service {
 }
 
 func (s *Service) List(ctx context.Context, params ListParams) (ListResult, error) {
-	return s.repo.List(ctx, params)
+	if params.ProjectID != nil {
+		params.ProjectID = canonicalizeProjectID(ctx, params.ProjectID)
+	}
+	result, err := s.repo.List(ctx, params)
+	if err != nil {
+		return ListResult{}, err
+	}
+	for i := range result.Items {
+		s.normalizeTaskTemporalFields(ctx, &result.Items[i])
+		result.Items[i].ProjectID = exposeProjectID(result.Items[i].ProjectID)
+	}
+	return result, nil
 }
 
 func (s *Service) Get(ctx context.Context, id string) (Task, error) {
-	return s.repo.Get(ctx, id)
+	item, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Task{}, err
+	}
+	s.normalizeTaskTemporalFields(ctx, &item)
+	item.ProjectID = exposeProjectID(item.ProjectID)
+	return item, nil
 }
 
 func (s *Service) ParseQuickAdd(ctx context.Context, text string) quickadd.Parsed {
 	parsed := s.parser.Parse(text)
+	parsed.Deadline = normalizeDeadline(parsed.Deadline, timezoneFromContext(ctx), s.nowFn())
 	if parsed.RecurrenceRule != nil && parsed.DueText == nil {
 		if nextDue, ok := nextOccurrenceDueText(*parsed.RecurrenceRule, timezoneFromContext(ctx), s.nowFn(), true); ok {
 			parsed.DueText = strPtr(nextDue)
@@ -45,6 +66,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 	if in.Content == "" {
 		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "content is required"), "content")
 	}
+	in.ProjectID = canonicalizeProjectID(ctx, in.ProjectID)
+	in.DueDeadline = normalizeDeadline(in.DueDeadline, timezoneFromContext(ctx), s.nowFn())
 	if in.Recurrence != nil {
 		if _, err := rrule.Parse(*in.Recurrence); err != nil {
 			return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid recurrence rule: "+err.Error()), "recurrenceRule")
@@ -55,19 +78,34 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 			}
 		}
 	}
-	return s.repo.Create(ctx, in)
+	created, err := s.repo.Create(ctx, in)
+	if err != nil {
+		return Task{}, err
+	}
+	s.normalizeTaskTemporalFields(ctx, &created)
+	created.ProjectID = exposeProjectID(created.ProjectID)
+	return created, nil
 }
 
 func (s *Service) CreateFromQuickAdd(ctx context.Context, text string) (Task, quickadd.Parsed, error) {
 	parsed := s.ParseQuickAdd(ctx, text)
+	scheduleInput := strings.TrimSpace(text)
+
+	var scheduleInputPtr *string
+	if scheduleInput != "" {
+		scheduleInputPtr = strPtr(scheduleInput)
+	}
+
 	created, err := s.Create(ctx, CreateInput{
-		Content:     parsed.Content,
-		Description: parsed.Description,
-		ProjectID:   parsed.Project,
-		Recurrence:  parsed.RecurrenceRule,
-		Priority:    derefPriority(parsed.Priority, 4),
-		DueText:     parsed.DueText,
-		DueDeadline: parsed.Deadline,
+		Content:       parsed.Content,
+		Description:   parsed.Description,
+		ProjectID:     parsed.Project,
+		Recurrence:    parsed.RecurrenceRule,
+		Priority:      derefPriority(parsed.Priority, 4),
+		DueText:       parsed.DueText,
+		DueDeadline:   parsed.Deadline,
+		ScheduleInput: scheduleInputPtr,
+		Labels:        parsed.Labels,
 	})
 	if err != nil {
 		return Task{}, quickadd.Parsed{}, err
@@ -76,6 +114,10 @@ func (s *Service) CreateFromQuickAdd(ctx context.Context, text string) (Task, qu
 }
 
 func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, error) {
+	if in.ProjectID != nil {
+		in.ProjectID = canonicalizeProjectID(ctx, in.ProjectID)
+	}
+	in.DueDeadline = normalizeDeadline(in.DueDeadline, timezoneFromContext(ctx), s.nowFn())
 	if in.Recurrence != nil {
 		if _, err := rrule.Parse(*in.Recurrence); err != nil {
 			return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid recurrence rule: "+err.Error()), "recurrenceRule")
@@ -97,11 +139,17 @@ func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, 
 		}
 	}
 
-	return s.repo.Update(ctx, id, in)
+	updated, err := s.repo.Update(ctx, id, in)
+	if err != nil {
+		return Task{}, err
+	}
+	s.normalizeTaskTemporalFields(ctx, &updated)
+	updated.ProjectID = exposeProjectID(updated.ProjectID)
+	return updated, nil
 }
 
 func (s *Service) Close(ctx context.Context, id string) error {
-	current, err := s.repo.Get(ctx, id)
+	current, err := s.Get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -130,14 +178,16 @@ func (s *Service) Close(ctx context.Context, id string) error {
 	}
 
 	_, err = s.Create(ctx, CreateInput{
-		Content:     current.Content,
-		Description: current.Description,
-		ProjectID:   current.ProjectID,
-		SectionID:   current.SectionID,
-		Recurrence:  current.Recurrence,
-		Priority:    current.Priority,
-		DueText:     nextDue,
-		DueDeadline: current.DueDeadline,
+		Content:       current.Content,
+		Description:   current.Description,
+		ProjectID:     current.ProjectID,
+		SectionID:     current.SectionID,
+		Recurrence:    current.Recurrence,
+		Priority:      current.Priority,
+		DueText:       nextDue,
+		DueDeadline:   current.DueDeadline,
+		ScheduleInput: current.ScheduleInput,
+		Labels:        current.Labels,
 	})
 	return err
 }
@@ -160,4 +210,48 @@ func derefPriority(priority *int, fallback int) int {
 func strPtr(value string) *string {
 	v := value
 	return &v
+}
+
+func canonicalizeProjectID(ctx context.Context, value *string) *string {
+	if value == nil {
+		return nil
+	}
+	projectID := strings.TrimSpace(*value)
+	if projectID == "" {
+		return nil
+	}
+	workspaceID := sessionctx.WorkspaceID(ctx)
+	if workspaceID == sessionctx.DefaultWorkspaceID && !strings.Contains(projectID, "::") {
+		return strPtr(projectID)
+	}
+	canonical := tenant.CanonicalProjectID(workspaceID, projectID)
+	return strPtr(canonical)
+}
+
+func exposeProjectID(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	slug := tenant.ProjectSlug(strings.TrimSpace(*value))
+	if slug == "" {
+		return nil
+	}
+	return strPtr(slug)
+}
+
+func (s *Service) normalizeTaskTemporalFields(ctx context.Context, item *Task) {
+	if item == nil {
+		return
+	}
+	item.DueDeadline = normalizeDeadline(item.DueDeadline, timezoneFromContext(ctx), s.deadlineAnchor(*item))
+}
+
+func (s *Service) deadlineAnchor(item Task) time.Time {
+	if parsed, err := time.Parse(time.RFC3339, item.CreatedAt); err == nil {
+		return parsed
+	}
+	if parsed, err := time.Parse(time.RFC3339, item.UpdatedAt); err == nil {
+		return parsed
+	}
+	return s.nowFn()
 }

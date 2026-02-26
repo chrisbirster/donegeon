@@ -2,6 +2,8 @@ package task
 
 import (
 	"context"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +12,10 @@ import (
 )
 
 type timezoneContextKey struct{}
+
+var (
+	inHoursPattern = regexp.MustCompile(`(?i)^in\s+(\d+)\s+hours?$`)
+)
 
 // WithTimezone attaches an IANA timezone identifier (for example, "America/New_York")
 // to a request context so recurrence scheduling can be resolved in user-local time.
@@ -55,12 +61,17 @@ func nextOccurrenceDueText(recurrence string, timezone string, after time.Time, 
 		ruleText = strings.TrimSpace(ruleText[len("RRULE:"):])
 	}
 
+	timedRule := recurrenceHasClockTime(ruleText)
+
 	options, err := rrulelib.StrToROptionInLocation(ruleText, loc)
 	if err != nil {
 		return "", false
 	}
 	if options.Dtstart.IsZero() {
 		options.Dtstart = anchor
+	}
+	if timedRule && len(options.Bysecond) == 0 {
+		options.Bysecond = []int{0}
 	}
 
 	rule, err := rrulelib.NewRRule(*options)
@@ -73,7 +84,7 @@ func nextOccurrenceDueText(recurrence string, timezone string, after time.Time, 
 		return "", false
 	}
 
-	if recurrenceHasClockTime(ruleText) {
+	if timedRule {
 		return next.In(loc).Format(time.RFC3339), true
 	}
 	return next.In(loc).Format(time.DateOnly), true
@@ -110,4 +121,29 @@ func parseDueAnchor(raw string, loc *time.Location) (time.Time, bool) {
 		return parsed, true
 	}
 	return time.Time{}, false
+}
+
+func normalizeDeadline(value *string, timezone string, now time.Time) *string {
+	if value == nil {
+		return nil
+	}
+
+	raw := strings.TrimSpace(*value)
+	if raw == "" {
+		return nil
+	}
+
+	match := inHoursPattern.FindStringSubmatch(raw)
+	if match == nil {
+		return strPtr(raw)
+	}
+
+	hours, err := strconv.Atoi(match[1])
+	if err != nil || hours <= 0 {
+		return strPtr(raw)
+	}
+
+	loc := locationFromTimezone(timezone)
+	deadline := now.In(loc).Add(time.Duration(hours) * time.Hour)
+	return strPtr(deadline.Format(time.RFC3339))
 }

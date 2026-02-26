@@ -1,0 +1,50 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { defineConfig } from "@playwright/test";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, "../../..");
+
+const apiPort = Number(process.env.PW_API_PORT || "42169");
+const webPort = Number(process.env.PW_WEB_PORT || "4173");
+const dbPath = path.resolve(repoRoot, "tmp", "playwright-e2e.db");
+
+export default defineConfig({
+  testDir: "./tests/e2e",
+  fullyParallel: false,
+  workers: 1,
+  retries: process.env.CI ? 2 : 0,
+  timeout: 60_000,
+  expect: {
+    timeout: 10_000,
+  },
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"], ["html", { open: "never" }]],
+  use: {
+    baseURL: `http://127.0.0.1:${webPort}`,
+    viewport: {
+      width: 1440,
+      height: 900,
+    },
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+  },
+  webServer: [
+    {
+      command: `sh -c "rm -f '${dbPath}' && DONEGEON_HTTP_PORT=${apiPort} DONEGEON_DB_PATH='${dbPath}' DONEGEON_REQUIRE_AUTH=false go run ."`,
+      cwd: repoRoot,
+      port: apiPort,
+      timeout: 120_000,
+      reuseExistingServer: false,
+    },
+    {
+      command: `sh -c "DONEGEON_API_URL='http://127.0.0.1:${apiPort}' bun run dev --host 127.0.0.1 --port ${webPort}"`,
+      cwd: __dirname,
+      port: webPort,
+      timeout: 120_000,
+      reuseExistingServer: false,
+    },
+  ],
+});

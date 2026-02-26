@@ -17,16 +17,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/securecookie"
 
+	"donegeon/internal/account"
 	"donegeon/internal/board"
 	"donegeon/internal/config"
 	apperrors "donegeon/internal/errors"
 	"donegeon/internal/project"
 	"donegeon/internal/quickadd"
 	rruleparser "donegeon/internal/rrule"
+	"donegeon/internal/sessionctx"
 	"donegeon/internal/task"
+	"donegeon/internal/todoistcompat"
 )
 
 const requestIDHeader = "X-Request-Id"
+const authSessionCookieName = "donegeon_auth_session"
 
 type ctxKey string
 
@@ -49,6 +53,8 @@ type API struct {
 	projects   *project.Service
 	boards     *board.Service
 	parser     *quickadd.Parser
+	todoist    *todoistcompat.Service
+	accounts   *account.Service
 	webHandler http.Handler
 	cookies    *securecookie.SecureCookie
 }
@@ -60,6 +66,8 @@ func New(
 	projects *project.Service,
 	boards *board.Service,
 	parser *quickadd.Parser,
+	todoist *todoistcompat.Service,
+	accounts *account.Service,
 	staticFS fs.FS,
 ) http.Handler {
 	api := &API{
@@ -69,15 +77,22 @@ func New(
 		projects:   projects,
 		boards:     boards,
 		parser:     parser,
+		todoist:    todoist,
+		accounts:   accounts,
 		webHandler: newSPAHandler(staticFS),
 		cookies:    securecookie.New([]byte(cfg.CookieSigningKey), nil),
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", api.handleHealth)
+	mux.HandleFunc("POST /api/auth/login", api.handleAuthLogin)
+	mux.HandleFunc("GET /api/auth/me", api.handleAuthMe)
+	mux.HandleFunc("POST /api/auth/onboarding", api.handleAuthOnboarding)
+	mux.HandleFunc("POST /api/auth/logout", api.handleAuthLogout)
 	mux.HandleFunc("POST /api/rrule/parse", api.handleParseRRule)
 	mux.HandleFunc("POST /api/quick-add/parse", api.handleParseQuickAdd)
 	mux.HandleFunc("POST /api/tasks/quick-add", api.handleQuickAddTask)
+	mux.HandleFunc("POST /api/todoist/action", api.handleTodoistAction)
 	mux.HandleFunc("GET /api/tasks", api.handleListTasks)
 	mux.HandleFunc("GET /api/projects", api.handleListProjects)
 	mux.HandleFunc("GET /api/board/state", api.handleGetBoardState)
@@ -108,26 +123,112 @@ func New(
 }
 
 func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
-	sessionValue := map[string]string{
-		"session": "guest",
-		"rid":     requestIDFromContext(r.Context()),
-	}
-	encoded, err := a.cookies.Encode("donegeon_session", sessionValue)
-	if err == nil {
-		http.SetCookie(w, &http.Cookie{
-			Name:     "donegeon_session",
-			Value:    encoded,
-			Path:     "/",
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-		})
-	}
-
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ok",
 		"name":   "donegeon",
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (a *API) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	session, err := a.accounts.Login(r.Context(), strings.TrimSpace(req.Email), strings.TrimSpace(req.Name))
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "email"))
+		return
+	}
+
+	principal := sessionctx.Principal{
+		UserID: session.User.ID,
+		Email:  session.User.Email,
+	}
+	if session.User.CurrentWorkspace != nil {
+		principal.WorkspaceID = strings.TrimSpace(*session.User.CurrentWorkspace)
+	}
+	if err := a.writeSessionCookie(w, principal); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to set auth session"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"session": session})
+}
+
+func (a *API) handleAuthMe(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	session, err := a.accounts.GetSession(r.Context(), principal.UserID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeUnauthorized, "not authenticated"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"session": session})
+}
+
+func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		TeamName string   `json:"teamName"`
+		Emails   []string `json:"emails"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	session, invites, err := a.accounts.CompleteOnboarding(
+		r.Context(),
+		principal.UserID,
+		strings.TrimSpace(req.TeamName),
+		req.Emails,
+	)
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "teamName"))
+		return
+	}
+
+	newPrincipal := sessionctx.Principal{
+		UserID: session.User.ID,
+		Email:  session.User.Email,
+	}
+	if session.User.CurrentWorkspace != nil {
+		newPrincipal.WorkspaceID = strings.TrimSpace(*session.User.CurrentWorkspace)
+	}
+	if err := a.writeSessionCookie(w, newPrincipal); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to update auth session"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"session":     session,
+		"invitations": invites,
+	})
+}
+
+func (a *API) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
+	a.clearSessionCookie(w)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) handleParseQuickAdd(w http.ResponseWriter, r *http.Request) {
@@ -201,12 +302,50 @@ func (a *API) handleQuickAddTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"task": created, "parsed": parsed})
 }
 
+func (a *API) handleTodoistAction(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.todoist == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "todoist compatibility service unavailable"))
+		return
+	}
+
+	var req struct {
+		Action  string         `json:"action"`
+		Payload map[string]any `json:"payload"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	action := strings.TrimSpace(req.Action)
+	if action == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "action is required"), "action"))
+		return
+	}
+	if req.Payload == nil {
+		req.Payload = map[string]any{}
+	}
+
+	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
+	result, err := a.todoist.Dispatch(ctx, action, req.Payload)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"result": result})
+}
+
 func (a *API) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	projectID := ptrOrNil(strings.TrimSpace(r.URL.Query().Get("projectId")))
 	limit := parseIntOrDefault(r.URL.Query().Get("limit"), 50)
 	cursor := parseIntOrDefault(r.URL.Query().Get("cursor"), 0)
+	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 
-	result, err := a.tasks.List(r.Context(), task.ListParams{
+	result, err := a.tasks.List(ctx, task.ListParams{
 		ProjectID: projectID,
 		Limit:     limit,
 		Cursor:    cursor,
@@ -324,7 +463,8 @@ func (a *API) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := a.tasks.Get(r.Context(), id)
+	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
+	item, err := a.tasks.Get(ctx, id)
 	if err != nil {
 		writeAPIError(w, err)
 		return
@@ -339,15 +479,17 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Content     string  `json:"content"`
-		Description string  `json:"description"`
-		ProjectID   *string `json:"projectId"`
-		SectionID   *string `json:"sectionId"`
-		SortOrder   *int64  `json:"sortOrder"`
-		Recurrence  *string `json:"recurrenceRule"`
-		Priority    int     `json:"priority"`
-		DueText     *string `json:"dueText"`
-		DueDeadline *string `json:"dueDeadline"`
+		Content       string   `json:"content"`
+		Description   string   `json:"description"`
+		ProjectID     *string  `json:"projectId"`
+		SectionID     *string  `json:"sectionId"`
+		SortOrder     *int64   `json:"sortOrder"`
+		Recurrence    *string  `json:"recurrenceRule"`
+		Priority      int      `json:"priority"`
+		DueText       *string  `json:"dueText"`
+		DueDeadline   *string  `json:"dueDeadline"`
+		ScheduleInput *string  `json:"scheduleInput"`
+		Labels        []string `json:"labels"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
@@ -356,15 +498,17 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 	created, err := a.tasks.Create(ctx, task.CreateInput{
-		Content:     strings.TrimSpace(req.Content),
-		Description: strings.TrimSpace(req.Description),
-		ProjectID:   cleanPtr(req.ProjectID),
-		SectionID:   cleanPtr(req.SectionID),
-		SortOrder:   ptrInt64Value(req.SortOrder),
-		Recurrence:  cleanPtr(req.Recurrence),
-		Priority:    req.Priority,
-		DueText:     cleanPtr(req.DueText),
-		DueDeadline: cleanPtr(req.DueDeadline),
+		Content:       strings.TrimSpace(req.Content),
+		Description:   strings.TrimSpace(req.Description),
+		ProjectID:     cleanPtr(req.ProjectID),
+		SectionID:     cleanPtr(req.SectionID),
+		SortOrder:     ptrInt64Value(req.SortOrder),
+		Recurrence:    cleanPtr(req.Recurrence),
+		Priority:      req.Priority,
+		DueText:       cleanPtr(req.DueText),
+		DueDeadline:   cleanPtr(req.DueDeadline),
+		ScheduleInput: cleanPtr(req.ScheduleInput),
+		Labels:        cleanStringSlice(req.Labels),
 	})
 	if err != nil {
 		writeAPIError(w, err)
@@ -386,15 +530,17 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Content     *string `json:"content"`
-		Description *string `json:"description"`
-		ProjectID   *string `json:"projectId"`
-		SectionID   *string `json:"sectionId"`
-		SortOrder   *int64  `json:"sortOrder"`
-		Recurrence  *string `json:"recurrenceRule"`
-		Priority    *int    `json:"priority"`
-		DueText     *string `json:"dueText"`
-		DueDeadline *string `json:"dueDeadline"`
+		Content       *string  `json:"content"`
+		Description   *string  `json:"description"`
+		ProjectID     *string  `json:"projectId"`
+		SectionID     *string  `json:"sectionId"`
+		SortOrder     *int64   `json:"sortOrder"`
+		Recurrence    *string  `json:"recurrenceRule"`
+		Priority      *int     `json:"priority"`
+		DueText       *string  `json:"dueText"`
+		DueDeadline   *string  `json:"dueDeadline"`
+		ScheduleInput *string  `json:"scheduleInput"`
+		Labels        []string `json:"labels"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
@@ -402,17 +548,24 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
-	updated, err := a.tasks.Update(ctx, id, task.UpdateInput{
-		Content:     cleanPtr(req.Content),
-		Description: cleanPtr(req.Description),
-		ProjectID:   cleanPtr(req.ProjectID),
-		SectionID:   cleanPtr(req.SectionID),
-		SortOrder:   req.SortOrder,
-		Recurrence:  cleanPtr(req.Recurrence),
-		Priority:    req.Priority,
-		DueText:     cleanPtr(req.DueText),
-		DueDeadline: cleanPtr(req.DueDeadline),
-	})
+	input := task.UpdateInput{
+		Content:       cleanPtr(req.Content),
+		Description:   cleanPtr(req.Description),
+		ProjectID:     cleanPtr(req.ProjectID),
+		SectionID:     cleanPtr(req.SectionID),
+		SortOrder:     req.SortOrder,
+		Recurrence:    cleanPtr(req.Recurrence),
+		Priority:      req.Priority,
+		DueText:       cleanPtr(req.DueText),
+		DueDeadline:   cleanPtr(req.DueDeadline),
+		ScheduleInput: cleanPtr(req.ScheduleInput),
+	}
+	if req.Labels != nil {
+		labels := cleanStringSlice(req.Labels)
+		input.Labels = &labels
+	}
+
+	updated, err := a.tasks.Update(ctx, id, input)
 	if err != nil {
 		writeAPIError(w, err)
 		return
@@ -481,8 +634,37 @@ func (a *API) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api") || r.URL.Path == "/api/health" || !a.cfg.RequireAuth {
+		if !strings.HasPrefix(r.URL.Path, "/api") || r.URL.Path == "/api/health" {
 			next.ServeHTTP(w, r)
+			return
+		}
+
+		if r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/logout" {
+			ctx := context.WithValue(r.Context(), ctxKeyScope, ScopeWrite)
+			ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		if principal, ok := a.readSessionPrincipal(r); ok {
+			scope := ScopeRead
+			if isWriteRequest(r.Method) {
+				scope = ScopeWrite
+			}
+			ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
+			ctx = sessionctx.WithPrincipal(ctx, principal)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		if !a.cfg.RequireAuth {
+			scope := ScopeRead
+			if isWriteRequest(r.Method) {
+				scope = ScopeWrite
+			}
+			ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
+			ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 
@@ -504,7 +686,82 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
+		ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func isWriteRequest(method string) bool {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	default:
+		return true
+	}
+}
+
+func (a *API) readSessionPrincipal(r *http.Request) (sessionctx.Principal, bool) {
+	cookie, err := r.Cookie(authSessionCookieName)
+	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+		return sessionctx.Principal{}, false
+	}
+
+	value := map[string]string{}
+	if err := a.cookies.Decode(authSessionCookieName, cookie.Value, &value); err != nil {
+		return sessionctx.Principal{}, false
+	}
+
+	userID := strings.TrimSpace(value["userId"])
+	if userID == "" {
+		return sessionctx.Principal{}, false
+	}
+
+	principal := sessionctx.Principal{
+		UserID:      userID,
+		WorkspaceID: strings.TrimSpace(value["workspaceId"]),
+		Email:       strings.TrimSpace(value["email"]),
+	}
+	if principal.WorkspaceID == "" {
+		principal.WorkspaceID = sessionctx.DefaultWorkspaceID
+	}
+	return principal, true
+}
+
+func (a *API) writeSessionCookie(w http.ResponseWriter, principal sessionctx.Principal) error {
+	if strings.TrimSpace(principal.UserID) == "" {
+		return fmt.Errorf("user id is required")
+	}
+	if strings.TrimSpace(principal.WorkspaceID) == "" {
+		principal.WorkspaceID = sessionctx.DefaultWorkspaceID
+	}
+	value := map[string]string{
+		"userId":      strings.TrimSpace(principal.UserID),
+		"workspaceId": strings.TrimSpace(principal.WorkspaceID),
+		"email":       strings.TrimSpace(principal.Email),
+	}
+	encoded, err := a.cookies.Encode(authSessionCookieName, value)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     authSessionCookieName,
+		Value:    encoded,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   86400 * 30,
+	})
+	return nil
+}
+
+func (a *API) clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     authSessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
 	})
 }
 
@@ -663,6 +920,21 @@ func cleanPtr(value *string) *string {
 		return nil
 	}
 	return &v
+}
+
+func cleanStringSlice(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	cleaned := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		cleaned = append(cleaned, trimmed)
+	}
+	return cleaned
 }
 
 func parseIntOrDefault(raw string, fallback int) int {

@@ -113,7 +113,7 @@ func TestServiceCreateFromQuickAddAutofillsDueFromRecurrenceUsingTimezone(t *tes
 	repo := NewRepository(db, queries)
 	service := NewService(repo, quickadd.NewParser())
 	service.nowFn = func() time.Time {
-		return time.Date(2026, time.February, 25, 15, 0, 0, 0, time.UTC)
+		return time.Date(2026, time.February, 25, 15, 0, 43, 0, time.UTC)
 	}
 
 	ctx := WithTimezone(context.Background(), "America/New_York")
@@ -207,6 +207,151 @@ func TestServiceCloseRecurringTaskSpawnsNextOccurrence(t *testing.T) {
 	}
 	if !strings.HasPrefix(*next.DueText, "2026-03-05T19:00:00-05:00") {
 		t.Fatalf("unexpected spawned due text: %q", *next.DueText)
+	}
+}
+
+func TestServiceCreateFromQuickAddNormalizesInHoursDeadline(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "service-deadline-hours-test.db")
+	if err := datbase.RunMigrations(dbPath); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	db, err := datbase.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	queries, err := datbase.LoadQueries()
+	if err != nil {
+		t.Fatalf("load queries: %v", err)
+	}
+
+	repo := NewRepository(db, queries)
+	service := NewService(repo, quickadd.NewParser())
+	service.nowFn = func() time.Time {
+		return time.Date(2026, time.February, 25, 15, 0, 0, 0, time.UTC)
+	}
+
+	ctx := WithTimezone(context.Background(), "America/New_York")
+	created, _, err := service.CreateFromQuickAdd(ctx, "take out the trash every thursday at 7pm {in 12 hours} #home p1 @chore")
+	if err != nil {
+		t.Fatalf("create from quick add: %v", err)
+	}
+
+	expected := "2026-02-25T22:00:00-05:00"
+	if created.DueDeadline == nil || *created.DueDeadline != expected {
+		t.Fatalf("unexpected normalized deadline: got=%v want=%q", strOrNil(created.DueDeadline), expected)
+	}
+}
+
+func TestServiceParseQuickAddNormalizesInHoursDeadline(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(nil, quickadd.NewParser())
+	service.nowFn = func() time.Time {
+		return time.Date(2026, time.February, 25, 15, 0, 0, 0, time.UTC)
+	}
+
+	ctx := WithTimezone(context.Background(), "America/New_York")
+	parsed := service.ParseQuickAdd(ctx, "take out the trash every thursday at 7pm {in 12 hours}")
+
+	expected := "2026-02-25T22:00:00-05:00"
+	if parsed.Deadline == nil || *parsed.Deadline != expected {
+		t.Fatalf("unexpected parsed deadline: got=%v want=%q", strOrNil(parsed.Deadline), expected)
+	}
+}
+
+func TestServiceGetNormalizesLegacyInHoursDeadlineFromCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "service-get-deadline-hours-test.db")
+	if err := datbase.RunMigrations(dbPath); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	db, err := datbase.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	queries, err := datbase.LoadQueries()
+	if err != nil {
+		t.Fatalf("load queries: %v", err)
+	}
+
+	repo := NewRepository(db, queries)
+	service := NewService(repo, quickadd.NewParser())
+
+	created, err := repo.Create(context.Background(), CreateInput{
+		Content:     "legacy deadline",
+		Priority:    4,
+		DueDeadline: strPtr("in 12 hours"),
+	})
+	if err != nil {
+		t.Fatalf("seed legacy task: %v", err)
+	}
+
+	createdAt, err := time.Parse(time.RFC3339, created.CreatedAt)
+	if err != nil {
+		t.Fatalf("parse created_at: %v", err)
+	}
+
+	ctx := WithTimezone(context.Background(), "America/New_York")
+	item, err := service.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
+	expected := createdAt.In(loc).Add(12 * time.Hour).Format(time.RFC3339)
+	if item.DueDeadline == nil || *item.DueDeadline != expected {
+		t.Fatalf("unexpected normalized deadline on get: got=%v want=%q", strOrNil(item.DueDeadline), expected)
+	}
+}
+
+func TestServiceCreateFromQuickAddPersistsLabelsAndScheduleInput(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "service-quick-add-labels-schedule-test.db")
+	if err := datbase.RunMigrations(dbPath); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	db, err := datbase.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	queries, err := datbase.LoadQueries()
+	if err != nil {
+		t.Fatalf("load queries: %v", err)
+	}
+
+	repo := NewRepository(db, queries)
+	service := NewService(repo, quickadd.NewParser())
+
+	text := "take out trash every thursday at 7pm {tomorrow} p1 @chore @home"
+	created, _, err := service.CreateFromQuickAdd(context.Background(), text)
+	if err != nil {
+		t.Fatalf("create from quick add: %v", err)
+	}
+
+	if created.ScheduleInput == nil || *created.ScheduleInput != text {
+		t.Fatalf("unexpected schedule input: got=%v want=%q", strOrNil(created.ScheduleInput), text)
+	}
+	if len(created.Labels) != 2 {
+		t.Fatalf("unexpected labels length: got=%d want=2", len(created.Labels))
+	}
+	if created.Labels[0] != "chore" || created.Labels[1] != "home" {
+		t.Fatalf("unexpected labels: got=%v want=[chore home]", created.Labels)
 	}
 }
 

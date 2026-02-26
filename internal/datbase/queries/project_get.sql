@@ -5,6 +5,8 @@ WITH task_counts AS (
     FROM tasks
     WHERE is_deleted = 0
       AND checked = 0
+      AND user_id = :user_id
+      AND workspace_id = :workspace_id
       AND project_id IS NOT NULL
       AND project_id <> ''
     GROUP BY project_id
@@ -21,5 +23,11 @@ SELECT
     COALESCE(tc.open_task_count, 0) AS open_task_count
 FROM projects p
 LEFT JOIN task_counts tc ON tc.project_id = p.id
-WHERE p.id = ?
+WHERE p.id = :id
+  AND p.user_id = :user_id
+  AND (
+      p.workspace_id = :workspace_id
+      OR p.workspace_id IS NULL
+      OR p.workspace_id = ''
+  )
 LIMIT 1;

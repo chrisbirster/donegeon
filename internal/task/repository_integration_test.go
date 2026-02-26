@@ -102,3 +102,47 @@ func TestRepositoryCloseIncrementsProcessedCountOnce(t *testing.T) {
 		t.Fatalf("expected processed_count to remain 1 after second close, got %d", closedAgain.ProcessedCount)
 	}
 }
+
+func TestRepositoryCreateAndUpdateLabels(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "repo-labels.db")
+	if err := datbase.RunMigrations(dbPath); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	db, err := datbase.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	queries, err := datbase.LoadQueries()
+	if err != nil {
+		t.Fatalf("load queries: %v", err)
+	}
+
+	repo := NewRepository(db, queries)
+
+	created, err := repo.Create(context.Background(), CreateInput{
+		Content:  "labels",
+		Priority: 4,
+		Labels:   []string{"Chore", "@Home", "home"},
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if len(created.Labels) != 2 {
+		t.Fatalf("expected 2 labels after create, got %d", len(created.Labels))
+	}
+
+	updated, err := repo.Update(context.Background(), created.ID, UpdateInput{
+		Labels: &[]string{"Errand"},
+	})
+	if err != nil {
+		t.Fatalf("update labels: %v", err)
+	}
+	if len(updated.Labels) != 1 || updated.Labels[0] != "errand" {
+		t.Fatalf("unexpected updated labels: %v", updated.Labels)
+	}
+}

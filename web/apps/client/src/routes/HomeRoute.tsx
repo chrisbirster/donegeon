@@ -9,6 +9,7 @@ import {
 import { useLocation, useNavigate } from "@solidjs/router";
 
 import {
+  boardApi,
   parseApi,
   projectApi,
   rruleApi,
@@ -17,6 +18,7 @@ import {
   type QuickAddParsed,
   type Task,
 } from "../server/api";
+import AppShell from "../components/AppShell";
 
 type TokenKind =
   | "project"
@@ -33,8 +35,35 @@ type TokenPiece = {
   kind: TokenKind;
 };
 
+type TaskActivationCoinRequirement = {
+  currency: string;
+  required: number;
+  available: number;
+  missing: number;
+};
+
+type TaskActivationModifierRequirement = {
+  defId: string;
+  required: number;
+  available: number;
+  missing: number;
+};
+
+type TaskActivationPreview = {
+  taskId: string;
+  stackId?: string;
+  alreadyLive: boolean;
+  activated: boolean;
+  canActivate: boolean;
+  requirements: {
+    coin?: TaskActivationCoinRequirement;
+    modifiers: TaskActivationModifierRequirement[];
+  };
+  inventory?: Record<string, number>;
+};
+
 const QUICK_ADD_TOKEN_PATTERN =
-  /(\{[^{}]+\}|#[A-Za-z][A-Za-z0-9_-]*|@[A-Za-z][A-Za-z0-9_-]*|\+[A-Za-z][A-Za-z0-9_-]*|\bp[1-4]\b|\bevery\s+(?:\d+(?:st|nd|rd|th)?|one|two|three|four|five|six|seven|eight|nine|ten|other)\s+(?:day|days|week|weeks|month|months|year|years)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b|\bevery\s+(?:day|week|month|year)\b|\b(?:daily|every\s+day)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bevery\s+(?:weekday|weekdays|weekend|weekends|monday|mondays|tuesday|tuesdays|wednesday|wednesdays|thursday|thursdays|friday|fridays|saturday|saturdays|sunday|sundays)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b|\b(?:weekdays|weekends|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bbiweekly\b|\btwice\s+a\s+month\b|\bevery\s+month\s+on\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b|\bon\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:each|every)\s+month\b|\b(?:first|second|third|fourth|last)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+of\s+(?:each|every)\s+month\b|\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\b(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week)\b|\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b|\b\d+\s+(?:day|days|week|weeks|month|months)\s+from\s+now\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b|\btomorrow\b)/gi;
+  /(\{[^{}]+\}|#[A-Za-z][A-Za-z0-9_-]*|@[A-Za-z][A-Za-z0-9_-]*|\+[A-Za-z][A-Za-z0-9_-]*|\bp[1-4]\b|\bevery\s+(?:\d+(?:st|nd|rd|th)?|one|two|three|four|five|six|seven|eight|nine|ten|other)\s+(?:day|days|week|weeks|month|months|year|years)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b|\bevery\s+(?:day|week|month|year)\b|\b(?:daily|every\s+day)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bevery\s+(?:weekday|weekdays|weekend|weekends|monday|mondays|tuesday|tuesdays|wednesday|wednesdays|thursday|thursdays|friday|fridays|saturday|saturdays|sunday|sundays)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b|\b(?:weekdays|weekends|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bbiweekly\b|\btwice\s+a\s+month\b|\bevery\s+month\s+on\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b|\bon\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:each|every)\s+month\b|\b(?:first|second|third|fourth|last)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+of\s+(?:each|every)\s+month\b|\bdue\s+(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b|\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\b(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week)\b|\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b|\b\d+\s+(?:day|days|week|weeks|month|months)\s+from\s+now\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b|\btomorrow\b)/gi;
 
 const RECURRENCE_TOKEN_PATTERN =
   /^(?:every\b|daily\b|biweekly\b|twice\s+a\s+month\b|weekdays\s+at\b|weekends\s+at\b|mondays\s+at\b|tuesdays\s+at\b|wednesdays\s+at\b|thursdays\s+at\b|fridays\s+at\b|saturdays\s+at\b|sundays\s+at\b|first\b|second\b|third\b|fourth\b|last\b|on\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:each|every)\s+month\b)/i;
@@ -107,6 +136,63 @@ function tokenClass(kind: TokenKind): string {
   }
 }
 
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function formatScheduleDateTime(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const raw = value.trim();
+  if (!raw) return undefined;
+
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (ymd) {
+    const dateOnly = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
+    return dateTimeFormatter.format(dateOnly);
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+  return dateTimeFormatter.format(parsed);
+}
+
+function formatLabelsInput(labels: string[] | undefined): string {
+  if (!labels || labels.length === 0) return "";
+  const visible = labels.filter((label) => !isBoardLiveLabel(label));
+  if (visible.length === 0) return "";
+  return visible.map((label) => `@${label}`).join(" ");
+}
+
+function parseLabelsInput(value: string): string[] {
+  const matches = value.match(/@?[A-Za-z][A-Za-z0-9_-]*/g) ?? [];
+  const seen = new Set<string>();
+  const labels: string[] = [];
+
+  for (const token of matches) {
+    const normalized = token.replace(/^@/, "").trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    labels.push(normalized);
+  }
+
+  return labels;
+}
+
+function slugifyProjectID(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "project";
+}
+
 function addChip(value: string | undefined, label: string): string | null {
   if (!value || !value.trim()) return null;
   return `${label}: ${value}`;
@@ -122,6 +208,148 @@ function prettifyLabel(value: string): string {
     .filter((part) => part.length > 0)
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function normalizeLabelToken(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "")
+    .replace(/[_\-\s]+/g, "");
+}
+
+function isBoardLiveLabel(value: string): boolean {
+  return normalizeLabelToken(value) === "boardlive";
+}
+
+function isBoardLiveTask(task: Task | null | undefined): boolean {
+  if (!task) return false;
+  return (task.labels ?? []).some((label) => isBoardLiveLabel(label));
+}
+
+function projectSlug(projectID: string | undefined): string {
+  const normalized = (projectID ?? "").trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.includes("::") ? normalized.slice(normalized.lastIndexOf("::") + 2) : normalized;
+}
+
+function isBoardProject(projectID: string | undefined): boolean {
+  const slug = projectSlug(projectID);
+  return slug === "board" || slug.startsWith("board-");
+}
+
+function isTeamBoardProject(projectID: string | undefined): boolean {
+  const slug = projectSlug(projectID);
+  return slug.startsWith("board-");
+}
+
+function boardIDForProject(projectID: string | undefined): string | undefined {
+  const slug = projectSlug(projectID);
+  if (!isBoardProject(slug)) return undefined;
+  if (slug === "board") return "default";
+  return slug;
+}
+
+function visibleTaskLabels(labels: string[] | undefined): string[] {
+  return (labels ?? []).filter((label) => !isBoardLiveLabel(label));
+}
+
+function formatModifierRequirementName(defID: string): string {
+  const normalized = defID.trim().replace(/^mod\./i, "");
+  if (!normalized) return "Modifier";
+  return prettifyLabel(normalized);
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function toString(value: unknown): string {
+  if (typeof value === "string") return value;
+  return "";
+}
+
+function parseTaskActivationPreview(patch: unknown): TaskActivationPreview | null {
+  if (!patch || typeof patch !== "object") {
+    return null;
+  }
+  const payload = patch as Record<string, unknown>;
+  const taskId = toString(payload.taskId).trim();
+  if (!taskId) {
+    return null;
+  }
+
+  const requirementsPayload =
+    payload.requirements && typeof payload.requirements === "object"
+      ? (payload.requirements as Record<string, unknown>)
+      : {};
+
+  let coin: TaskActivationCoinRequirement | undefined;
+  if (requirementsPayload.coin && typeof requirementsPayload.coin === "object") {
+    const coinPayload = requirementsPayload.coin as Record<string, unknown>;
+    coin = {
+      currency: toString(coinPayload.currency).trim() || "coin",
+      required: toNumber(coinPayload.required, 0),
+      available: toNumber(coinPayload.available, 0),
+      missing: toNumber(coinPayload.missing, 0),
+    };
+  }
+
+  const modifiersRaw = Array.isArray(requirementsPayload.modifiers)
+    ? requirementsPayload.modifiers
+    : [];
+  const modifiers: TaskActivationModifierRequirement[] = [];
+  for (const item of modifiersRaw) {
+    if (!item || typeof item !== "object") continue;
+    const modifier = item as Record<string, unknown>;
+    const defId = toString(modifier.defId).trim();
+    if (!defId) continue;
+    modifiers.push({
+      defId,
+      required: toNumber(modifier.required, 0),
+      available: toNumber(modifier.available, 0),
+      missing: toNumber(modifier.missing, 0),
+    });
+  }
+
+  let inventory: Record<string, number> | undefined;
+  if (payload.inventory && typeof payload.inventory === "object") {
+    inventory = {};
+    for (const [key, value] of Object.entries(payload.inventory as Record<string, unknown>)) {
+      inventory[key] = toNumber(value, 0);
+    }
+  }
+
+  return {
+    taskId,
+    stackId: toString(payload.stackId).trim() || undefined,
+    alreadyLive: payload.alreadyLive === true,
+    activated: payload.activated === true,
+    canActivate: payload.canActivate === true,
+    requirements: {
+      coin,
+      modifiers,
+    },
+    inventory,
+  };
+}
+
+function isNextActionLabel(value: string): boolean {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "")
+    .replace(/[_\-\s]+/g, "");
+  return normalized === "nextaction";
+}
+
+function isNextActionTask(task: Task): boolean {
+  return (task.labels ?? []).some((label) => isNextActionLabel(label));
 }
 
 type TaskView = "inbox" | "today" | "upcomming" | "project";
@@ -193,6 +421,25 @@ function taskDueDate(task: Task): Date | null {
   return parseTaskDateValue(task.dueDeadline) ?? parseTaskDateValue(task.dueText);
 }
 
+const DEFAULT_SIDEBAR_PROJECTS: Project[] = [
+  {
+    id: "board",
+    name: "board",
+    isInboxProject: false,
+    isArchived: false,
+    isFavorite: false,
+    openTaskCount: 0,
+  },
+  {
+    id: "inbox",
+    name: "inbox",
+    isInboxProject: true,
+    isArchived: false,
+    isFavorite: false,
+    openTaskCount: 0,
+  },
+];
+
 export default function HomeRoute() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -219,9 +466,15 @@ export default function HomeRoute() {
   const [detailDueText, setDetailDueText] = createSignal("");
   const [detailDeadline, setDetailDeadline] = createSignal("");
   const [detailProjectId, setDetailProjectId] = createSignal("");
+  const [detailTags, setDetailTags] = createSignal("");
+  const [detailScheduleOriginal, setDetailScheduleOriginal] = createSignal("");
   const [detailRecurrence, setDetailRecurrence] = createSignal("");
   const [detailRecurrenceCanonical, setDetailRecurrenceCanonical] = createSignal("");
   const [detailRecurrenceError, setDetailRecurrenceError] = createSignal("");
+  const [detailActivationPreview, setDetailActivationPreview] = createSignal<TaskActivationPreview | null>(null);
+  const [detailActivationLoading, setDetailActivationLoading] = createSignal(false);
+  const [detailActivationError, setDetailActivationError] = createSignal("");
+  const [detailActivating, setDetailActivating] = createSignal(false);
 
   let mainInputRef: HTMLInputElement | undefined;
   let parseTimer: number | undefined;
@@ -232,9 +485,20 @@ export default function HomeRoute() {
   const inputTokens = createMemo(() => tokenizeQuickAdd(content()));
   const currentView = createMemo(() => parseTaskView(location.pathname));
 
+  const mergedProjects = createMemo(() => {
+    const byID = new Map<string, Project>();
+    for (const project of DEFAULT_SIDEBAR_PROJECTS) {
+      byID.set(project.id, project);
+    }
+    for (const project of projects()) {
+      byID.set(project.id, project);
+    }
+    return [...byID.values()];
+  });
+
   const projectMap = createMemo(() => {
     const byID = new Map<string, Project>();
-    for (const project of projects()) {
+    for (const project of mergedProjects()) {
       byID.set(project.id, project);
     }
     return byID;
@@ -282,13 +546,13 @@ export default function HomeRoute() {
   });
 
   const favoriteProjects = createMemo(() =>
-    projects()
+    mergedProjects()
       .filter((project) => project.isFavorite && !project.isArchived)
       .sort((a, b) => a.name.localeCompare(b.name)),
   );
 
   const sidebarProjects = createMemo(() =>
-    projects()
+    mergedProjects()
       .filter((project) => !project.isArchived)
       .sort((a, b) => a.name.localeCompare(b.name)),
   );
@@ -343,6 +607,8 @@ export default function HomeRoute() {
     return tasks().find((task) => task.id === id) ?? null;
   });
 
+  const detailTaskIsBoardProject = createMemo(() => isBoardProject(detailTask()?.projectId));
+
   const parsedChips = createMemo(() => {
     const parsed = parsedInput();
     if (!parsed) return [] as string[];
@@ -363,10 +629,10 @@ export default function HomeRoute() {
       chips.push(`Priority: p${parsed.priority}`);
     }
 
-    const dueText = addChip(parsed.dueText, "Due");
+    const dueText = addChip(formatScheduleDateTime(parsed.dueText), "Due");
     if (dueText) chips.push(dueText);
 
-    const deadline = addChip(parsed.deadline, "Deadline");
+    const deadline = addChip(formatScheduleDateTime(parsed.deadline), "Deadline");
     if (deadline) chips.push(deadline);
 
     const recurrence = addChip(parsed.recurrenceRule, "Recurrence");
@@ -399,6 +665,13 @@ export default function HomeRoute() {
     const id = projectID?.trim();
     if (!id) return null;
     return projectMap().get(id)?.name ?? prettifyLabel(id);
+  }
+
+  function sidebarProjectCount(project: Project): number {
+    if (project.id === "inbox") {
+      return inboxCount();
+    }
+    return openTaskCountByProjectID().get(project.id) ?? project.openTaskCount ?? 0;
   }
 
   async function refreshData() {
@@ -601,23 +874,142 @@ export default function HomeRoute() {
     }
   }
 
+  async function loadDetailActivationPreview(taskId: string, projectID?: string) {
+    if (!taskId) return;
+    const boardID = boardIDForProject(projectID);
+    if (!boardID) return;
+    setDetailActivationLoading(true);
+    setDetailActivationError("");
+    try {
+      const response = await boardApi.command({
+        cmd: "task.activate",
+        args: {
+          taskId,
+          preview: true,
+        },
+      }, boardID);
+      if (detailTaskId() !== taskId) return;
+      const preview = parseTaskActivationPreview(response.patch);
+      if (!preview) {
+        setDetailActivationPreview(null);
+        setDetailActivationError("Unable to read activation requirements.");
+        return;
+      }
+      setDetailActivationPreview(preview);
+    } catch (err) {
+      if (detailTaskId() !== taskId) return;
+      setDetailActivationPreview(null);
+      setDetailActivationError((err as Error).message);
+    } finally {
+      if (detailTaskId() === taskId) {
+        setDetailActivationLoading(false);
+      }
+    }
+  }
+
+  async function makeDetailTaskLive() {
+    const task = detailTask();
+    if (!task) return;
+    const boardID = boardIDForProject(task.projectId);
+    if (!boardID) {
+      setDetailActivationError("Task must be in the board project to activate.");
+      return;
+    }
+
+    setDetailActivating(true);
+    setDetailActivationError("");
+    try {
+      const response = await boardApi.command({
+        cmd: "task.activate",
+        args: {
+          taskId: task.id,
+          preview: false,
+        },
+      }, boardID);
+      const preview = parseTaskActivationPreview(response.patch);
+      if (preview) {
+        setDetailActivationPreview(preview);
+        if (!preview.canActivate && !preview.alreadyLive) {
+          setDetailActivationError("Not enough board requirements to activate this task.");
+        }
+      }
+      await refreshData();
+      setError("");
+    } catch (err) {
+      setDetailActivationError((err as Error).message);
+    } finally {
+      setDetailActivating(false);
+    }
+  }
+
   function openDetailModal(item: Task) {
+    const detailProject = projectNameByID(item.projectId) ?? item.projectId ?? "";
     setDetailTaskId(item.id);
     setDetailContent(item.content);
     setDetailDescription(item.description || "");
     setDetailPriority(item.priority || 4);
     setDetailDueText(item.dueText || "");
     setDetailDeadline(item.dueDeadline || "");
-    setDetailProjectId(item.projectId || "");
+    setDetailProjectId(detailProject);
+    setDetailTags(formatLabelsInput(item.labels));
+    setDetailScheduleOriginal(item.scheduleInput || "");
     setDetailRecurrence(item.recurrenceRule || "");
     setDetailRecurrenceCanonical(item.recurrenceRule || "");
     setDetailRecurrenceError("");
+    setDetailActivationPreview(null);
+    setDetailActivationError("");
+    setDetailActivationLoading(false);
+    setDetailActivating(false);
     setIsDetailOpen(true);
+    if (isBoardProject(item.projectId)) {
+      void loadDetailActivationPreview(item.id, item.projectId);
+    }
   }
 
   function closeDetailModal() {
     setIsDetailOpen(false);
     setDetailTaskId(null);
+    setDetailActivationPreview(null);
+    setDetailActivationError("");
+    setDetailActivationLoading(false);
+    setDetailActivating(false);
+  }
+
+  function projectByRef(value: string): Project | undefined {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return undefined;
+    return projects().find((project) =>
+      project.id.toLowerCase() === normalized || project.name.toLowerCase() === normalized,
+    );
+  }
+
+  function nextProjectID(baseName: string): string {
+    const existing = new Set(projects().map((project) => project.id.toLowerCase()));
+    const base = slugifyProjectID(baseName);
+    if (!existing.has(base)) return base;
+
+    let index = 2;
+    while (existing.has(`${base}-${index}`)) {
+      index += 1;
+    }
+    return `${base}-${index}`;
+  }
+
+  async function resolveProjectIDForDetail(value: string): Promise<string | undefined> {
+    const raw = value.trim();
+    if (!raw) return undefined;
+
+    const existing = projectByRef(raw);
+    if (existing) {
+      return existing.id;
+    }
+
+    const created = await projectApi.update(nextProjectID(raw), { name: raw });
+    setProjects((current) => {
+      const withoutCreated = current.filter((item) => item.id !== created.id);
+      return [...withoutCreated, created];
+    });
+    return created.id;
   }
 
   async function saveDetailModal() {
@@ -631,10 +1023,20 @@ export default function HomeRoute() {
     }
 
     try {
+      const existingTask = detailTask();
+      const resolvedProjectID = await resolveProjectIDForDetail(detailProjectId());
+      let labels = parseLabelsInput(detailTags()).filter((label) => !isBoardLiveLabel(label));
+      const shouldKeepBoardLive =
+        isBoardProject(resolvedProjectID) &&
+        (isBoardLiveTask(existingTask) || detailActivationPreview()?.alreadyLive === true);
+      if (shouldKeepBoardLive && !labels.some((label) => isBoardLiveLabel(label))) {
+        labels = [...labels, "board_live"];
+      }
       const updated = await taskApi.update(taskId, {
         content: nextContent,
         description: detailDescription(),
-        projectId: detailProjectId(),
+        projectId: resolvedProjectID ?? "",
+        labels,
         recurrenceRule: detailRecurrence().trim() || undefined,
         priority: detailPriority(),
         dueText: detailDueText(),
@@ -644,6 +1046,7 @@ export default function HomeRoute() {
       setTasks((current) =>
         current.map((task) => (task.id === taskId ? updated : task)),
       );
+      await refreshData();
       setError("");
       setDetailRecurrenceError("");
       closeDetailModal();
@@ -657,15 +1060,15 @@ export default function HomeRoute() {
   }
 
   async function parseDetailRecurrence() {
-    const raw = detailRecurrence().trim();
-    if (!raw) {
+    const recurrenceRaw = detailRecurrence().trim();
+    if (!recurrenceRaw) {
       setDetailRecurrenceCanonical("");
       setDetailRecurrenceError("");
       return;
     }
 
     try {
-      const parsed = await rruleApi.parse(raw);
+      const parsed = await rruleApi.parse(recurrenceRaw);
       setDetailRecurrenceCanonical(parsed.canonical);
       setDetailRecurrenceError("");
       setError("");
@@ -739,9 +1142,100 @@ export default function HomeRoute() {
   });
 
   return (
-    <main class="h-screen overflow-hidden p-4 md:p-6">
-      <div class="mx-auto grid h-full min-h-0 max-w-7xl grid-cols-1 gap-4 md:grid-cols-[300px_minmax(0,1fr)]">
-        <aside class="h-full min-h-0 overflow-y-auto rounded-3xl border border-[#273248] bg-[linear-gradient(180deg,#101a2c,#0d1523)] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+    <AppShell
+      activeView="task"
+      mobileSidebar={
+        <div class="space-y-5">
+          <div class="rounded-xl border border-[#2b3c57] bg-[#0f1728] p-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-semibold tracking-tight text-[var(--text-main)]">Tasks</h2>
+              <button
+                type="button"
+                class="rounded-lg border border-[#334660] px-2 py-1 text-xs text-[#d7e4ff] transition hover:border-[var(--accent)]"
+                onClick={focusComposer}
+              >
+                Add
+              </button>
+            </div>
+            <button
+              type="button"
+              class="mt-3 flex w-full items-center justify-between rounded-lg border border-[#2f3f5d] bg-[#0d1523] px-3 py-2 text-left text-sm text-[var(--text-main)] hover:border-[var(--accent)]"
+              onClick={openSearchModal}
+            >
+              <span>Search</span>
+              <span class="text-xs text-[var(--text-dim)]">⌘K</span>
+            </button>
+          </div>
+
+          <div class="rounded-xl border border-[#2b3c57] bg-[#0f1728] p-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Views</p>
+            <div class="mt-2 space-y-1">
+              <button
+                type="button"
+                class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                  isViewActive("inbox")
+                    ? "bg-[#5c2525]/65 text-[#ef8680]"
+                    : "text-[var(--text-main)] hover:bg-[#17243a]"
+                }`}
+                onClick={() => navigateToView("inbox")}
+              >
+                <span>Inbox</span>
+                <span class="text-xs text-[var(--text-dim)]">{inboxCount()}</span>
+              </button>
+              <button
+                type="button"
+                class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                  isViewActive("today")
+                    ? "bg-[#5c2525]/65 text-[#ef8680]"
+                    : "text-[var(--text-main)] hover:bg-[#17243a]"
+                }`}
+                onClick={() => navigateToView("today")}
+              >
+                <span>Today</span>
+                <span class="text-xs text-[var(--text-dim)]">{todayCount()}</span>
+              </button>
+              <button
+                type="button"
+                class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                  isViewActive("upcomming")
+                    ? "bg-[#5c2525]/65 text-[#ef8680]"
+                    : "text-[var(--text-main)] hover:bg-[#17243a]"
+                }`}
+                onClick={() => navigateToView("upcomming")}
+              >
+                <span>Upcomming</span>
+                <span class="text-xs text-[var(--text-dim)]">{upcomingCount()}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-[#2b3c57] bg-[#0f1728] p-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Projects</p>
+            <div class="mt-2 space-y-1">
+              <For each={sidebarProjects()}>
+                {(project) => (
+                  <button
+                    type="button"
+                    class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                      isProjectActive(project.id)
+                        ? "bg-[#5c2525]/65 text-[#ef8680]"
+                        : "text-[var(--text-main)] hover:bg-[#17243a]"
+                    }`}
+                    onClick={() => navigateToProject(project.id)}
+                  >
+                    <span class="truncate">{project.name}</span>
+                    <span class="ml-2 text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
+                  </button>
+                )}
+              </For>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <div class="h-full overflow-hidden p-3 md:p-6">
+        <div class="grid h-full min-h-0 w-full grid-cols-1 gap-4 md:grid-cols-[300px_minmax(0,1fr)]">
+        <aside class="hidden h-full min-h-0 overflow-y-auto rounded-3xl border border-[#273248] bg-[linear-gradient(180deg,#101a2c,#0d1523)] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:block">
           <div class="flex h-full min-h-0 flex-col">
             <div class="flex items-center justify-between">
               <h1 class="text-lg font-semibold tracking-tight text-[var(--text-main)]">Tasks</h1>
@@ -759,6 +1253,7 @@ export default function HomeRoute() {
                 type="button"
                 class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-[#17243a]"
                 onClick={openSearchModal}
+                data-testid="open-search"
               >
                 <span class="flex items-center gap-2 text-[var(--text-main)]">
                   <span class="text-[#9fb2d3]">⌕</span>
@@ -837,8 +1332,13 @@ export default function HomeRoute() {
                         <span class="flex min-w-0 items-center gap-2">
                           <span class="text-[#ffd89c]">★</span>
                           <span class="truncate">{project.name}</span>
+                          <Show when={isTeamBoardProject(project.id)}>
+                            <span class="rounded border border-[#4d62a9] bg-[#202955] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
+                              Team
+                            </span>
+                          </Show>
                         </span>
-                        <span class="text-xs text-[var(--text-dim)]">{openTaskCountByProjectID().get(project.id) ?? 0}</span>
+                        <span class="text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
                       </button>
                     )}
                   </For>
@@ -865,9 +1365,16 @@ export default function HomeRoute() {
                           }`}
                           onClick={() => navigateToProject(project.id)}
                         >
-                          <span class="flex items-center justify-between">
-                            <span class="truncate">{project.name}</span>
-                            <span class="ml-3 text-xs text-[var(--text-dim)]">{openTaskCountByProjectID().get(project.id) ?? 0}</span>
+                          <span class="flex items-center justify-between gap-2">
+                            <span class="flex min-w-0 items-center gap-2">
+                              <span class="truncate">{project.name}</span>
+                              <Show when={isTeamBoardProject(project.id)}>
+                                <span class="rounded border border-[#4d62a9] bg-[#202955] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
+                                  Team
+                                </span>
+                              </Show>
+                            </span>
+                            <span class="ml-3 text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
                           </span>
                         </button>
                         <button
@@ -917,6 +1424,7 @@ export default function HomeRoute() {
                 onInput={(e) => onMainInput(e.currentTarget.value)}
                 class="relative w-full rounded-xl border border-[#2f3f5d] bg-transparent px-3 py-2 text-xl leading-normal tracking-normal text-transparent caret-[var(--text-main)] outline-none [font-variant-ligatures:none] focus:border-[var(--accent)]"
                 aria-label="Add task"
+                data-testid="add-task-input"
                 spellcheck={false}
                 autocomplete="off"
               />
@@ -943,6 +1451,7 @@ export default function HomeRoute() {
               <button
                 type="submit"
                 class="rounded-xl bg-[var(--accent)] px-4 py-2 font-medium text-[#1e0f08] transition hover:bg-[var(--accent-soft)]"
+                data-testid="add-task-submit"
               >
                 Add
               </button>
@@ -962,8 +1471,14 @@ export default function HomeRoute() {
                 <For each={visibleTasks()}>
                   {(item) => (
                     <li
-                      class={`group flex items-center gap-3 rounded-xl border bg-[#0f192b] px-3 py-3 transition ${
-                        dropTargetId() === item.id ? "border-[var(--accent)]" : "border-[#24314a] hover:border-[#2d3f5f]"
+                      data-testid="task-row"
+                      data-task-id={item.id}
+                      class={`group flex items-center gap-3 rounded-xl border px-3 py-3 transition ${
+                        dropTargetId() === item.id
+                          ? "border-[var(--accent)] bg-[#0f192b]"
+                          : isNextActionTask(item)
+                            ? "border-[#8f6a1c] bg-[#2a1f0c] hover:border-[#d8ac45]"
+                            : "border-[#24314a] bg-[#0f192b] hover:border-[#2d3f5f]"
                       }`}
                       onDragOver={(event) => onDragOver(event, item.id)}
                       onDrop={(event) => onDrop(event, item.id)}
@@ -1001,17 +1516,35 @@ export default function HomeRoute() {
                           when={editingTaskId() === item.id}
                           fallback={
                             <>
-                              <p class="truncate text-sm text-[var(--text-main)]">{item.content}</p>
+                              <p class="truncate text-sm text-[var(--text-main)]" data-testid="task-content">
+                                {item.content}
+                              </p>
                               <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
                                 <Show when={item.dueText}>
-                                  <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">Due {item.dueText}</span>
+                                  <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">
+                                    Due {formatScheduleDateTime(item.dueText) ?? item.dueText}
+                                  </span>
                                 </Show>
                                 <Show when={item.dueDeadline}>
-                                  <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">Deadline {item.dueDeadline}</span>
+                                  <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">
+                                    Deadline {formatScheduleDateTime(item.dueDeadline) ?? item.dueDeadline}
+                                  </span>
                                 </Show>
+                                <For each={visibleTaskLabels(item.labels)}>
+                                  {(label) => (
+                                    <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">@{label}</span>
+                                  )}
+                                </For>
                                 <Show when={projectNameByID(item.projectId)}>
                                   {(projectName) => (
-                                    <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">#{projectName()}</span>
+                                    <span class="inline-flex items-center gap-1 rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">
+                                      <span>#{projectName()}</span>
+                                      <Show when={isTeamBoardProject(item.projectId)}>
+                                        <span class="rounded border border-[#4d62a9] bg-[#202955] px-1 py-0 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
+                                          Team
+                                        </span>
+                                      </Show>
+                                    </span>
                                   )}
                                 </Show>
                                 <Show when={item.recurrenceRule}>
@@ -1071,6 +1604,7 @@ export default function HomeRoute() {
                           type="button"
                           class="rounded-md border border-[#334660] bg-[#101b2d] px-2 py-1 text-xs text-[#d7e4ff] hover:border-[var(--accent)]"
                           aria-label="Edit inline"
+                          data-testid="edit-task-inline"
                           onClick={(event) => {
                             event.stopPropagation();
                             beginInlineEdit(item);
@@ -1082,6 +1616,7 @@ export default function HomeRoute() {
                           type="button"
                           class="rounded-md border border-[#334660] bg-[#101b2d] px-2 py-1 text-xs text-[#d7e4ff] hover:border-[var(--accent)]"
                           aria-label="Open details"
+                          data-testid="open-task-details"
                           onClick={(event) => {
                             event.stopPropagation();
                             openDetailModal(item);
@@ -1093,6 +1628,7 @@ export default function HomeRoute() {
                           type="button"
                           class="rounded-md border border-[#5b2f2f] bg-[#2a1616] px-2 py-1 text-xs text-[#ffbeb7] hover:border-[#ff6a4a]"
                           aria-label="Delete task"
+                          data-testid="delete-task"
                           onClick={(event) => {
                             event.stopPropagation();
                             void removeTask(item);
@@ -1108,9 +1644,9 @@ export default function HomeRoute() {
             </Show>
           </div>
         </section>
-      </div>
+        </div>
 
-      <Show when={isSearchOpen()}>
+        <Show when={isSearchOpen()}>
         <div
           class="fixed inset-0 z-40 flex items-start justify-center bg-black/55 p-4 pt-20 backdrop-blur-sm"
           onClick={closeSearchModal}
@@ -1125,6 +1661,8 @@ export default function HomeRoute() {
                 value={searchText()}
                 onInput={(event) => setSearchText(event.currentTarget.value)}
                 placeholder="Search tasks, descriptions, projects..."
+                aria-label="Search tasks"
+                data-testid="search-input"
                 class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
               />
             </div>
@@ -1152,12 +1690,26 @@ export default function HomeRoute() {
                           <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
                             <Show when={projectNameByID(item.projectId)}>
                               {(projectName) => (
-                                <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">#{projectName()}</span>
+                                <span class="inline-flex items-center gap-1 rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">
+                                  <span>#{projectName()}</span>
+                                  <Show when={isTeamBoardProject(item.projectId)}>
+                                    <span class="rounded border border-[#4d62a9] bg-[#202955] px-1 py-0 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
+                                      Team
+                                    </span>
+                                  </Show>
+                                </span>
                               )}
                             </Show>
                             <Show when={item.dueText}>
-                              <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">Due {item.dueText}</span>
+                              <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">
+                                Due {formatScheduleDateTime(item.dueText) ?? item.dueText}
+                              </span>
                             </Show>
+                            <For each={visibleTaskLabels(item.labels)}>
+                              {(label) => (
+                                <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">@{label}</span>
+                              )}
+                            </For>
                           </div>
                         </button>
                       )}
@@ -1168,16 +1720,17 @@ export default function HomeRoute() {
             </div>
           </div>
         </div>
-      </Show>
+        </Show>
 
-      <Show when={isDetailOpen() && detailTask()}>
+        <Show when={isDetailOpen() && detailTask()}>
         <div
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm md:p-4"
           onClick={closeDetailModal}
         >
           <div
-            class="w-full max-w-4xl rounded-2xl border border-[#29354c] bg-[#121824] shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
+            class="my-2 flex max-h-[calc(100vh-1rem)] w-full max-w-[52rem] flex-col overflow-hidden rounded-2xl border border-[#29354c] bg-[#121824] shadow-[0_30px_100px_rgba(0,0,0,0.55)] md:my-4 md:max-h-[calc(100vh-2rem)]"
             onClick={(event) => event.stopPropagation()}
+            data-testid="task-detail-modal"
           >
             <div class="flex items-center justify-between border-b border-[#27344d] px-6 py-4">
               <p class="text-sm uppercase tracking-wider text-[var(--text-dim)]">Task Detail</p>
@@ -1190,13 +1743,14 @@ export default function HomeRoute() {
               </button>
             </div>
 
-            <div class="grid gap-0 md:grid-cols-[1.2fr_0.8fr]">
-              <div class="space-y-4 p-6">
+            <div class="grid min-h-0 flex-1 gap-0 overflow-hidden md:grid-cols-[1.15fr_0.85fr]">
+              <div class="space-y-4 overflow-y-auto p-6">
                 <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Task</label>
                 <input
                   value={detailContent()}
                   onInput={(event) => setDetailContent(event.currentTarget.value)}
                   class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-lg outline-none focus:border-[var(--accent)]"
+                  data-testid="task-detail-title"
                 />
 
                 <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Description</label>
@@ -1204,18 +1758,20 @@ export default function HomeRoute() {
                   value={detailDescription()}
                   onInput={(event) => setDetailDescription(event.currentTarget.value)}
                   class="h-40 w-full resize-none rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                  data-testid="task-detail-description"
                 />
               </div>
 
-              <div class="border-t border-[#27344d] p-6 md:border-l md:border-t-0">
+              <div class="overflow-y-auto border-t border-[#27344d] p-6 md:border-l md:border-t-0">
                 <div class="space-y-4">
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Project</label>
                   <input
                     value={detailProjectId()}
                     onInput={(event) => setDetailProjectId(event.currentTarget.value)}
                     list="project-options"
-                    placeholder="project id"
+                    placeholder="project name or id"
                     class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    data-testid="task-detail-project"
                   />
                   <datalist id="project-options">
                     <For each={sidebarProjects()}>
@@ -1224,12 +1780,33 @@ export default function HomeRoute() {
                       )}
                     </For>
                   </datalist>
+                  <p class="text-xs text-[var(--text-dim)]">
+                    Enter an existing project id/name, or a new name to create it on save.
+                  </p>
+                  <Show when={isTeamBoardProject(detailTask()?.projectId)}>
+                    <p class="inline-flex rounded-md border border-[#4d62a9] bg-[#202955] px-2 py-0.5 text-[11px] text-[#d5dcff]">
+                      Team board project
+                    </p>
+                  </Show>
+
+                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Tags</label>
+                  <input
+                    value={detailTags()}
+                    onInput={(event) => setDetailTags(event.currentTarget.value)}
+                    placeholder="@chore @home"
+                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    data-testid="task-detail-tags"
+                  />
+                  <p class="text-xs text-[var(--text-dim)]">
+                    Use tags like <code>@chore @home</code>.
+                  </p>
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Priority</label>
                   <select
                     value={detailPriority()}
                     onInput={(event) => setDetailPriority(Number(event.currentTarget.value))}
                     class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    data-testid="task-detail-priority"
                   >
                     <option value={1}>P1</option>
                     <option value={2}>P2</option>
@@ -1243,6 +1820,7 @@ export default function HomeRoute() {
                     onInput={(event) => setDetailDueText(event.currentTarget.value)}
                     placeholder="tomorrow"
                     class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    data-testid="task-detail-due"
                   />
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Deadline</label>
@@ -1251,24 +1829,33 @@ export default function HomeRoute() {
                     onInput={(event) => setDetailDeadline(event.currentTarget.value)}
                     placeholder="in 2 days"
                     class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    data-testid="task-detail-deadline"
                   />
 
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Recurrence (RRULE)</label>
-                  <p class="text-xs text-[var(--text-dim)]">
-                    Recurrence controls how often the task repeats. Due and Deadline are separate fields.
-                  </p>
+                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Original Schedule Input</label>
+                  <input
+                    value={detailScheduleOriginal()}
+                    readonly
+                    placeholder="Not captured for this task."
+                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    data-testid="task-detail-schedule-original"
+                  />
+
+                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Recurrence Rule (RRULE)</label>
                   <input
                     value={detailRecurrence()}
                     onInput={(event) => setDetailRecurrence(event.currentTarget.value)}
                     placeholder="FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR"
                     class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    data-testid="task-detail-recurrence"
                   />
                   <button
                     type="button"
                     class="rounded-lg border border-[#3a4d6d] bg-[#172033] px-3 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
                     onClick={() => void parseDetailRecurrence()}
+                    data-testid="task-detail-parse-rrule"
                   >
-                    Parse RRULE
+                    Validate RRULE
                   </button>
                   <Show when={detailRecurrenceError()}>
                     <p class="rounded-md border border-[#5d2f2f] bg-[#2a1111] px-2 py-1 text-xs text-[#ffb5b5]">
@@ -1277,8 +1864,104 @@ export default function HomeRoute() {
                   </Show>
                   <Show when={detailRecurrenceCanonical()}>
                     <p class="rounded-md border border-[#2d4b37] bg-[#102419] px-2 py-1 text-xs text-[#b4efce]">
-                      {detailRecurrenceCanonical()}
+                      {detailRecurrenceCanonical().trim().toUpperCase() === detailRecurrence().trim().toUpperCase()
+                        ? "RRULE is valid."
+                        : detailRecurrenceCanonical()}
                     </p>
+                  </Show>
+
+                  <Show when={detailTaskIsBoardProject()}>
+                    <div
+                      class="space-y-3 rounded-lg border border-[#2a3b58] bg-[#101a2d] p-3"
+                      data-testid="task-detail-board-activation"
+                    >
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs uppercase tracking-wider text-[var(--text-dim)]">Board Activation</p>
+                        <Show when={detailActivationPreview()?.alreadyLive}>
+                          <span class="rounded-md border border-[#2d5d3b] bg-[#163727] px-2 py-0.5 text-[11px] text-[#bbf1cf]">
+                            Live
+                          </span>
+                        </Show>
+                      </div>
+
+                      <Show when={detailActivationLoading()}>
+                        <p class="text-xs text-[var(--text-dim)]">Checking board requirements...</p>
+                      </Show>
+
+                      <Show when={detailActivationError()}>
+                        <p class="rounded-md border border-[#5d2f2f] bg-[#2a1111] px-2 py-1 text-xs text-[#ffb5b5]">
+                          {detailActivationError()}
+                        </p>
+                      </Show>
+
+                      <Show when={detailActivationPreview()}>
+                        {(preview) => (
+                          <>
+                            <Show when={preview().requirements.coin}>
+                              {(coinRequirement) => (
+                                <div class="rounded-md border border-[#2f4364] bg-[#0f1728] px-2 py-2">
+                                  <p class="text-[11px] uppercase tracking-wider text-[var(--text-dim)]">Coin</p>
+                                  <p class="text-sm text-[var(--text-main)]">
+                                    {coinRequirement().currency}: {coinRequirement().available}/{coinRequirement().required}
+                                    <Show when={coinRequirement().missing > 0}>
+                                      <span class="ml-2 text-[#ffb5b5]">missing {coinRequirement().missing}</span>
+                                    </Show>
+                                  </p>
+                                </div>
+                              )}
+                            </Show>
+
+                            <Show
+                              when={preview().requirements.modifiers.length > 0}
+                              fallback={<p class="text-xs text-[var(--text-dim)]">No modifier cards required.</p>}
+                            >
+                              <div class="space-y-1">
+                                <For each={preview().requirements.modifiers}>
+                                  {(requirement) => (
+                                    <div class="flex items-center justify-between rounded-md border border-[#2f4364] bg-[#0f1728] px-2 py-1.5 text-xs text-[var(--text-main)]">
+                                      <span>{formatModifierRequirementName(requirement.defId)}</span>
+                                      <span>
+                                        {requirement.available}/{requirement.required}
+                                        <Show when={requirement.missing > 0}>
+                                          <span class="ml-2 text-[#ffb5b5]">missing {requirement.missing}</span>
+                                        </Show>
+                                      </span>
+                                    </div>
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
+
+                            <button
+                              type="button"
+                              class="w-full rounded-lg border border-[#3a4d6d] bg-[#172033] px-3 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => void makeDetailTaskLive()}
+                              disabled={
+                                detailActivating() ||
+                                detailActivationLoading() ||
+                                preview().alreadyLive ||
+                                !preview().canActivate
+                              }
+                              data-testid="task-detail-make-live"
+                            >
+                              {preview().alreadyLive
+                                ? "Live on board"
+                                : detailActivating()
+                                  ? "Activating..."
+                                  : preview().canActivate
+                                    ? "Make Live on Board"
+                                    : "Missing requirements"}
+                            </button>
+
+                            <Show when={!preview().alreadyLive}>
+                              <p class="text-xs text-[var(--text-dim)]">
+                                Activation consumes the listed requirements and spawns this task on board.
+                              </p>
+                            </Show>
+                          </>
+                        )}
+                      </Show>
+                    </div>
                   </Show>
                 </div>
               </div>
@@ -1294,6 +1977,7 @@ export default function HomeRoute() {
                     void completeTask(task);
                   }
                 }}
+                data-testid="task-detail-mark-done"
               >
                 Mark done
               </button>
@@ -1301,13 +1985,15 @@ export default function HomeRoute() {
                 type="button"
                 class="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-[#1e0f08] hover:bg-[var(--accent-soft)]"
                 onClick={() => void saveDetailModal()}
+                data-testid="task-detail-save"
               >
                 Save changes
               </button>
             </div>
           </div>
         </div>
-      </Show>
-    </main>
+        </Show>
+      </div>
+    </AppShell>
   );
 }

@@ -75,6 +75,46 @@ go test ./internal/... ./cmd/...
 
 Quick-add parser tests are sourced directly from `docs/test-cases.yaml`.
 
+Todoist parity archive/spec references are kept in:
+
+- `docs/test-cases-todoist-parity-archive.yaml`
+
+Implemented parity actions are exercised by Go tests in:
+
+- `internal/httpapi/todoist_parity_spec_test.go`
+
+Todoist compatibility action endpoint:
+
+- `POST /api/todoist/action`
+- Request body: `{ "action": "<methodName>", "payload": { ... } }`
+- Upload actions remain intentionally unimplemented: `uploadFile`, `uploadWorkspaceLogo`, `deleteUpload`
+
+## Playwright E2E
+
+Playwright tests live in:
+
+- `web/apps/client/tests/e2e/home.spec.ts`
+- `web/apps/client/tests/e2e/board.spec.ts`
+
+Run setup and tests:
+
+```bash
+cd web
+bun install
+cd apps/client
+bun run test:e2e:install
+bun run test:e2e
+```
+
+The suite starts both servers automatically:
+
+- Go API on `http://localhost:42169` (default for Playwright runs)
+- Vite app on `http://localhost:4173`
+
+Override ports with `PW_API_PORT` and `PW_WEB_PORT` if needed.
+
+To push toward 90% feature coverage, extend the scenarios in the E2E specs for any new user-visible workflow (task flow + board flow).
+
 ## RRULE Parsing (RFC 5545)
 
 The backend includes an RFC 5545 RRULE parser (`RECUR` grammar) that supports:

@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"donegeon/internal/account"
 	"donegeon/internal/board"
 	"donegeon/internal/config"
 	"donegeon/internal/datbase"
@@ -19,6 +20,7 @@ import (
 	"donegeon/internal/project"
 	"donegeon/internal/quickadd"
 	"donegeon/internal/task"
+	"donegeon/internal/todoistcompat"
 	webdist "donegeon/web/dist"
 )
 
@@ -62,6 +64,8 @@ func run() error {
 	taskService := task.NewService(taskRepo, parser)
 	projectRepo := project.NewRepository(db, queries)
 	projectService := project.NewService(projectRepo)
+	accountService := account.NewService(db)
+	todoistService := todoistcompat.NewService(db, taskService, projectService)
 	boardRepo := board.NewRepository(db, queries)
 	boardCfg, err := board.LoadGameplayConfig(cfg.BoardConfigPath)
 	if err != nil {
@@ -74,7 +78,7 @@ func run() error {
 		return fmt.Errorf("load web dist fs: %w", err)
 	}
 
-	handler := httpapi.New(logger, cfg, taskService, projectService, boardService, parser, staticFS)
+	handler := httpapi.New(logger, cfg, taskService, projectService, boardService, parser, todoistService, accountService, staticFS)
 	server := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
 		Handler:           handler,

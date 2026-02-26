@@ -9,5 +9,9 @@ SET
     priority = COALESCE(:priority, priority),
     due_text = COALESCE(:due_text, due_text),
     due_deadline = COALESCE(:due_deadline, due_deadline),
+    schedule_input = COALESCE(:schedule_input, schedule_input),
     updated_at = :updated_at
-WHERE id = :id AND is_deleted = 0;
+WHERE id = :id
+  AND user_id = :user_id
+  AND workspace_id = :workspace_id
+  AND is_deleted = 0;

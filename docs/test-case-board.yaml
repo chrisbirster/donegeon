@@ -1,0 +1,469 @@
+schema_version: "0.1"
+meta:
+  suite_name: Donegeon board behavior and interaction rules
+  generated_at: "2026-02-25T00:00:00Z"
+  owner: "@donegeon"
+  source_of_truth: docs/test-case-board.yaml
+  intended_runner: Playwright E2E + API assertions
+  notes:
+    - Starter draft for board-specific rules; edit expected outcomes as gameplay rules evolve.
+    - Focuses on deterministic assertions over animation timing.
+    - Uses `donegeon_config.yml` as config baseline unless test overrides it.
+
+context:
+  auth_token: TOKEN_VALID
+  board_id: default
+  routes:
+    board: /board
+    board_tasks: /task/project/board
+  selectors:
+    board_canvas: "[data-testid='board-canvas']"
+    board_stack: "[data-testid='board-stack']"
+    board_card_title: "[data-testid='board-card-title']"
+    board_seed_default: "[data-testid='board-seed-default']"
+    board_add_stack: "[data-testid='board-add-stack']"
+    board_new_stack_title: "[data-testid='board-new-stack-title']"
+    board_detail_modal: "[data-testid='board-detail-modal']"
+    board_detail_save: "[data-testid='board-detail-save']"
+    board_detail_mark_done: "[data-testid='board-detail-mark-done']"
+  helpers:
+    - resetTasks()
+    - resetBoard()
+    - dragStackByTitle(sourceTitle, targetTitle)
+    - openBoardState()
+
+rules:
+  high_level_expectations:
+    - Deck row is fixed to viewport bottom and does not pan with world.
+    - Non-dragging world stacks/cards render under deck row.
+    - Dragging stack can elevate above collect deck during valid collect gesture.
+    - Task/resource/food cards are face cards when present in a multi-card stack.
+    - Board-created tasks and task-page-created board tasks stay synchronized.
+  desired_stack_pair_matrix:
+    allowed:
+      - [villager, task]
+      - [task, modifier]
+      - [task, task]
+      - [villager, resource]
+      - [villager, food]
+      - [resource, resource]
+      - [food, food]
+      - [loot, loot]
+    disallowed:
+      - [deck, any]
+      - [task, zombie]
+      - [modifier, villager]
+      - [food, task]
+      - [loot, task]
+      - [loot, resource]
+      - [loot, villager]
+      - [loot, modifier]
+    exceptions:
+      - "loot -> deck.collect is a consume action, not a merge"
+
+tests:
+  - test_id: BOARD_LAYOUT_001
+    title: Deck row stays fixed while panning world
+    priority: P0
+    tags: [layout, pan, deck-row]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+    when:
+      - action: capture_deck_row_bounding_boxes
+      - action: pan_board_canvas
+        payload: { delta_x: 420, delta_y: 260 }
+      - action: capture_deck_row_bounding_boxes
+    then:
+      - assert: deck_row_positions_unchanged
+      - assert: world_stack_positions_changed
+
+  - test_id: BOARD_LAYOUT_002
+    title: Non-dragging world cards render under fixed deck row
+    priority: P1
+    tags: [layout, z-index]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+    when:
+      - action: pan_board_canvas
+        payload: { delta_x: -380, delta_y: -140 }
+    then:
+      - assert: deck_row_visual_priority_over_world_cards
+      - assert: no_click_block_on_deck_cards
+
+  - test_id: BOARD_LAYOUT_003
+    title: Dragging collectible stack over collect deck renders above it
+    priority: P1
+    tags: [layout, drag, collect]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+      spawn:
+        - stack:
+            title: "Loot Coin A"
+            card_kind: loot
+            def_id: loot.coin
+    when:
+      - action: drag_stack_to_stack
+        payload:
+          source_title: "Loot Coin A"
+          target_title: "Collect"
+    then:
+      - assert: drag_overlay_above_collect_deck_during_drag
+      - assert: collect_consumes_stack_on_drop
+
+  - test_id: BOARD_STACK_001
+    title: Loot + loot can stack
+    priority: P0
+    tags: [stacking, loot]
+    given:
+      reset: [tasks, board]
+      spawn:
+        - stack: { title: "Loot A", card_kind: loot, def_id: loot.coin }
+        - stack: { title: "Loot B", card_kind: loot, def_id: loot.parts }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Loot A", target_title: "Loot B" }
+    then:
+      - assert: merge_success
+      - assert: resulting_stack_card_count
+        equals: 2
+
+  - test_id: BOARD_STACK_002
+    title: Loot + task cannot stack
+    priority: P0
+    tags: [stacking, loot, task]
+    given:
+      reset: [tasks, board]
+      create_board_task_stack:
+        title: "Task Alpha #board"
+      spawn:
+        - stack: { title: "Loot A", card_kind: loot, def_id: loot.coin }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Loot A", target_title: "Task Alpha" }
+    then:
+      - assert: merge_rejected
+      - assert: source_stack_still_exists
+      - assert: target_stack_card_count_unchanged
+
+  - test_id: BOARD_STACK_003
+    title: Loot + villager cannot stack
+    priority: P1
+    tags: [stacking, loot, villager]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+      spawn:
+        - stack: { title: "Loot A", card_kind: loot, def_id: loot.coin }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Loot A", target_title: "Flicker" }
+    then:
+      - assert: merge_rejected
+
+  - test_id: BOARD_STACK_004
+    title: Task + modifier can stack and task remains face card
+    priority: P0
+    tags: [stacking, task, modifier, face-card]
+    given:
+      reset: [tasks, board]
+      create_board_task_stack:
+        title: "Task Face Check #board"
+      spawn:
+        - stack: { title: "Modifier A", card_kind: modifier, def_id: mod.next_action }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Modifier A", target_title: "Task Face Check" }
+    then:
+      - assert: merge_success
+      - assert: stack_face_kind
+        equals: task
+
+  - test_id: BOARD_STACK_005
+    title: Resource + modifier keeps resource as face card
+    priority: P1
+    tags: [stacking, resource, modifier, face-card]
+    given:
+      reset: [tasks, board]
+      spawn:
+        - stack: { title: "Resource A", card_kind: resource, def_id: resource.berry_bush }
+        - stack: { title: "Modifier A", card_kind: modifier, def_id: mod.next_action }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Modifier A", target_title: "Resource A" }
+    then:
+      - assert: merge_success
+      - assert: stack_face_kind
+        equals: resource
+
+  - test_id: BOARD_STACK_006
+    title: Food + modifier keeps food as face card
+    priority: P1
+    tags: [stacking, food, modifier, face-card]
+    given:
+      reset: [tasks, board]
+      spawn:
+        - stack: { title: "Food A", card_kind: food, def_id: food.apple }
+        - stack: { title: "Modifier A", card_kind: modifier, def_id: mod.next_action }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Modifier A", target_title: "Food A" }
+    then:
+      - assert: merge_success
+      - assert: stack_face_kind
+        equals: food
+
+  - test_id: BOARD_STACK_007
+    title: Deck stacks are immutable merge targets
+    priority: P0
+    tags: [stacking, deck]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+      create_board_task_stack:
+        title: "Deck Merge Rejection #board"
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Deck Merge Rejection", target_title: "First Day" }
+    then:
+      - assert: merge_rejected
+      - assert: deck_stack_unchanged
+
+  - test_id: BOARD_STACK_008
+    title: Card can be pulled off multi-card stack
+    priority: P0
+    tags: [stacking, split, drag]
+    given:
+      reset: [tasks, board]
+      create_board_task_stack:
+        title: "Split Me #board"
+      spawn:
+        - stack: { title: "Modifier A", card_kind: modifier, def_id: mod.next_action }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Modifier A", target_title: "Split Me" }
+      - action: split_stack_drag_from_index
+        payload:
+          source_title: "Split Me"
+          card_index: 0
+          drop_offset: { x: 160, y: -80 }
+    then:
+      - assert: original_stack_exists
+      - assert: new_stack_created
+      - assert: both_stacks_have_expected_card_counts
+
+  - test_id: BOARD_COLLECT_001
+    title: Drag loot stack to collect deck consumes stack and updates inventory
+    priority: P0
+    tags: [collect, loot, inventory]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+      spawn:
+        - stack: { title: "Coin Loot", card_kind: loot, def_id: loot.coin, data: { amount: 2 } }
+    when:
+      - action: capture_inventory
+      - action: drag_stack_to_stack
+        payload: { source_title: "Coin Loot", target_title: "Collect" }
+      - action: capture_inventory
+    then:
+      - assert: source_stack_removed
+      - assert: inventory_delta
+        equals: { coin: +2 }
+
+  - test_id: BOARD_COLLECT_002
+    title: Drag non-loot stack to collect deck is rejected
+    priority: P0
+    tags: [collect, validation]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+      create_board_task_stack:
+        title: "Should Not Collect #board"
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Should Not Collect", target_title: "Collect" }
+    then:
+      - assert: collect_rejected
+      - assert: source_stack_still_exists
+      - assert: task_still_open_in_task_view
+
+  - test_id: BOARD_SYNC_001
+    title: Creating task on board appears in /task/project/board
+    priority: P0
+    tags: [sync, board-to-task]
+    given:
+      reset: [tasks, board]
+    when:
+      - action: open_route
+        payload: { route: /board }
+      - action: create_board_task_stack
+        payload: { quick_add_text: "Sync Alpha p2 #board @house" }
+      - action: open_route
+        payload: { route: /task/project/board }
+    then:
+      - assert: task_row_visible
+        payload: { content_contains: "Sync Alpha" }
+      - assert: task_priority
+        payload: { content_contains: "Sync Alpha", equals: 2 }
+
+  - test_id: BOARD_SYNC_002
+    title: Creating task in /task/project/board appears as stack on /board
+    priority: P0
+    tags: [sync, task-to-board]
+    given:
+      reset: [tasks, board]
+    when:
+      - action: open_route
+        payload: { route: /task/project/board }
+      - action: create_task_from_task_view
+        payload: { quick_add_text: "Sync Bravo p3 #board @errand" }
+      - action: open_route
+        payload: { route: /board }
+      - action: refresh_board
+    then:
+      - assert: board_stack_visible
+        payload: { title_contains: "Sync Bravo" }
+
+  - test_id: BOARD_SYNC_003
+    title: Editing board task detail updates /task/project/board task values
+    priority: P0
+    tags: [sync, edit]
+    given:
+      reset: [tasks, board]
+      create_board_task_stack:
+        title: "Edit Sync #board"
+    when:
+      - action: open_board_task_modal
+        payload: { title: "Edit Sync" }
+      - action: set_task_modal_values
+        payload:
+          title: "Edit Sync Updated"
+          description: "Board detail update"
+          priority: 1
+      - action: save_task_modal
+      - action: open_route
+        payload: { route: /task/project/board }
+    then:
+      - assert: task_row_visible
+        payload: { content_contains: "Edit Sync Updated" }
+      - assert: task_fields_match
+        payload:
+          content: "Edit Sync Updated"
+          description: "Board detail update"
+          priority: 1
+
+  - test_id: BOARD_SYNC_004
+    title: Stack with task + villager + modifier keeps task fields persisted to task view
+    priority: P0
+    tags: [sync, composite-stack]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+      create_board_task_stack:
+        title: "Composite Sync #board"
+      spawn:
+        - stack: { title: "Modifier A", card_kind: modifier, def_id: mod.next_action }
+    when:
+      - action: drag_stack_to_stack
+        payload: { source_title: "Modifier A", target_title: "Composite Sync" }
+      - action: drag_stack_to_stack
+        payload: { source_title: "Flicker", target_title: "Composite Sync" }
+      - action: open_board_task_modal
+        payload: { title: "Composite Sync" }
+      - action: set_task_modal_values
+        payload:
+          title: "Composite Sync Updated"
+          description: "Task + villager + modifier persisted"
+          priority: 2
+      - action: save_task_modal
+      - action: open_route
+        payload: { route: /task/project/board }
+    then:
+      - assert: task_row_visible
+        payload: { content_contains: "Composite Sync Updated" }
+      - assert: task_fields_match
+        payload:
+          content: "Composite Sync Updated"
+          description: "Task + villager + modifier persisted"
+          priority: 2
+
+  - test_id: BOARD_SYNC_005
+    title: Mark done on board removes task from /task/project/board open list
+    priority: P0
+    tags: [sync, completion]
+    given:
+      reset: [tasks, board]
+      create_board_task_stack:
+        title: "Board Done Sync #board"
+    when:
+      - action: open_board_task_modal
+        payload: { title: "Board Done Sync" }
+      - action: mark_done_from_board_modal
+      - action: open_route
+        payload: { route: /task/project/board }
+    then:
+      - assert: task_row_not_visible
+        payload: { content_contains: "Board Done Sync" }
+
+  - test_id: BOARD_INPUT_001
+    title: Board quick-add token highlighting matches parser output
+    priority: P1
+    tags: [quick-add, parser, visual]
+    given:
+      reset: [tasks, board]
+    when:
+      - action: type_in_board_composer
+        payload: { text: "assign a task p2 #board @home every 2 weeks {in 2 days}" }
+    then:
+      - assert: composer_tokens_present
+        payload:
+          project: "#board"
+          label: "@home"
+          priority: "p2"
+          recurrence: "every 2 weeks"
+          deadline: "{in 2 days}"
+
+  - test_id: BOARD_DRAG_001
+    title: Dragging stack does not jump (basic smoothness regression check)
+    priority: P2
+    tags: [drag, smoothness]
+    given:
+      reset: [tasks, board]
+      create_board_task_stack:
+        title: "Smooth Drag #board"
+    when:
+      - action: drag_stack_by_path
+        payload:
+          source_title: "Smooth Drag"
+          points:
+            - { x: 30, y: 20 }
+            - { x: 120, y: 55 }
+            - { x: 220, y: 90 }
+            - { x: 320, y: 125 }
+    then:
+      - assert: drag_path_delta_within_threshold
+        payload: { max_single_frame_jump_px: 60 }
+
+  - test_id: BOARD_MOBILE_001
+    title: Mobile touch panning works with fixed deck row
+    priority: P1
+    tags: [mobile, touch, pan]
+    given:
+      reset: [tasks, board]
+      seed_default_board: true
+      viewport:
+        preset: iPhone_14_Pro
+    when:
+      - action: touch_pan_board_canvas
+        payload: { delta_x: 180, delta_y: 220 }
+    then:
+      - assert: world_stack_positions_changed
+      - assert: deck_row_positions_unchanged
+
+open_questions:
+  - Should `collect` reject any non-loot stack, or convert specific non-loot kinds into inventory as fallback?
+  - Should completing a task in /task view auto-remove matching board stack immediately (push), or on next /board refresh (pull)?
+  - For z-index checks, do you want strict computed-style assertions, visual snapshots, or both?

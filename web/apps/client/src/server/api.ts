@@ -6,6 +6,8 @@ export type Task = {
   sectionId?: string;
   sortOrder: number;
   recurrenceRule?: string;
+  scheduleInput?: string;
+  labels: string[];
   priority: number;
   checked: boolean;
   isDeleted: boolean;
@@ -40,6 +42,80 @@ export type BoardCard = {
   data?: Record<string, unknown>;
 };
 
+export type BoardQuestObjective = {
+  op: string;
+  count?: number;
+  value?: number;
+  ref?: string;
+  timeWindow?: string;
+  baseline?: number;
+  current: number;
+  target: number;
+  complete: boolean;
+};
+
+export type BoardQuestReward = {
+  kind: string;
+  currency?: string;
+  amount?: number;
+  tableId?: string;
+  cardType?: string;
+  cardCount?: number;
+  cardCharge?: number;
+  xp?: number;
+};
+
+export type BoardQuestUnlock = {
+  kind: string;
+  id: string;
+};
+
+export type BoardQuestRuntime = {
+  id: string;
+  templateId?: string;
+  title: string;
+  type: string;
+  scope: string;
+  day?: number;
+  week?: number;
+  objectives?: BoardQuestObjective[];
+  rewards?: BoardQuestReward[];
+  unlocks?: BoardQuestUnlock[];
+  completed: boolean;
+  claimable: boolean;
+  claimed: boolean;
+  failed?: boolean;
+  completedDay?: number;
+  claimedDay?: number;
+};
+
+export type BoardQuestHistoryEntry = {
+  id: string;
+  templateId?: string;
+  title: string;
+  type: string;
+  scope: string;
+  day?: number;
+  week?: number;
+  completed: boolean;
+  claimed: boolean;
+  failed?: boolean;
+  completedDay?: number;
+  claimedDay?: number;
+};
+
+export type BoardQuestState = {
+  currentDay?: number;
+  currentWeek?: number;
+  dailyStreak?: number;
+  lastDailyRefreshDay?: number;
+  lastDailyClaimDay?: number;
+  recentDailyTemplateIds?: string[];
+  active?: BoardQuestRuntime[];
+  history?: BoardQuestHistoryEntry[];
+  unlocked?: BoardQuestUnlock[];
+};
+
 export type BoardMeta = {
   inventory?: Record<string, number>;
   villagers?: Record<
@@ -54,6 +130,7 @@ export type BoardMeta = {
   metrics?: Record<string, number>;
   deckOpen?: Record<string, number>;
   dayTickCount?: number;
+  quests?: BoardQuestState;
 };
 
 export type BoardStateResponse = {
@@ -63,7 +140,7 @@ export type BoardStateResponse = {
   version: string;
 };
 
-type TaskListResponse = {
+export type TaskListResponse = {
   items: Task[];
   nextCursor?: number;
   total: number;
@@ -85,7 +162,25 @@ export type QuickAddParsed = {
   description: string;
 };
 
-const DEFAULT_TOKEN = "TOKEN_VALID";
+export type AuthUser = {
+  id: string;
+  email: string;
+  name: string;
+  showOnboarding: boolean;
+  currentWorkspaceId?: string;
+};
+
+export type AuthTeam = {
+  id: string;
+  name: string;
+  plan: string;
+  isArchived: boolean;
+};
+
+export type AuthSession = {
+  user: AuthUser;
+  team?: AuthTeam;
+};
 
 type UpdateTaskPayload = {
   content?: string;
@@ -94,6 +189,8 @@ type UpdateTaskPayload = {
   sectionId?: string;
   sortOrder?: number;
   recurrenceRule?: string;
+  scheduleInput?: string;
+  labels?: string[];
   priority?: number;
   dueText?: string;
   dueDeadline?: string;
@@ -146,11 +243,13 @@ function getAuthHeaders() {
     timezone = undefined;
   }
 
-  const token = localStorage.getItem("donegeon_token") || DEFAULT_TOKEN;
+  const token = localStorage.getItem("donegeon_token");
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
+  if (token && token.trim()) {
+    headers.Authorization = `Bearer ${token.trim()}`;
+  }
   if (timezone) {
     headers["X-Timezone"] = timezone;
   }
@@ -159,6 +258,7 @@ function getAuthHeaders() {
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
+    credentials: "same-origin",
     ...init,
     headers: {
       ...getAuthHeaders(),
@@ -195,8 +295,37 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export const authApi = {
+  me: () => api<{ session: AuthSession }>("/api/auth/me"),
+  login: (payload: { email: string; name?: string }) =>
+    api<{ session: AuthSession }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  completeOnboarding: (teamName: string, emails: string[]) =>
+    api<{ session: AuthSession; invitations: Array<{ email: string; invitationCode: string }> }>("/api/auth/onboarding", {
+      method: "POST",
+      body: JSON.stringify({ teamName, emails }),
+    }),
+  logout: () =>
+    api<void>("/api/auth/logout", {
+      method: "POST",
+    }),
+};
+
 export const taskApi = {
-  list: () => api<TaskListResponse>("/api/tasks"),
+  list: (params?: { limit?: number; cursor?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.limit !== undefined) {
+      query.set("limit", String(params.limit));
+    }
+    if (params?.cursor !== undefined) {
+      query.set("cursor", String(params.cursor));
+    }
+    const suffix = query.toString();
+    const path = suffix ? `/api/tasks?${suffix}` : "/api/tasks";
+    return api<TaskListResponse>(path);
+  },
   create: (content: string) =>
     api<Task>("/api/tasks", {
       method: "POST",

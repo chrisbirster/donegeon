@@ -174,6 +174,12 @@ func (v *Validator) ValidateStackMerge(state *State, targetID, sourceID string) 
 		return ErrInvalidStackPair
 	}
 
+	// Loot cards should always be stackable with loot cards, even when
+	// allowed_pairs is configured and omits loot.
+	if isPureKindStack(targetKinds, "loot") && isPureKindStack(sourceKinds, "loot") {
+		return nil
+	}
+
 	hasTaskAcrossMerge := targetKinds["task"] || sourceKinds["task"]
 
 	if isPureModifierStack(targetKinds) && isPureModifierStack(sourceKinds) {
@@ -232,6 +238,14 @@ func validationKind(defID string) string {
 
 func isPureModifierStack(kinds map[string]bool) bool {
 	return len(kinds) == 1 && kinds["modifier"]
+}
+
+func isPureKindStack(kinds map[string]bool, kind string) bool {
+	kind = strings.TrimSpace(strings.ToLower(kind))
+	if kind == "" {
+		return false
+	}
+	return len(kinds) == 1 && kinds[kind]
 }
 
 func singleModifierDefID(state *State, stack *Stack) (string, bool) {

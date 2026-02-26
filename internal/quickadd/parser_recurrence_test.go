@@ -40,3 +40,15 @@ func TestParseExtractsWeekdayGroupRecurrenceRule(t *testing.T) {
 		t.Fatalf("unexpected content: %q", parsed.Content)
 	}
 }
+
+func TestParseExtractsDueKeywordWeekday(t *testing.T) {
+	parser := NewParser()
+	parsed := parser.Parse("take out trash due Thursday")
+
+	if parsed.DueText == nil || *parsed.DueText != "Thursday" {
+		t.Fatalf("unexpected due text: %v", strOrNil(parsed.DueText))
+	}
+	if parsed.Content != "take out trash" {
+		t.Fatalf("unexpected content: %q", parsed.Content)
+	}
+}

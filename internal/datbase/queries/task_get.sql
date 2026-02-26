@@ -9,10 +9,14 @@ SELECT
     priority,
     due_text,
     due_deadline,
+    schedule_input,
     processed_count,
     checked,
     is_deleted,
     created_at,
     updated_at
 FROM tasks
-WHERE id = ? AND is_deleted = 0;
+WHERE id = :id
+  AND user_id = :user_id
+  AND workspace_id = :workspace_id
+  AND is_deleted = 0;

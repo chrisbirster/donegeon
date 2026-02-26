@@ -88,6 +88,7 @@ rules:
       - [villager, food]
       - [resource, resource]
       - [food, food]
+      - [loot, loot]
       - [task, task]
     disallowed:
       - [zombie, task]

@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
 	apperrors "donegeon/internal/errors"
+	"donegeon/internal/sessionctx"
 )
 
 type Repository struct {
@@ -49,10 +51,13 @@ func (r *Repository) List(ctx context.Context, params ListParams) (ListResult, e
 		return ListResult{}, err
 	}
 
+	principal := sessionctx.PrincipalFromContext(ctx)
 	args := map[string]any{
-		"project_id": nullableString(params.ProjectID),
-		"limit":      params.Limit,
-		"offset":     params.Cursor,
+		"project_id":   nullableString(params.ProjectID),
+		"limit":        params.Limit,
+		"offset":       params.Cursor,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
 	}
 
 	items := []Task{}
@@ -64,9 +69,16 @@ func (r *Repository) List(ctx context.Context, params ListParams) (ListResult, e
 	if err := r.db.SelectContext(ctx, &items, named, bindArgs...); err != nil {
 		return ListResult{}, err
 	}
+	if err := r.attachLabels(ctx, items); err != nil {
+		return ListResult{}, err
+	}
 
 	var total int
-	namedCount, bindCountArgs, err := sqlx.Named(countQuery, map[string]any{"project_id": nullableString(params.ProjectID)})
+	namedCount, bindCountArgs, err := sqlx.Named(countQuery, map[string]any{
+		"project_id":   nullableString(params.ProjectID),
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+	})
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -89,12 +101,28 @@ func (r *Repository) Get(ctx context.Context, id string) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
+	principal := sessionctx.PrincipalFromContext(ctx)
+	args := map[string]any{
+		"id":           id,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+	}
 
 	var t Task
-	if err := r.db.GetContext(ctx, &t, query, id); err != nil {
+	named, bindArgs, err := sqlx.Named(query, args)
+	if err != nil {
+		return Task{}, err
+	}
+	named = r.db.Rebind(named)
+	if err := r.db.GetContext(ctx, &t, named, bindArgs...); err != nil {
 		if err == sql.ErrNoRows {
 			return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeNotFound, "task not found"), "taskId")
 		}
+		return Task{}, err
+	}
+	if labels, err := r.taskLabels(ctx, t.ID); err == nil {
+		t.Labels = labels
+	} else {
 		return Task{}, err
 	}
 	return t, nil
@@ -116,6 +144,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Task, error) {
 		return Task{}, err
 	}
 
+	principal := sessionctx.PrincipalFromContext(ctx)
 	now := time.Now().UTC().Format(time.RFC3339)
 	id := uuid.NewString()
 	sortOrder := in.SortOrder
@@ -133,11 +162,17 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Task, error) {
 		"priority":        in.Priority,
 		"due_text":        nullableString(in.DueText),
 		"due_deadline":    nullableString(in.DueDeadline),
+		"schedule_input":  nullableString(in.ScheduleInput),
+		"user_id":         principal.UserID,
+		"workspace_id":    principal.WorkspaceID,
 		"created_at":      now,
 		"updated_at":      now,
 	}
 
 	if _, err := r.db.NamedExecContext(ctx, query, args); err != nil {
+		return Task{}, err
+	}
+	if err := r.replaceTaskLabels(ctx, id, in.Labels); err != nil {
 		return Task{}, err
 	}
 	return r.Get(ctx, id)
@@ -156,6 +191,7 @@ func (r *Repository) Update(ctx context.Context, id string, in UpdateInput) (Tas
 		return Task{}, err
 	}
 
+	principal := sessionctx.PrincipalFromContext(ctx)
 	args := map[string]any{
 		"id":              id,
 		"content":         nullableString(in.Content),
@@ -167,6 +203,9 @@ func (r *Repository) Update(ctx context.Context, id string, in UpdateInput) (Tas
 		"priority":        nullableInt(in.Priority),
 		"due_text":        nullableString(in.DueText),
 		"due_deadline":    nullableString(in.DueDeadline),
+		"schedule_input":  nullableString(in.ScheduleInput),
+		"user_id":         principal.UserID,
+		"workspace_id":    principal.WorkspaceID,
 		"updated_at":      time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -178,6 +217,11 @@ func (r *Repository) Update(ctx context.Context, id string, in UpdateInput) (Tas
 	if rows == 0 {
 		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeNotFound, "task not found"), "taskId")
 	}
+	if in.Labels != nil {
+		if err := r.replaceTaskLabels(ctx, id, *in.Labels); err != nil {
+			return Task{}, err
+		}
+	}
 
 	return r.Get(ctx, id)
 }
@@ -187,7 +231,14 @@ func (r *Repository) Close(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	res, err := r.db.ExecContext(ctx, query, time.Now().UTC().Format(time.RFC3339), id)
+	principal := sessionctx.PrincipalFromContext(ctx)
+	args := map[string]any{
+		"id":           id,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+	}
+	res, err := r.db.NamedExecContext(ctx, query, args)
 	if err != nil {
 		return err
 	}
@@ -203,7 +254,14 @@ func (r *Repository) Reopen(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	res, err := r.db.ExecContext(ctx, query, time.Now().UTC().Format(time.RFC3339), id)
+	principal := sessionctx.PrincipalFromContext(ctx)
+	args := map[string]any{
+		"id":           id,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+	}
+	res, err := r.db.NamedExecContext(ctx, query, args)
 	if err != nil {
 		return err
 	}
@@ -219,7 +277,14 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	res, err := r.db.ExecContext(ctx, query, time.Now().UTC().Format(time.RFC3339), id)
+	principal := sessionctx.PrincipalFromContext(ctx)
+	args := map[string]any{
+		"id":           id,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+	}
+	res, err := r.db.NamedExecContext(ctx, query, args)
 	if err != nil {
 		return err
 	}
@@ -249,4 +314,176 @@ func nullableInt64(value *int64) any {
 		return nil
 	}
 	return *value
+}
+
+func (r *Repository) attachLabels(ctx context.Context, tasks []Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	ids := make([]string, 0, len(tasks))
+	for _, item := range tasks {
+		if item.ID != "" {
+			ids = append(ids, item.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	query, args, err := sqlx.In(`
+SELECT
+    tl.task_id,
+    l.name
+FROM task_labels tl
+JOIN labels l ON l.id = tl.label_id
+WHERE tl.task_id IN (?)
+ORDER BY tl.created_at ASC, LOWER(l.name) ASC
+`, ids)
+	if err != nil {
+		return err
+	}
+
+	query = r.db.Rebind(query)
+
+	type taskLabelRow struct {
+		TaskID string `db:"task_id"`
+		Name   string `db:"name"`
+	}
+
+	rows := make([]taskLabelRow, 0, len(ids))
+	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
+		return err
+	}
+
+	labelsByTaskID := make(map[string][]string, len(ids))
+	for _, row := range rows {
+		labelsByTaskID[row.TaskID] = append(labelsByTaskID[row.TaskID], row.Name)
+	}
+
+	for i := range tasks {
+		taskID := tasks[i].ID
+		labels := labelsByTaskID[taskID]
+		if labels == nil {
+			tasks[i].Labels = []string{}
+			continue
+		}
+		tasks[i].Labels = labels
+	}
+
+	return nil
+}
+
+func (r *Repository) taskLabels(ctx context.Context, taskID string) ([]string, error) {
+	if strings.TrimSpace(taskID) == "" {
+		return []string{}, nil
+	}
+
+	rows := make([]struct {
+		Name string `db:"name"`
+	}, 0, 4)
+	if err := r.db.SelectContext(ctx, &rows, `
+SELECT
+    l.name
+FROM task_labels tl
+JOIN labels l ON l.id = tl.label_id
+WHERE tl.task_id = ?
+ORDER BY tl.created_at ASC, LOWER(l.name) ASC
+`, taskID); err != nil {
+		return nil, err
+	}
+
+	labels := make([]string, 0, len(rows))
+	for _, row := range rows {
+		labels = append(labels, row.Name)
+	}
+	return labels, nil
+}
+
+func (r *Repository) replaceTaskLabels(ctx context.Context, taskID string, labels []string) error {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil
+	}
+
+	principal := sessionctx.PrincipalFromContext(ctx)
+	normalized := normalizeLabels(labels)
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM task_labels WHERE task_id = ?", taskID); err != nil {
+		return err
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, label := range normalized {
+		labelID, err := findOrCreateLabel(ctx, tx, principal, label, now)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT OR IGNORE INTO task_labels (task_id, label_id, created_at)
+VALUES (?, ?, ?)
+`, taskID, labelID, now); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func findOrCreateLabel(ctx context.Context, tx *sqlx.Tx, principal sessionctx.Principal, label string, now string) (string, error) {
+	var labelID string
+	if err := tx.GetContext(ctx, &labelID, `
+SELECT id
+FROM labels
+WHERE LOWER(name) = LOWER(?)
+  AND user_id = ?
+  AND workspace_id = ?
+ORDER BY created_at ASC
+LIMIT 1
+`, label, principal.UserID, principal.WorkspaceID); err != nil {
+		if err != sql.ErrNoRows {
+			return "", err
+		}
+		labelID = uuid.NewString()
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO labels (id, name, color, user_id, workspace_id, created_at, updated_at)
+VALUES (?, ?, NULL, ?, ?, ?, ?)
+`, labelID, label, principal.UserID, principal.WorkspaceID, now, now); err != nil {
+			return "", err
+		}
+	}
+	return labelID, nil
+}
+
+func normalizeLabels(labels []string) []string {
+	if len(labels) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(labels))
+	normalized := make([]string, 0, len(labels))
+
+	for _, raw := range labels {
+		label := strings.TrimSpace(raw)
+		label = strings.TrimPrefix(label, "@")
+		label = strings.ToLower(label)
+		if label == "" {
+			continue
+		}
+		if _, ok := seen[label]; ok {
+			continue
+		}
+		seen[label] = struct{}{}
+		normalized = append(normalized, label)
+	}
+
+	return normalized
 }
