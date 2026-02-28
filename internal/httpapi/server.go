@@ -89,6 +89,12 @@ func New(
 	mux.HandleFunc("GET /api/auth/me", api.handleAuthMe)
 	mux.HandleFunc("POST /api/auth/onboarding", api.handleAuthOnboarding)
 	mux.HandleFunc("POST /api/auth/logout", api.handleAuthLogout)
+	mux.HandleFunc("GET /api/team/settings", api.handleTeamSettings)
+	mux.HandleFunc("PATCH /api/team/settings", api.handlePatchTeamSettings)
+	mux.HandleFunc("POST /api/team/invitations", api.handleCreateTeamInvitation)
+	mux.HandleFunc("DELETE /api/team/invitations/{code}", api.handleDeleteTeamInvitation)
+	mux.HandleFunc("PATCH /api/team/members/{userId}", api.handlePatchTeamMember)
+	mux.HandleFunc("DELETE /api/team/members/{userId}", api.handleDeleteTeamMember)
 	mux.HandleFunc("POST /api/rrule/parse", api.handleParseRRule)
 	mux.HandleFunc("POST /api/quick-add/parse", api.handleParseQuickAdd)
 	mux.HandleFunc("POST /api/tasks/quick-add", api.handleQuickAddTask)
@@ -228,6 +234,161 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 	a.clearSessionCookie(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) handleTeamSettings(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	settings, err := a.accounts.GetTeamSettings(r.Context(), principal.UserID, principal.WorkspaceID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"settings": settings,
+	})
+}
+
+func (a *API) handlePatchTeamSettings(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		TeamName string `json:"teamName"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	team, err := a.accounts.UpdateTeamName(r.Context(), principal.UserID, principal.WorkspaceID, strings.TrimSpace(req.TeamName))
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "teamName"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"team": team})
+}
+
+func (a *API) handleCreateTeamInvitation(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	invite, err := a.accounts.InviteMember(r.Context(), principal.UserID, principal.WorkspaceID, strings.TrimSpace(req.Email))
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "email"))
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{"invitation": invite})
+}
+
+func (a *API) handleDeleteTeamInvitation(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	code := strings.TrimSpace(r.PathValue("code"))
+	if code == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invitation code is required"), "code"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	if err := a.accounts.CancelInvitation(r.Context(), principal.UserID, principal.WorkspaceID, code); err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "code"))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) handlePatchTeamMember(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	userID := strings.TrimSpace(r.PathValue("userId"))
+	if userID == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "user id is required"), "userId"))
+		return
+	}
+
+	var req struct {
+		Role string `json:"role"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	member, err := a.accounts.UpdateMemberRole(r.Context(), principal.UserID, principal.WorkspaceID, userID, req.Role)
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "role"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"member": member})
+}
+
+func (a *API) handleDeleteTeamMember(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	userID := strings.TrimSpace(r.PathValue("userId"))
+	if userID == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "user id is required"), "userId"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	if err := a.accounts.RemoveMember(r.Context(), principal.UserID, principal.WorkspaceID, userID); err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "userId"))
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

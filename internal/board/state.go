@@ -59,38 +59,44 @@ type QuestConsequenceState struct {
 }
 
 type QuestRuntime struct {
-	ID           string                  `json:"id"`
-	TemplateID   string                  `json:"templateId,omitempty"`
-	Title        string                  `json:"title"`
-	Type         string                  `json:"type"`
-	Scope        string                  `json:"scope"`
-	Day          int                     `json:"day,omitempty"`
-	Week         int                     `json:"week,omitempty"`
-	Objectives   []QuestObjectiveState   `json:"objectives,omitempty"`
-	Rewards      []QuestRewardState      `json:"rewards,omitempty"`
-	Unlocks      []QuestUnlockState      `json:"unlocks,omitempty"`
-	Consequences []QuestConsequenceState `json:"consequences,omitempty"`
-	Completed    bool                    `json:"completed"`
-	Claimable    bool                    `json:"claimable"`
-	Claimed      bool                    `json:"claimed"`
-	Failed       bool                    `json:"failed,omitempty"`
-	CompletedDay int                     `json:"completedDay,omitempty"`
-	ClaimedDay   int                     `json:"claimedDay,omitempty"`
+	ID                 string                  `json:"id"`
+	TemplateID         string                  `json:"templateId,omitempty"`
+	Title              string                  `json:"title"`
+	Type               string                  `json:"type"`
+	Scope              string                  `json:"scope"`
+	Day                int                     `json:"day,omitempty"`
+	Week               int                     `json:"week,omitempty"`
+	HowToComplete      string                  `json:"howToComplete,omitempty"`
+	DefinitionOfDone   string                  `json:"definitionOfDone,omitempty"`
+	AcceptanceCriteria []string                `json:"acceptanceCriteria,omitempty"`
+	Objectives         []QuestObjectiveState   `json:"objectives,omitempty"`
+	Rewards            []QuestRewardState      `json:"rewards,omitempty"`
+	Unlocks            []QuestUnlockState      `json:"unlocks,omitempty"`
+	Consequences       []QuestConsequenceState `json:"consequences,omitempty"`
+	Completed          bool                    `json:"completed"`
+	Claimable          bool                    `json:"claimable"`
+	Claimed            bool                    `json:"claimed"`
+	Failed             bool                    `json:"failed,omitempty"`
+	CompletedDay       int                     `json:"completedDay,omitempty"`
+	ClaimedDay         int                     `json:"claimedDay,omitempty"`
 }
 
 type QuestHistoryEntry struct {
-	ID           string `json:"id"`
-	TemplateID   string `json:"templateId,omitempty"`
-	Title        string `json:"title"`
-	Type         string `json:"type"`
-	Scope        string `json:"scope"`
-	Day          int    `json:"day,omitempty"`
-	Week         int    `json:"week,omitempty"`
-	Completed    bool   `json:"completed"`
-	Claimed      bool   `json:"claimed"`
-	Failed       bool   `json:"failed,omitempty"`
-	CompletedDay int    `json:"completedDay,omitempty"`
-	ClaimedDay   int    `json:"claimedDay,omitempty"`
+	ID                 string   `json:"id"`
+	TemplateID         string   `json:"templateId,omitempty"`
+	Title              string   `json:"title"`
+	Type               string   `json:"type"`
+	Scope              string   `json:"scope"`
+	Day                int      `json:"day,omitempty"`
+	Week               int      `json:"week,omitempty"`
+	HowToComplete      string   `json:"howToComplete,omitempty"`
+	DefinitionOfDone   string   `json:"definitionOfDone,omitempty"`
+	AcceptanceCriteria []string `json:"acceptanceCriteria,omitempty"`
+	Completed          bool     `json:"completed"`
+	Claimed            bool     `json:"claimed"`
+	Failed             bool     `json:"failed,omitempty"`
+	CompletedDay       int      `json:"completedDay,omitempty"`
+	ClaimedDay         int      `json:"claimedDay,omitempty"`
 }
 
 type QuestState struct {

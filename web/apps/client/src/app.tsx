@@ -6,6 +6,8 @@ import BuilderRoute from "./routes/BuilderRoute";
 import HomeRoute from "./routes/HomeRoute";
 import LoginRoute from "./routes/LoginRoute";
 import OnboardingRoute from "./routes/OnboardingRoute";
+import ProfileRoute from "./routes/ProfileRoute";
+import TeamSettingsRoute from "./routes/TeamSettingsRoute";
 import { authApi } from "./server/api";
 
 type ProtectedRouteProps = {
@@ -49,6 +51,8 @@ export default function App() {
       <Route path="/task/*" component={() => <ProtectedRoute component={HomeRoute} />} />
       <Route path="/board" component={() => <ProtectedRoute component={BoardRoute} />} />
       <Route path="/builder" component={() => <ProtectedRoute component={BuilderRoute} />} />
+      <Route path="/profile" component={() => <ProtectedRoute component={ProfileRoute} />} />
+      <Route path="/team/settings" component={() => <ProtectedRoute component={TeamSettingsRoute} />} />
     </>
   );
 }

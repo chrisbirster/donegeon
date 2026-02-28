@@ -13,6 +13,7 @@ type Config struct {
 	HTTPPort         string
 	DBPath           string
 	BoardConfigPath  string
+	QuestConfigPath  string
 	RequireAuth      bool
 	WriteToken       string
 	ReadOnlyToken    string
@@ -27,11 +28,16 @@ func Load() (Config, error) {
 	if boardConfigPath == "" {
 		boardConfigPath = defaultBoardConfigPath()
 	}
+	questConfigPath := firstNonEmptyEnv("DONEGEON_QUEST_CONFIG_PATH", "DONEGEON_QUESTS_PATH")
+	if questConfigPath == "" {
+		questConfigPath = defaultQuestConfigPath()
+	}
 
 	cfg := Config{
 		HTTPPort:         envOr("DONEGEON_HTTP_PORT", "42069"),
 		DBPath:           envOr("DONEGEON_DB_PATH", "donegeon.db"),
 		BoardConfigPath:  boardConfigPath,
+		QuestConfigPath:  questConfigPath,
 		WriteToken:       envOr("DONEGEON_API_TOKEN", "TOKEN_VALID"),
 		ReadOnlyToken:    envOr("DONEGEON_READONLY_API_TOKEN", "TOKEN_READONLY"),
 		RequestTimeout:   envDurationOr("DONEGEON_REQUEST_TIMEOUT", 15*time.Second),
@@ -85,6 +91,23 @@ func defaultBoardConfigPath() string {
 	candidates := []string{
 		"donegeon_config.yml",
 		"donegeon_config.yaml",
+	}
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		return candidate
+	}
+	return ""
+}
+
+func defaultQuestConfigPath() string {
+	candidates := []string{
+		"docs/quests.yaml",
+		"docs/quests.yml",
+		"quests.yaml",
+		"quests.yml",
 	}
 	for _, candidate := range candidates {
 		info, err := os.Stat(candidate)

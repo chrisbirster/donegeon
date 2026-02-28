@@ -68,8 +68,12 @@ func TestServiceCreateFromQuickAddPersistsProjectAndPriority(t *testing.T) {
 
 	repo := NewRepository(db, queries)
 	service := NewService(repo, quickadd.NewParser())
+	service.nowFn = func() time.Time {
+		return time.Date(2026, time.February, 27, 15, 0, 0, 0, time.UTC)
+	}
 
-	created, parsed, err := service.CreateFromQuickAdd(context.Background(), "asssign a task p3 #home @another {in 2 days}")
+	ctx := WithTimezone(context.Background(), "America/New_York")
+	created, parsed, err := service.CreateFromQuickAdd(ctx, "asssign a task p3 #home @another {in 2 days}")
 	if err != nil {
 		t.Fatalf("create from quick add: %v", err)
 	}
@@ -86,8 +90,9 @@ func TestServiceCreateFromQuickAddPersistsProjectAndPriority(t *testing.T) {
 	if created.Content != "asssign a task" {
 		t.Fatalf("unexpected created content: got=%q want=%q", created.Content, "asssign a task")
 	}
-	if created.DueDeadline == nil || *created.DueDeadline != "in 2 days" {
-		t.Fatalf("unexpected created deadline: %v", strOrNil(created.DueDeadline))
+	expectedDeadline := "2026-03-01T10:00:00-05:00"
+	if created.DueDeadline == nil || *created.DueDeadline != expectedDeadline {
+		t.Fatalf("unexpected created deadline: got=%v want=%q", strOrNil(created.DueDeadline), expectedDeadline)
 	}
 }
 
@@ -128,6 +133,44 @@ func TestServiceCreateFromQuickAddAutofillsDueFromRecurrenceUsingTimezone(t *tes
 	}
 	if created.DueText == nil || *created.DueText != expectedDue {
 		t.Fatalf("unexpected created due text: got=%v want=%q", strOrNil(created.DueText), expectedDue)
+	}
+}
+
+func TestServiceCreateFromQuickAddAllowsDeadlineBeforeDue(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "service-deadline-before-due-test.db")
+	if err := datbase.RunMigrations(dbPath); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	db, err := datbase.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	queries, err := datbase.LoadQueries()
+	if err != nil {
+		t.Fatalf("load queries: %v", err)
+	}
+
+	repo := NewRepository(db, queries)
+	service := NewService(repo, quickadd.NewParser())
+	service.nowFn = func() time.Time {
+		return time.Date(2026, time.February, 27, 15, 0, 0, 0, time.UTC)
+	}
+
+	ctx := WithTimezone(context.Background(), "America/New_York")
+	created, _, err := service.CreateFromQuickAdd(ctx, "another every thursday at 7pm due thursday {in 2 days}")
+	if err != nil {
+		t.Fatalf("create from quick add: %v", err)
+	}
+	if created.DueText == nil || created.DueDeadline == nil {
+		t.Fatalf("expected normalized due and deadline, got due=%v deadline=%v", strOrNil(created.DueText), strOrNil(created.DueDeadline))
+	}
+	if *created.DueDeadline >= *created.DueText {
+		t.Fatalf("expected deadline to remain before due for this scenario, got deadline=%q due=%q", *created.DueDeadline, *created.DueText)
 	}
 }
 

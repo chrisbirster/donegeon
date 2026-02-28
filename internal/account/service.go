@@ -42,10 +42,34 @@ type TeamInvite struct {
 	UpdatedAt      string `db:"updated_at" json:"updatedAt"`
 }
 
+type TeamMember struct {
+	WorkspaceID string `db:"workspace_id" json:"workspaceId"`
+	UserID      string `db:"user_id" json:"userId"`
+	Email       string `db:"email" json:"email"`
+	Name        string `db:"name" json:"name"`
+	Role        string `db:"role" json:"role"`
+	CreatedAt   string `db:"created_at" json:"createdAt"`
+}
+
+type TeamSettings struct {
+	Team            Team         `json:"team"`
+	Members         []TeamMember `json:"members"`
+	Invitations     []TeamInvite `json:"invitations"`
+	CurrentUserID   string       `json:"currentUserId"`
+	CurrentUserRole string       `json:"currentUserRole"`
+	CanManage       bool         `json:"canManage"`
+}
+
 type Session struct {
 	User User  `json:"user"`
 	Team *Team `json:"team,omitempty"`
 }
+
+const (
+	TeamRoleOwner  = "owner"
+	TeamRoleAdmin  = "admin"
+	TeamRoleMember = "member"
+)
 
 type Service struct {
 	db *sqlx.DB
@@ -91,7 +115,7 @@ ON CONFLICT(workspace_id, user_id) DO UPDATE SET
 		return err
 	}
 
-	return s.ensureDefaultProjects(ctx, sessionctx.DefaultUserID, sessionctx.DefaultWorkspaceID)
+	return s.ensureDefaultProjects(ctx, sessionctx.DefaultUserID, sessionctx.DefaultWorkspaceID, "Default Workspace")
 }
 
 func (s *Service) Login(ctx context.Context, email string, preferredName string) (Session, error) {
@@ -189,6 +213,13 @@ LIMIT 1
 	workspaceID := ""
 	if user.CurrentWorkspace != nil && strings.TrimSpace(*user.CurrentWorkspace) != "" {
 		workspaceID = strings.TrimSpace(*user.CurrentWorkspace)
+		if _, err := tx.ExecContext(ctx, `
+UPDATE workspaces
+SET name = ?, updated_at = ?
+WHERE id = ?
+`, trimmedTeamName, now, workspaceID); err != nil {
+			return Session{}, nil, err
+		}
 	} else {
 		workspaceID = "W_" + uuid.NewString()
 		if _, err := tx.ExecContext(ctx, `
@@ -240,7 +271,7 @@ WHERE id = ?
 		return Session{}, nil, err
 	}
 
-	if err := ensureDefaultProjectsTx(ctx, tx, user.ID, workspaceID, now); err != nil {
+	if err := ensureDefaultProjectsTx(ctx, tx, user.ID, workspaceID, trimmedTeamName, now); err != nil {
 		return Session{}, nil, err
 	}
 
@@ -255,37 +286,415 @@ WHERE id = ?
 	return session, invites, nil
 }
 
-func (s *Service) ensureDefaultProjects(ctx context.Context, userID string, workspaceID string) error {
+func (s *Service) GetTeamSettings(ctx context.Context, actorUserID string, workspaceID string) (TeamSettings, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	if actorUserID == "" || workspaceID == "" {
+		return TeamSettings{}, fmt.Errorf("team context is required")
+	}
+
+	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamSettings{}, fmt.Errorf("not a member of this team")
+		}
+		return TeamSettings{}, err
+	}
+
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamSettings{}, fmt.Errorf("team not found")
+		}
+		return TeamSettings{}, err
+	}
+
+	members := []TeamMember{}
+	if err := s.db.SelectContext(ctx, &members, `
+SELECT workspace_id, user_id, email, name, role, created_at
+FROM workspace_users
+WHERE workspace_id = ?
+ORDER BY
+	CASE role
+		WHEN 'owner' THEN 0
+		WHEN 'admin' THEN 1
+		ELSE 2
+	END,
+	LOWER(name) ASC,
+	LOWER(email) ASC
+`, workspaceID); err != nil {
+		return TeamSettings{}, err
+	}
+
+	invitations := []TeamInvite{}
+	if err := s.db.SelectContext(ctx, &invitations, `
+SELECT invitation_code, workspace_id, email, status, created_at, updated_at
+FROM workspace_invitations
+WHERE workspace_id = ?
+	AND status = 'pending'
+ORDER BY created_at DESC
+`, workspaceID); err != nil {
+		return TeamSettings{}, err
+	}
+
+	return TeamSettings{
+		Team:            team,
+		Members:         members,
+		Invitations:     invitations,
+		CurrentUserID:   actorUserID,
+		CurrentUserRole: role,
+		CanManage:       canManageTeam(role),
+	}, nil
+}
+
+func (s *Service) UpdateTeamName(ctx context.Context, actorUserID string, workspaceID string, teamName string) (Team, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	teamName = strings.TrimSpace(teamName)
+	if actorUserID == "" || workspaceID == "" {
+		return Team{}, fmt.Errorf("team context is required")
+	}
+	if teamName == "" {
+		return Team{}, fmt.Errorf("team name is required")
+	}
+
+	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Team{}, fmt.Errorf("not a member of this team")
+		}
+		return Team{}, err
+	}
+	if !canManageTeam(role) {
+		return Team{}, fmt.Errorf("only team owners or admins can update team settings")
+	}
+
 	now := nowRFC3339()
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return Team{}, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if _, err := tx.ExecContext(ctx, `
+UPDATE workspaces
+SET
+	name = ?,
+	updated_at = ?
+WHERE id = ?
+`, teamName, now, workspaceID); err != nil {
+		return Team{}, err
+	}
+
+	if err := ensureDefaultProjectsTx(ctx, tx, actorUserID, workspaceID, teamName, now); err != nil {
+		return Team{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Team{}, err
+	}
+
+	return s.workspaceByID(ctx, workspaceID)
+}
+
+func (s *Service) InviteMember(ctx context.Context, actorUserID string, workspaceID string, rawEmail string) (TeamInvite, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	email := strings.ToLower(strings.TrimSpace(rawEmail))
+	if actorUserID == "" || workspaceID == "" {
+		return TeamInvite{}, fmt.Errorf("team context is required")
+	}
+	if email == "" || !strings.Contains(email, "@") {
+		return TeamInvite{}, fmt.Errorf("valid invite email is required")
+	}
+
+	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamInvite{}, fmt.Errorf("not a member of this team")
+		}
+		return TeamInvite{}, err
+	}
+	if !canManageTeam(role) {
+		return TeamInvite{}, fmt.Errorf("only team owners or admins can invite members")
+	}
+
+	var memberCount int
+	if err := s.db.GetContext(ctx, &memberCount, `
+SELECT COUNT(1)
+FROM workspace_users
+WHERE workspace_id = ?
+	AND LOWER(email) = LOWER(?)
+`, workspaceID, email); err != nil {
+		return TeamInvite{}, err
+	}
+	if memberCount > 0 {
+		return TeamInvite{}, fmt.Errorf("user is already a team member")
+	}
+
+	var existing TeamInvite
+	if err := s.db.GetContext(ctx, &existing, `
+SELECT invitation_code, workspace_id, email, status, created_at, updated_at
+FROM workspace_invitations
+WHERE workspace_id = ?
+	AND LOWER(email) = LOWER(?)
+	AND status = 'pending'
+ORDER BY created_at DESC
+LIMIT 1
+`, workspaceID, email); err == nil {
+		return existing, nil
+	} else if err != sql.ErrNoRows {
+		return TeamInvite{}, err
+	}
+
+	now := nowRFC3339()
+	invite := TeamInvite{
+		InvitationCode: uuid.NewString(),
+		WorkspaceID:    workspaceID,
+		Email:          email,
+		Status:         "pending",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if _, err := s.db.ExecContext(ctx, `
+INSERT INTO workspace_invitations (invitation_code, workspace_id, email, status, created_at, updated_at)
+VALUES (?, ?, ?, 'pending', ?, ?)
+`, invite.InvitationCode, invite.WorkspaceID, invite.Email, invite.CreatedAt, invite.UpdatedAt); err != nil {
+		return TeamInvite{}, err
+	}
+
+	return invite, nil
+}
+
+func (s *Service) UpdateMemberRole(ctx context.Context, actorUserID string, workspaceID string, targetUserID string, role string) (TeamMember, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	targetUserID = strings.TrimSpace(targetUserID)
+	nextRole := normalizeTeamRole(role)
+
+	if actorUserID == "" || workspaceID == "" {
+		return TeamMember{}, fmt.Errorf("team context is required")
+	}
+	if targetUserID == "" {
+		return TeamMember{}, fmt.Errorf("target user is required")
+	}
+	if !isSupportedTeamRole(nextRole) {
+		return TeamMember{}, fmt.Errorf("role must be one of owner, admin, member")
+	}
+
+	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamMember{}, fmt.Errorf("not a member of this team")
+		}
+		return TeamMember{}, err
+	}
+	if actorRole != TeamRoleOwner {
+		return TeamMember{}, fmt.Errorf("only team owners can change roles")
+	}
+
+	targetMember, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamMember{}, fmt.Errorf("target member not found")
+		}
+		return TeamMember{}, err
+	}
+
+	if targetMember.Role == TeamRoleOwner && targetUserID != actorUserID {
+		return TeamMember{}, fmt.Errorf("owner role cannot be reassigned in this build")
+	}
+	if targetUserID == actorUserID && nextRole != TeamRoleOwner {
+		return TeamMember{}, fmt.Errorf("owner cannot demote themselves")
+	}
+	if nextRole == TeamRoleOwner && targetUserID != actorUserID {
+		return TeamMember{}, fmt.Errorf("owner role transfer is not supported yet")
+	}
+
+	if _, err := s.db.ExecContext(ctx, `
+UPDATE workspace_users
+SET role = ?
+WHERE workspace_id = ?
+	AND user_id = ?
+`, nextRole, workspaceID, targetUserID); err != nil {
+		return TeamMember{}, err
+	}
+
+	return workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+}
+
+func (s *Service) RemoveMember(ctx context.Context, actorUserID string, workspaceID string, targetUserID string) error {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	targetUserID = strings.TrimSpace(targetUserID)
+	if actorUserID == "" || workspaceID == "" {
+		return fmt.Errorf("team context is required")
+	}
+	if targetUserID == "" {
+		return fmt.Errorf("target user is required")
+	}
+	if targetUserID == actorUserID {
+		return fmt.Errorf("owner cannot remove themselves")
+	}
+
+	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("not a member of this team")
+		}
+		return err
+	}
+	if actorRole != TeamRoleOwner {
+		return fmt.Errorf("only team owners can remove members")
+	}
+
+	targetMember, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("target member not found")
+		}
+		return err
+	}
+	if targetMember.Role == TeamRoleOwner {
+		return fmt.Errorf("owner cannot be removed")
+	}
+
+	now := nowRFC3339()
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	result, err := tx.ExecContext(ctx, `
+DELETE FROM workspace_users
+WHERE workspace_id = ?
+	AND user_id = ?
+`, workspaceID, targetUserID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("target member not found")
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+UPDATE users
+SET
+	current_workspace_id = CASE
+		WHEN current_workspace_id = ? THEN NULL
+		ELSE current_workspace_id
+	END,
+	show_onboarding = CASE
+		WHEN current_workspace_id = ? THEN 1
+		ELSE show_onboarding
+	END,
+	updated_at = CASE
+		WHEN current_workspace_id = ? THEN ?
+		ELSE updated_at
+	END
+WHERE id = ?
+`, workspaceID, workspaceID, workspaceID, now, targetUserID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) CancelInvitation(ctx context.Context, actorUserID string, workspaceID string, invitationCode string) error {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	invitationCode = strings.TrimSpace(invitationCode)
+	if actorUserID == "" || workspaceID == "" {
+		return fmt.Errorf("team context is required")
+	}
+	if invitationCode == "" {
+		return fmt.Errorf("invitation code is required")
+	}
+
+	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("not a member of this team")
+		}
+		return err
+	}
+	if !canManageTeam(role) {
+		return fmt.Errorf("only team owners or admins can cancel invitations")
+	}
+
+	result, err := s.db.ExecContext(ctx, `
+DELETE FROM workspace_invitations
+WHERE invitation_code = ?
+	AND workspace_id = ?
+	AND status = 'pending'
+`, invitationCode, workspaceID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("invitation not found")
+	}
+	return nil
+}
+
+func (s *Service) ensureDefaultProjects(ctx context.Context, userID string, workspaceID string, teamName string) error {
+	now := nowRFC3339()
+	boardName := defaultBoardProjectName(teamName)
 	if _, err := s.db.ExecContext(ctx, `
 INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
 VALUES (?, ?, 0, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO NOTHING
-`, projectStorageID(workspaceID, "board"), "board", userID, workspaceID, now, now); err != nil {
+ON CONFLICT(id) DO UPDATE SET
+	name = excluded.name,
+	updated_at = excluded.updated_at
+`, projectStorageID(workspaceID, "board"), boardName, userID, workspaceID, now, now); err != nil {
 		return err
 	}
 	if _, err := s.db.ExecContext(ctx, `
 INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
 VALUES (?, ?, 1, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO NOTHING
+ON CONFLICT(id) DO UPDATE SET
+	name = excluded.name,
+	updated_at = excluded.updated_at
 `, projectStorageID(workspaceID, "inbox"), "inbox", userID, workspaceID, now, now); err != nil {
 		return err
 	}
 	return nil
 }
 
-func ensureDefaultProjectsTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, now string) error {
+func ensureDefaultProjectsTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, teamName string, now string) error {
+	boardName := defaultBoardProjectName(teamName)
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
 VALUES (?, ?, 0, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO NOTHING
-`, projectStorageID(workspaceID, "board"), "board", userID, workspaceID, now, now); err != nil {
+ON CONFLICT(id) DO UPDATE SET
+	name = excluded.name,
+	updated_at = excluded.updated_at
+`, projectStorageID(workspaceID, "board"), boardName, userID, workspaceID, now, now); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
 VALUES (?, ?, 1, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO NOTHING
+ON CONFLICT(id) DO UPDATE SET
+	name = excluded.name,
+	updated_at = excluded.updated_at
 `, projectStorageID(workspaceID, "inbox"), "inbox", userID, workspaceID, now, now); err != nil {
 		return err
 	}
@@ -323,6 +732,75 @@ WHERE id = ?
 LIMIT 1
 `, id)
 	return row, err
+}
+
+func workspaceUserRole(ctx context.Context, db sqlx.QueryerContext, workspaceID string, userID string) (string, error) {
+	var role string
+	err := sqlx.GetContext(ctx, db, &role, `
+SELECT role
+FROM workspace_users
+WHERE workspace_id = ?
+	AND user_id = ?
+LIMIT 1
+`, workspaceID, userID)
+	if err != nil {
+		return "", err
+	}
+	return normalizeTeamRole(role), nil
+}
+
+func workspaceMemberByID(ctx context.Context, db sqlx.QueryerContext, workspaceID string, userID string) (TeamMember, error) {
+	var member TeamMember
+	err := sqlx.GetContext(ctx, db, &member, `
+SELECT workspace_id, user_id, email, name, role, created_at
+FROM workspace_users
+WHERE workspace_id = ?
+	AND user_id = ?
+LIMIT 1
+`, workspaceID, userID)
+	if err != nil {
+		return TeamMember{}, err
+	}
+	member.Role = normalizeTeamRole(member.Role)
+	return member, nil
+}
+
+func normalizeTeamRole(role string) string {
+	role = strings.ToLower(strings.TrimSpace(role))
+	switch role {
+	case TeamRoleOwner:
+		return TeamRoleOwner
+	case TeamRoleAdmin:
+		return TeamRoleAdmin
+	default:
+		return TeamRoleMember
+	}
+}
+
+func isSupportedTeamRole(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case TeamRoleOwner, TeamRoleAdmin, TeamRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+func canManageTeam(role string) bool {
+	role = normalizeTeamRole(role)
+	return role == TeamRoleOwner || role == TeamRoleAdmin
+}
+
+func defaultBoardProjectName(teamName string) string {
+	teamName = strings.TrimSpace(teamName)
+	if teamName == "" {
+		return "board"
+	}
+	possessive := "'s"
+	if strings.HasSuffix(strings.ToLower(teamName), "s") {
+		possessive = "'"
+	}
+	return fmt.Sprintf("%s%s board", teamName, possessive)
 }
 
 func nowRFC3339() string {

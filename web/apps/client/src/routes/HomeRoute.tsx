@@ -162,6 +162,62 @@ function formatScheduleDateTime(value: string | undefined): string | undefined {
   return dateTimeFormatter.format(parsed);
 }
 
+function scheduleTokenFromInput(
+  scheduleInput: string | undefined,
+  kind: "due" | "deadline",
+): string | undefined {
+  const source = (scheduleInput ?? "").trim();
+  if (!source) return undefined;
+  const tokens = tokenizeQuickAdd(source);
+  const token = tokens.find((item) => item.kind === kind)?.value?.trim();
+  if (!token) return undefined;
+  if (kind === "deadline" && token.startsWith("{") && token.endsWith("}")) {
+    const inner = token.slice(1, -1).trim();
+    return inner || undefined;
+  }
+  return token;
+}
+
+function scheduleBadgeLabel(task: Task, kind: "due" | "deadline"): string | null {
+  const storedRaw = kind === "due" ? task.dueText : task.dueDeadline;
+  const storedFormatted = formatScheduleDateTime(storedRaw) ?? storedRaw?.trim();
+  const inputToken = scheduleTokenFromInput(task.scheduleInput, kind);
+  if (!storedFormatted && !inputToken) return null;
+
+  const prefix = kind === "due" ? "Due" : "Deadline";
+  if (storedFormatted && inputToken && storedFormatted.toLowerCase() !== inputToken.toLowerCase()) {
+    return `${prefix} ${inputToken} -> ${storedFormatted}`;
+  }
+
+  return `${prefix} ${storedFormatted || inputToken}`;
+}
+
+function parseScheduleInstant(value: string | undefined): Date | null {
+  if (!value) return null;
+  const raw = value.trim();
+  if (!raw) return null;
+
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (ymd) {
+    return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function scheduleValidationWarning(task: Task): string | null {
+  const due = parseScheduleInstant(task.dueText);
+  const deadline = parseScheduleInstant(task.dueDeadline);
+  if (!due || !deadline) return null;
+  if (deadline.getTime() >= due.getTime()) return null;
+
+  const dueLabel = formatScheduleDateTime(task.dueText) ?? task.dueText ?? "";
+  const deadlineLabel = formatScheduleDateTime(task.dueDeadline) ?? task.dueDeadline ?? "";
+  return `Deadline is before due (${deadlineLabel} < ${dueLabel}).`;
+}
+
 function formatLabelsInput(labels: string[] | undefined): string {
   if (!labels || labels.length === 0) return "";
   const visible = labels.filter((label) => !isBoardLiveLabel(label));
@@ -608,6 +664,25 @@ export default function HomeRoute() {
   });
 
   const detailTaskIsBoardProject = createMemo(() => isBoardProject(detailTask()?.projectId));
+  const detailDueInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleOriginal(), "due"));
+  const detailDeadlineInputToken = createMemo(() =>
+    scheduleTokenFromInput(detailScheduleOriginal(), "deadline"),
+  );
+  const detailDueStoredValue = createMemo(
+    () => formatScheduleDateTime(detailDueText()) ?? detailDueText().trim(),
+  );
+  const detailDeadlineStoredValue = createMemo(
+    () => formatScheduleDateTime(detailDeadline()) ?? detailDeadline().trim(),
+  );
+  const detailScheduleWarning = createMemo(() => {
+    const due = parseScheduleInstant(detailDueText());
+    const deadline = parseScheduleInstant(detailDeadline());
+    if (!due || !deadline) return "";
+    if (deadline.getTime() >= due.getTime()) return "";
+    const dueLabel = formatScheduleDateTime(detailDueText()) ?? detailDueText().trim();
+    const deadlineLabel = formatScheduleDateTime(detailDeadline()) ?? detailDeadline().trim();
+    return `Schedule check: deadline resolves before due (${deadlineLabel} < ${dueLabel}).`;
+  });
 
   const parsedChips = createMemo(() => {
     const parsed = parsedInput();
@@ -1520,15 +1595,20 @@ export default function HomeRoute() {
                                 {item.content}
                               </p>
                               <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
-                                <Show when={item.dueText}>
-                                  <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">
-                                    Due {formatScheduleDateTime(item.dueText) ?? item.dueText}
-                                  </span>
+                                <Show when={scheduleBadgeLabel(item, "due")}>
+                                  {(label) => (
+                                    <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">{label()}</span>
+                                  )}
                                 </Show>
-                                <Show when={item.dueDeadline}>
-                                  <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">
-                                    Deadline {formatScheduleDateTime(item.dueDeadline) ?? item.dueDeadline}
-                                  </span>
+                                <Show when={scheduleBadgeLabel(item, "deadline")}>
+                                  {(label) => (
+                                    <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">{label()}</span>
+                                  )}
+                                </Show>
+                                <Show when={scheduleValidationWarning(item)}>
+                                  {(warning) => (
+                                    <span class="rounded-md bg-[#4b2a19] px-2 py-0.5 text-[#ffd5b0]">{warning()}</span>
+                                  )}
                                 </Show>
                                 <For each={visibleTaskLabels(item.labels)}>
                                   {(label) => (
@@ -1700,10 +1780,20 @@ export default function HomeRoute() {
                                 </span>
                               )}
                             </Show>
-                            <Show when={item.dueText}>
-                              <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">
-                                Due {formatScheduleDateTime(item.dueText) ?? item.dueText}
-                              </span>
+                            <Show when={scheduleBadgeLabel(item, "due")}>
+                              {(label) => (
+                                <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">{label()}</span>
+                              )}
+                            </Show>
+                            <Show when={scheduleBadgeLabel(item, "deadline")}>
+                              {(label) => (
+                                <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">{label()}</span>
+                              )}
+                            </Show>
+                            <Show when={scheduleValidationWarning(item)}>
+                              {(warning) => (
+                                <span class="rounded-md bg-[#4b2a19] px-2 py-0.5 text-[#ffd5b0]">{warning()}</span>
+                              )}
                             </Show>
                             <For each={visibleTaskLabels(item.labels)}>
                               {(label) => (
@@ -1822,6 +1912,12 @@ export default function HomeRoute() {
                     class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                     data-testid="task-detail-due"
                   />
+                  <Show when={detailDueInputToken()}>
+                    <p class="text-xs text-[#8fa6cb]">Original token: {detailDueInputToken()}</p>
+                  </Show>
+                  <Show when={detailDueStoredValue()}>
+                    <p class="text-xs text-[#9cb2d6]">Stored value: {detailDueStoredValue()}</p>
+                  </Show>
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Deadline</label>
                   <input
@@ -1831,6 +1927,17 @@ export default function HomeRoute() {
                     class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                     data-testid="task-detail-deadline"
                   />
+                  <Show when={detailDeadlineInputToken()}>
+                    <p class="text-xs text-[#8fa6cb]">Original token: {detailDeadlineInputToken()}</p>
+                  </Show>
+                  <Show when={detailDeadlineStoredValue()}>
+                    <p class="text-xs text-[#9cb2d6]">Stored value: {detailDeadlineStoredValue()}</p>
+                  </Show>
+                  <Show when={detailScheduleWarning()}>
+                    <p class="rounded-md border border-[#5f4a2a] bg-[#2b2112] px-2.5 py-1.5 text-xs text-[#f7d9a1]">
+                      {detailScheduleWarning()}
+                    </p>
+                  </Show>
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Original Schedule Input</label>
                   <input

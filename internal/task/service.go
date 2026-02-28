@@ -53,10 +53,12 @@ func (s *Service) Get(ctx context.Context, id string) (Task, error) {
 
 func (s *Service) ParseQuickAdd(ctx context.Context, text string) quickadd.Parsed {
 	parsed := s.parser.Parse(text)
+	parsed.DueText = normalizeDueText(parsed.DueText, timezoneFromContext(ctx), s.nowFn())
 	parsed.Deadline = normalizeDeadline(parsed.Deadline, timezoneFromContext(ctx), s.nowFn())
 	if parsed.RecurrenceRule != nil && parsed.DueText == nil {
 		if nextDue, ok := nextOccurrenceDueText(*parsed.RecurrenceRule, timezoneFromContext(ctx), s.nowFn(), true); ok {
 			parsed.DueText = strPtr(nextDue)
+			parsed.DueText = normalizeDueText(parsed.DueText, timezoneFromContext(ctx), s.nowFn())
 		}
 	}
 	return parsed
@@ -67,6 +69,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "content is required"), "content")
 	}
 	in.ProjectID = canonicalizeProjectID(ctx, in.ProjectID)
+	in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())
 	in.DueDeadline = normalizeDeadline(in.DueDeadline, timezoneFromContext(ctx), s.nowFn())
 	if in.Recurrence != nil {
 		if _, err := rrule.Parse(*in.Recurrence); err != nil {
@@ -75,6 +78,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 		if in.DueText == nil {
 			if nextDue, ok := nextOccurrenceDueText(*in.Recurrence, timezoneFromContext(ctx), s.nowFn(), true); ok {
 				in.DueText = strPtr(nextDue)
+				in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())
 			}
 		}
 	}
@@ -117,6 +121,7 @@ func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, 
 	if in.ProjectID != nil {
 		in.ProjectID = canonicalizeProjectID(ctx, in.ProjectID)
 	}
+	in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())
 	in.DueDeadline = normalizeDeadline(in.DueDeadline, timezoneFromContext(ctx), s.nowFn())
 	if in.Recurrence != nil {
 		if _, err := rrule.Parse(*in.Recurrence); err != nil {
@@ -136,6 +141,7 @@ func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, 
 	if effectiveRecurrence != nil && in.DueText == nil && current.DueText == nil {
 		if nextDue, ok := nextOccurrenceDueText(*effectiveRecurrence, timezoneFromContext(ctx), s.nowFn(), true); ok {
 			in.DueText = strPtr(nextDue)
+			in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())
 		}
 	}
 
@@ -243,6 +249,7 @@ func (s *Service) normalizeTaskTemporalFields(ctx context.Context, item *Task) {
 	if item == nil {
 		return
 	}
+	item.DueText = normalizeDueText(item.DueText, timezoneFromContext(ctx), s.deadlineAnchor(*item))
 	item.DueDeadline = normalizeDeadline(item.DueDeadline, timezoneFromContext(ctx), s.deadlineAnchor(*item))
 }
 

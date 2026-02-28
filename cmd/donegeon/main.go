@@ -71,7 +71,16 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load board config: %w", err)
 	}
-	boardService := board.NewService(boardRepo, taskService, board.WithGameplayConfig(boardCfg))
+	questCatalog, err := board.LoadQuestCatalog(cfg.QuestConfigPath)
+	if err != nil {
+		return fmt.Errorf("load quest config: %w", err)
+	}
+	boardService := board.NewService(
+		boardRepo,
+		taskService,
+		board.WithGameplayConfig(boardCfg),
+		board.WithQuestCatalog(questCatalog),
+	)
 
 	staticFS, err := fs.Sub(webdist.Files, ".")
 	if err != nil {

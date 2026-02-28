@@ -78,6 +78,9 @@ export type BoardQuestRuntime = {
   scope: string;
   day?: number;
   week?: number;
+  howToComplete?: string;
+  definitionOfDone?: string;
+  acceptanceCriteria?: string[];
   objectives?: BoardQuestObjective[];
   rewards?: BoardQuestReward[];
   unlocks?: BoardQuestUnlock[];
@@ -97,6 +100,9 @@ export type BoardQuestHistoryEntry = {
   scope: string;
   day?: number;
   week?: number;
+  howToComplete?: string;
+  definitionOfDone?: string;
+  acceptanceCriteria?: string[];
   completed: boolean;
   claimed: boolean;
   failed?: boolean;
@@ -175,6 +181,33 @@ export type AuthTeam = {
   name: string;
   plan: string;
   isArchived: boolean;
+};
+
+export type TeamMember = {
+  workspaceId: string;
+  userId: string;
+  email: string;
+  name: string;
+  role: "owner" | "admin" | "member";
+  createdAt: string;
+};
+
+export type TeamInvitation = {
+  invitationCode: string;
+  workspaceId: string;
+  email: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TeamSettings = {
+  team: AuthTeam;
+  members: TeamMember[];
+  invitations: TeamInvitation[];
+  currentUserId: string;
+  currentUserRole: "owner" | "admin" | "member";
+  canManage: boolean;
 };
 
 export type AuthSession = {
@@ -310,6 +343,33 @@ export const authApi = {
   logout: () =>
     api<void>("/api/auth/logout", {
       method: "POST",
+    }),
+};
+
+export const teamApi = {
+  getSettings: () => api<{ settings: TeamSettings }>("/api/team/settings"),
+  updateSettings: (teamName: string) =>
+    api<{ team: AuthTeam }>("/api/team/settings", {
+      method: "PATCH",
+      body: JSON.stringify({ teamName }),
+    }),
+  invite: (email: string) =>
+    api<{ invitation: TeamInvitation }>("/api/team/invitations", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  updateMemberRole: (userId: string, role: "owner" | "admin" | "member") =>
+    api<{ member: TeamMember }>(`/api/team/members/${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (userId: string) =>
+    api<void>(`/api/team/members/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    }),
+  cancelInvitation: (invitationCode: string) =>
+    api<void>(`/api/team/invitations/${encodeURIComponent(invitationCode)}`, {
+      method: "DELETE",
     }),
 };
 

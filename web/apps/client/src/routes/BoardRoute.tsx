@@ -26,7 +26,7 @@ const CARD_HEIGHT = 124;
 const STACK_OFFSET_Y = 20;
 const DECK_ROW_SIDE_PADDING = 20;
 const DECK_ROW_BOTTOM = 14;
-const MOBILE_DECK_ROW_BOTTOM = 74;
+const MOBILE_DECK_ROW_BOTTOM = 10;
 const DECK_ROW_MIN_STEP = 54;
 const DECK_ROW_MAX_STEP = 112;
 const Z_INDEX_WORLD_MAX = 3999;
@@ -40,6 +40,7 @@ const DECK_ROW_MAX_VISIBLE = 4;
 const DECK_ROW_PREFS_KEY = "donegeon.board.deck-row.v1";
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_DECK_SCALE = 0.88;
+const DEFAULT_VILLAGER_STAMINA = 6;
 
 const MERGE_GAP_DISTANCE = 16;
 const MIN_MERGE_OVERLAP = 900;
@@ -95,6 +96,15 @@ type BoardSummary = {
   completedCount: number;
   dayTicks: number;
   inventory: Record<string, number>;
+};
+
+type VillagerStatus = {
+  villagerID: string;
+  stackID: string;
+  name: string;
+  stamina: number;
+  level: number;
+  xp: number;
 };
 
 type PanDragState = {
@@ -328,6 +338,75 @@ function addChip(value: string | undefined, label: string): string | null {
   return `${label}: ${value}`;
 }
 
+const scheduleDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function formatScheduleDateTime(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const raw = value.trim();
+  if (!raw) return undefined;
+
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (ymd) {
+    const dateOnly = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
+    return scheduleDateTimeFormatter.format(dateOnly);
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+  return scheduleDateTimeFormatter.format(parsed);
+}
+
+function scheduleTokenFromInput(
+  scheduleInput: string | undefined,
+  kind: "due" | "deadline",
+): string | undefined {
+  const source = (scheduleInput ?? "").trim();
+  if (!source) return undefined;
+  const token = tokenizeQuickAdd(source)
+    .find((item) => item.kind === kind)
+    ?.value?.trim();
+  if (!token) return undefined;
+  if (kind === "deadline" && token.startsWith("{") && token.endsWith("}")) {
+    const inner = token.slice(1, -1).trim();
+    return inner || undefined;
+  }
+  return token;
+}
+
+function parseScheduleInstant(value: string | undefined): Date | null {
+  if (!value) return null;
+  const raw = value.trim();
+  if (!raw) return null;
+
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (ymd) {
+    return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function scheduleValidationWarning(dueValue: string | undefined, deadlineValue: string | undefined): string | null {
+  const due = parseScheduleInstant(dueValue);
+  const deadline = parseScheduleInstant(deadlineValue);
+  if (!due || !deadline) return null;
+  if (deadline.getTime() >= due.getTime()) return null;
+
+  const dueLabel = formatScheduleDateTime(dueValue) ?? (dueValue ?? "").trim();
+  const deadlineLabel = formatScheduleDateTime(deadlineValue) ?? (deadlineValue ?? "").trim();
+  return `Schedule check: deadline resolves before due (${deadlineLabel} < ${dueLabel}).`;
+}
+
 function extractTagsFromText(text: string): string[] {
   const matches = text.match(/@[A-Za-z][A-Za-z0-9_-]*/g) ?? [];
   const unique = new Set(matches.map((item) => item.slice(1).toLowerCase()));
@@ -514,6 +593,38 @@ function taskCardFromStack(stack: BoardStack | null, state: BoardStateResponse |
     }
   }
   return null;
+}
+
+function villagerStatusForStack(stack: BoardStack | null, snapshot: BoardStateResponse | null): VillagerStatus | null {
+  if (!stack || !snapshot || stack.cards.length === 0) return null;
+
+  for (const cardID of stack.cards) {
+    const card = snapshot.cards[cardID];
+    if (!card || cardKind(card.defId) !== "villager") continue;
+
+    const villagerID = dataString(card.data?.villagerId) || stack.id;
+    const progress = snapshot.meta?.villagers?.[villagerID];
+    const stamina = Math.max(0, Math.floor(dataNumber(progress?.stamina) ?? DEFAULT_VILLAGER_STAMINA));
+    const level = Math.max(1, Math.floor(dataNumber(progress?.level) ?? 1));
+    const xp = Math.max(0, Math.floor(dataNumber(progress?.xp) ?? 0));
+    const name = dataString(card.data?.name) || titleFromCard(card) || "Villager";
+
+    return {
+      villagerID,
+      stackID: stack.id,
+      name,
+      stamina,
+      level,
+      xp,
+    };
+  }
+
+  return null;
+}
+
+function villagerTooltipLabel(status: VillagerStatus | null): string | undefined {
+  if (!status) return undefined;
+  return `${status.name} • Stamina ${status.stamina} • Lv ${status.level}`;
 }
 
 function cardFromCardIDs(cardIDs: string[], state: BoardStateResponse | null): BoardCard | null {
@@ -736,6 +847,8 @@ export default function BoardRoute() {
   const [detailTitle, setDetailTitle] = createSignal("");
   const [detailDescription, setDetailDescription] = createSignal("");
   const [detailPriority, setDetailPriority] = createSignal(4);
+  const [detailParsed, setDetailParsed] = createSignal<QuickAddParsed | null>(null);
+  const [detailParsing, setDetailParsing] = createSignal(false);
 
   const [inlineStackID, setInlineStackID] = createSignal<string | null>(null);
   const [inlineTitle, setInlineTitle] = createSignal("");
@@ -755,11 +868,12 @@ export default function BoardRoute() {
   const [deckOrderPrefs, setDeckOrderPrefs] = createSignal<string[]>([]);
   const [deckHubOpen, setDeckHubOpen] = createSignal(false);
   const [deckHubDragDefID, setDeckHubDragDefID] = createSignal<string | null>(null);
+  const [mobileMapHubOpen, setMobileMapHubOpen] = createSignal(false);
   const [questClaimingID, setQuestClaimingID] = createSignal<string | null>(null);
 
   let boardRef: HTMLDivElement | undefined;
-  let minimapRef: HTMLDivElement | undefined;
   let composerParseTimer: number | undefined;
+  let detailParseTimer: number | undefined;
 
   const activeBoardID = createMemo(() => boardIDFromSearch(location.search));
   const activeBoardProjectID = createMemo(() => boardProjectIDForBoard(activeBoardID()));
@@ -858,9 +972,10 @@ export default function BoardRoute() {
     const slotCount = deckRowSlots().length;
     if (slotCount === 0) return null;
 
+    const rect = boardRef?.getBoundingClientRect();
     const viewport = viewportSize();
-    const width = viewport.width > 0 ? viewport.width : boardRef?.clientWidth ?? 0;
-    const height = viewport.height > 0 ? viewport.height : boardRef?.clientHeight ?? 0;
+    const width = rect?.width && rect.width > 0 ? rect.width : viewport.width;
+    const height = rect?.height && rect.height > 0 ? rect.height : viewport.height;
     if (width <= 0 || height <= 0) {
       return null;
     }
@@ -1096,7 +1211,24 @@ export default function BoardRoute() {
     };
   });
 
+  const villagerStatuses = createMemo(() => {
+    const current = state();
+    if (!current) return [] as VillagerStatus[];
+
+    const byID = new Map<string, VillagerStatus>();
+    for (const stack of Object.values(current.stacks)) {
+      const status = villagerStatusForStack(stack, current);
+      if (!status) continue;
+      if (!byID.has(status.villagerID)) {
+        byID.set(status.villagerID, status);
+      }
+    }
+
+    return [...byID.values()].sort((a, b) => a.name.localeCompare(b.name));
+  });
+
   const composerTokens = createMemo(() => tokenizeQuickAdd(composerText()));
+  const detailTokens = createMemo(() => tokenizeQuickAdd(detailTitle()));
 
   const composerChips = createMemo(() => {
     const parsed = composerParsed();
@@ -1114,9 +1246,9 @@ export default function BoardRoute() {
     const assignee = addChip(parsed.assignee, "Assignee");
     if (assignee) chips.push(assignee);
     if (parsed.priority) chips.push(`Priority: p${parsed.priority}`);
-    const dueText = addChip(parsed.dueText, "Due");
+    const dueText = addChip(formatScheduleDateTime(parsed.dueText), "Due");
     if (dueText) chips.push(dueText);
-    const deadline = addChip(parsed.deadline, "Deadline");
+    const deadline = addChip(formatScheduleDateTime(parsed.deadline), "Deadline");
     if (deadline) chips.push(deadline);
     const recurrence = addChip(parsed.recurrenceRule, "Recurrence");
     if (recurrence) chips.push(recurrence);
@@ -1152,6 +1284,46 @@ export default function BoardRoute() {
   );
   const deadlineModifierEnabled = createMemo(() =>
     selectedModifierCards().some((card) => card.defId === "mod.deadline_pin"),
+  );
+
+  const detailParsedChips = createMemo(() => {
+    const parsed = detailParsed();
+    if (!parsed) return [] as string[];
+
+    const chips: string[] = [];
+    if (recurringModifierEnabled() && parsed.recurrenceRule) {
+      chips.push(`Recurrence: ${parsed.recurrenceRule}`);
+    }
+    if (deadlineModifierEnabled() && parsed.dueText) {
+      chips.push(`Due: ${formatScheduleDateTime(parsed.dueText) ?? parsed.dueText}`);
+    }
+    if (deadlineModifierEnabled() && parsed.deadline) {
+      chips.push(`Deadline: ${formatScheduleDateTime(parsed.deadline) ?? parsed.deadline}`);
+    }
+    return chips;
+  });
+
+  const detailModifierHints = createMemo(() => {
+    const parsed = detailParsed();
+    if (!parsed) return [] as string[];
+
+    const hints: string[] = [];
+    if (!!parsed.recurrenceRule && !recurringModifierEnabled()) {
+      hints.push("Recurrence phrase detected. Add Mod Recurring to parse recurrence.");
+    }
+    if ((!!parsed.dueText || !!parsed.deadline) && !deadlineModifierEnabled()) {
+      hints.push("Due/deadline phrase detected. Add Mod Deadline Pin to parse due/deadline.");
+    }
+    return hints;
+  });
+
+  const detailScheduleInput = createMemo(() => dataString(selectedTaskCard()?.data?.scheduleInput));
+  const detailStoredDue = createMemo(() => dataString(selectedTaskCard()?.data?.dueText));
+  const detailStoredDeadline = createMemo(() => dataString(selectedTaskCard()?.data?.dueDeadline));
+  const detailDueInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleInput(), "due"));
+  const detailDeadlineInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleInput(), "deadline"));
+  const detailScheduleWarning = createMemo(() =>
+    scheduleValidationWarning(detailStoredDue(), detailStoredDeadline()),
   );
 
   function stackPosition(stack: BoardStack): BoardPoint {
@@ -1567,13 +1739,14 @@ export default function BoardRoute() {
     }
   }
 
-  function focusMinimapAt(clientX: number, clientY: number) {
+  function focusMinimapAt(clientX: number, clientY: number, minimapBounds: DOMRect) {
     const model = minimapModel();
-    const minimapBounds = minimapRef?.getBoundingClientRect();
     if (!model || !minimapBounds) return;
 
-    const localX = Math.max(0, Math.min(MINIMAP_WIDTH, clientX - minimapBounds.left));
-    const localY = Math.max(0, Math.min(MINIMAP_HEIGHT, clientY - minimapBounds.top));
+    const normalizedX = ((clientX - minimapBounds.left) / Math.max(1, minimapBounds.width)) * MINIMAP_WIDTH;
+    const normalizedY = ((clientY - minimapBounds.top) / Math.max(1, minimapBounds.height)) * MINIMAP_HEIGHT;
+    const localX = Math.max(0, Math.min(MINIMAP_WIDTH, normalizedX));
+    const localY = Math.max(0, Math.min(MINIMAP_HEIGHT, normalizedY));
     const clampedX = Math.max(model.offsetX, Math.min(model.offsetX + model.contentWidth, localX));
     const clampedY = Math.max(model.offsetY, Math.min(model.offsetY + model.contentHeight, localY));
 
@@ -1593,15 +1766,17 @@ export default function BoardRoute() {
     const target = event.currentTarget as HTMLDivElement | null;
     if (target) {
       target.setPointerCapture(event.pointerId);
+      focusMinimapAt(event.clientX, event.clientY, target.getBoundingClientRect());
     }
-    focusMinimapAt(event.clientX, event.clientY);
   }
 
   function onMinimapPointerMove(event: PointerEvent) {
     if ((event.buttons & 1) !== 1 || busy()) return;
     event.preventDefault();
     event.stopPropagation();
-    focusMinimapAt(event.clientX, event.clientY);
+    const target = event.currentTarget as HTMLDivElement | null;
+    if (!target) return;
+    focusMinimapAt(event.clientX, event.clientY, target.getBoundingClientRect());
   }
 
   function onMinimapPointerUp(event: PointerEvent) {
@@ -1834,8 +2009,8 @@ export default function BoardRoute() {
     try {
       await sendCommand({ cmd: "world.end_day", args: {} });
       setError("");
-    } catch {
-      // Error state is set in sendCommand.
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -1881,6 +2056,37 @@ export default function BoardRoute() {
     }, 140);
   }
 
+  function queueDetailParse(value: string) {
+    if (detailParseTimer !== undefined) {
+      window.clearTimeout(detailParseTimer);
+      detailParseTimer = undefined;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setDetailParsed(null);
+      setDetailParsing(false);
+      return;
+    }
+
+    detailParseTimer = window.setTimeout(async () => {
+      setDetailParsing(true);
+      try {
+        const parsed = await parseApi.quickAdd(trimmed);
+        setDetailParsed(parsed.parsed);
+      } catch {
+        setDetailParsed(null);
+      } finally {
+        setDetailParsing(false);
+      }
+    }, 140);
+  }
+
+  function onDetailTitleInput(value: string) {
+    setDetailTitle(value);
+    queueDetailParse(value);
+  }
+
   async function createTaskStack() {
     const text = composerText().trim();
     if (!text) return;
@@ -1906,6 +2112,7 @@ export default function BoardRoute() {
           x,
           y,
           taskId: created.task.id,
+          countAsCreated: true,
         },
       });
 
@@ -1925,15 +2132,23 @@ export default function BoardRoute() {
     if (!card || cardKind(card.defId) !== "task") return;
 
     setSelectedStackID(stackID);
-    setDetailTitle(titleFromCard(card));
+    const title = titleFromCard(card);
+    setDetailTitle(title);
     setDetailDescription(descriptionFromCard(card));
     const priority = dataNumber(card.data?.priority);
     setDetailPriority(priority && priority >= 1 && priority <= 4 ? priority : 4);
+    queueDetailParse(title);
     setIsDetailOpen(true);
   }
 
   function closeDetail() {
     setIsDetailOpen(false);
+    if (detailParseTimer !== undefined) {
+      window.clearTimeout(detailParseTimer);
+      detailParseTimer = undefined;
+    }
+    setDetailParsed(null);
+    setDetailParsing(false);
   }
 
   function openInTaskPage() {
@@ -1970,8 +2185,6 @@ export default function BoardRoute() {
 
         const recurrenceParsed = !!parsedRecurrence;
         const deadlineParsed = !!parsedDueText || !!parsedDeadline;
-        const hasDisabledParsed =
-          (!recurrenceEnabled && recurrenceParsed) || (!deadlineEnabled && deadlineParsed);
 
         if (recurrenceEnabled && parsedRecurrence) {
           recurrenceRule = parsedRecurrence;
@@ -1983,12 +2196,6 @@ export default function BoardRoute() {
 
         if ((recurrenceEnabled && recurrenceParsed) || (deadlineEnabled && deadlineParsed)) {
           scheduleInput = rawTitle;
-        }
-
-        if (!hasDisabledParsed && ((recurrenceEnabled && recurrenceParsed) || (deadlineEnabled && deadlineParsed))) {
-          normalizedTitle = parsed.parsed.content.trim();
-          normalizedContent = normalizedTitle || "Untitled task";
-          setDetailTitle(normalizedTitle);
         }
       }
 
@@ -2619,6 +2826,9 @@ export default function BoardRoute() {
       if (composerParseTimer !== undefined) {
         window.clearTimeout(composerParseTimer);
       }
+      if (detailParseTimer !== undefined) {
+        window.clearTimeout(detailParseTimer);
+      }
     });
   });
 
@@ -2628,9 +2838,16 @@ export default function BoardRoute() {
     setError("");
     setSelectedStackID(null);
     setIsDetailOpen(false);
+    if (detailParseTimer !== undefined) {
+      window.clearTimeout(detailParseTimer);
+      detailParseTimer = undefined;
+    }
+    setDetailParsed(null);
+    setDetailParsing(false);
     setInlineStackID(null);
     setInlineTitle("");
     setDeckHubOpen(false);
+    setMobileMapHubOpen(false);
     setDeckHubDragDefID(null);
     setComposerParsed(null);
     setComposerText("");
@@ -2683,6 +2900,34 @@ export default function BoardRoute() {
 
           <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
             <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Villagers</p>
+              <span class="text-[11px] text-[#9cb3d8]">{villagerStatuses().length}</span>
+            </div>
+
+            <Show
+              when={villagerStatuses().length > 0}
+              fallback={<p class="mt-2 text-xs text-[#9cb2d6]">No villagers on board.</p>}
+            >
+              <div class="mt-2 space-y-1.5">
+                <For each={villagerStatuses()}>
+                  {(villager) => (
+                    <div class="rounded-md border border-[#304767] bg-[#101f35] px-2 py-1.5 text-xs text-[#dce8ff]">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="truncate font-semibold">{villager.name}</span>
+                        <span class="text-[#f4d8a1]">STA {villager.stamina}</span>
+                      </div>
+                      <p class="mt-0.5 text-[11px] text-[#9cb2d6]">
+                        Lv {villager.level} · XP {villager.xp}
+                      </p>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </section>
+
+          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
+            <div class="flex items-center justify-between">
               <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Quests</p>
               <span class="text-[11px] text-[#9cb3d8]">{activeQuests().length} active</span>
             </div>
@@ -2709,6 +2954,12 @@ export default function BoardRoute() {
                         <p class="mt-1 text-[11px] text-[#99add1]">
                           {completedCount()}/{objectives().length || 1} objectives
                         </p>
+                        <Show when={quest.howToComplete}>
+                          <p class="mt-1 text-[11px] text-[#b7c9e8]">How: {quest.howToComplete}</p>
+                        </Show>
+                        <Show when={quest.definitionOfDone}>
+                          <p class="mt-1 text-[11px] text-[#9ec4b1]">Done when: {quest.definitionOfDone}</p>
+                        </Show>
                         <div class="mt-1 space-y-1">
                           <For each={objectives()}>
                             {(objective) => (
@@ -2721,6 +2972,15 @@ export default function BoardRoute() {
                             )}
                           </For>
                         </div>
+                        <Show when={(quest.acceptanceCriteria ?? []).length > 0}>
+                          <div class="mt-1 space-y-0.5">
+                            <For each={(quest.acceptanceCriteria ?? []).slice(0, 2)}>
+                              {(criterion) => (
+                                <p class="text-[10px] text-[#88a2c7]">- {criterion}</p>
+                              )}
+                            </For>
+                          </div>
+                        </Show>
                         <Show when={rewardText()}>
                           <p class="mt-1 text-[11px] text-[#f1d38e]">Reward: {rewardText()}</p>
                         </Show>
@@ -2837,8 +3097,8 @@ export default function BoardRoute() {
         </>
       }
     >
-      <div class="grid h-full grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]">
-        <aside class="hidden h-full flex-col border-r border-[#252c39] bg-[#151a23] md:flex">
+      <div class="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[280px_minmax(0,1fr)]">
+        <aside class="hidden h-full flex-col overflow-y-auto border-r border-[#252c39] bg-[#151a23] md:flex">
           <div class="border-b border-[#252c39] px-4 py-3">
             <p class="text-lg font-semibold tracking-wide">DONEGEON</p>
           </div>
@@ -2885,6 +3145,34 @@ export default function BoardRoute() {
 
           <section class="border-b border-[#252c39] px-4 py-3">
             <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Villagers</p>
+              <span class="text-[11px] text-[#8ea0ba]">{villagerStatuses().length}</span>
+            </div>
+
+            <Show
+              when={villagerStatuses().length > 0}
+              fallback={<p class="mt-2 text-xs text-[#8ea0ba]">No villagers on board.</p>}
+            >
+              <div class="mt-2 space-y-1.5">
+                <For each={villagerStatuses()}>
+                  {(villager) => (
+                    <div class="rounded-md border border-[#304767] bg-[#111e30] px-2.5 py-2">
+                      <div class="flex items-center justify-between gap-2 text-xs">
+                        <span class="truncate font-semibold text-[#dce9ff]">{villager.name}</span>
+                        <span class="text-[#ebcf8b]">STA {villager.stamina}</span>
+                      </div>
+                      <p class="mt-1 text-[11px] text-[#97a9c7]">
+                        Lv {villager.level} · XP {villager.xp}
+                      </p>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </section>
+
+          <section class="border-b border-[#252c39] px-4 py-3">
+            <div class="flex items-center justify-between">
               <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Quests</p>
               <span class="text-[11px] text-[#8ea0ba]">{activeQuests().length} active</span>
             </div>
@@ -2911,6 +3199,12 @@ export default function BoardRoute() {
                         <p class="mt-1 text-[11px] text-[#97a9c7]">
                           {completedCount()}/{objectives().length || 1} objectives
                         </p>
+                        <Show when={quest.howToComplete}>
+                          <p class="mt-1 text-[11px] text-[#b7c9e8]">How: {quest.howToComplete}</p>
+                        </Show>
+                        <Show when={quest.definitionOfDone}>
+                          <p class="mt-1 text-[11px] text-[#9ec4b1]">Done when: {quest.definitionOfDone}</p>
+                        </Show>
                         <div class="mt-1 space-y-1">
                           <For each={objectives()}>
                             {(objective) => (
@@ -2923,6 +3217,15 @@ export default function BoardRoute() {
                             )}
                           </For>
                         </div>
+                        <Show when={(quest.acceptanceCriteria ?? []).length > 0}>
+                          <div class="mt-1 space-y-0.5">
+                            <For each={(quest.acceptanceCriteria ?? []).slice(0, 2)}>
+                              {(criterion) => (
+                                <p class="text-[10px] text-[#88a2c7]">- {criterion}</p>
+                              )}
+                            </For>
+                          </div>
+                        </Show>
                         <Show when={rewardText()}>
                           <p class="mt-1 text-[11px] text-[#ebcf8b]">Reward: {rewardText()}</p>
                         </Show>
@@ -2960,116 +3263,110 @@ export default function BoardRoute() {
         </aside>
 
         <section class="relative h-full min-h-0 overflow-hidden bg-[#07090f]">
-          <div class="absolute left-3 top-3 z-40 w-[min(430px,calc(100%-1.5rem))] space-y-2">
-            <div class="rounded-xl border border-[#31405b] bg-[#0e1625]/95 p-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur-sm">
-              <div class="relative">
-                <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-lg border border-[#2f3f5d] bg-[#0d1523] px-3 py-2 text-[15px] leading-normal whitespace-pre text-[var(--text-main)]">
-                  <Show when={composerText().length > 0} fallback={<span class="text-[var(--text-dim)]">Quick add task on board</span>}>
-                    <For each={composerTokens()}>
-                      {(token) => (
-                        <span class={token.kind === "text" ? "" : `rounded-[4px] ${tokenClass(token.kind)}`}>
-                          {token.value}
-                        </span>
-                      )}
-                    </For>
-                  </Show>
-                </div>
-                <input
-                  value={composerText()}
-                  onInput={(event) => onComposerInput(event.currentTarget.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void createTaskStack();
-                    }
-                  }}
-                  placeholder="Quick add task on board"
-                  class="relative w-full rounded-lg border border-[#2f3f5d] bg-transparent px-3 py-2 text-[15px] text-transparent caret-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-                  data-testid="board-new-stack-title"
-                />
-              </div>
-              <div class="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  class="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#151515] disabled:opacity-50"
-                  onClick={() => void createTaskStack()}
-                  disabled={busy()}
-                  data-testid="board-add-stack"
-                >
-                  Add stack
-                </button>
-                <Show when={composerParsing()}>
-                  <span class="text-[11px] text-[#9ab1d8]">Parsing…</span>
-                </Show>
-              </div>
-
-              <Show when={composerChips().length > 0}>
-                <div class="mt-2 flex flex-wrap gap-1.5">
-                  <For each={composerChips()}>
-                    {(chip) => (
-                      <span class="rounded-md border border-[#3a4d70] bg-[#121f34] px-2 py-0.5 text-[11px] text-[var(--text-main)]">
-                        {chip}
-                      </span>
-                    )}
-                  </For>
-                </div>
-              </Show>
-
-              <Show when={composerGuidance()}>
-                <p class="mt-2 rounded-lg border border-[#2f4a39] bg-[#0f2219] px-2.5 py-1.5 text-[11px] text-[#b5efce]">
-                  {composerGuidance()}
-                </p>
-              </Show>
-            </div>
-          </div>
-
           <Show when={minimapModel()}>
             {(model) => (
-              <div class="pointer-events-none absolute right-3 top-3 z-40 hidden md:block">
-                <div class="pointer-events-auto rounded-xl border border-[#334665] bg-[#0b1321]/94 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.45)] backdrop-blur-sm">
-                  <div class="mb-2 flex items-center justify-between gap-4 text-[11px] uppercase tracking-[0.11em]">
-                    <span class="text-[#cfd9ee]">Map Hub</span>
-                    <span class={model().offscreenCount > 0 ? "text-[#f9c76f]" : "text-[#8fa2c6]"}>
-                      {model().offscreenCount > 0 ? `${model().offscreenCount} off-screen` : "All visible"}
-                    </span>
-                  </div>
+              <>
+                <button
+                  type="button"
+                  class="absolute right-3 top-3 z-40 rounded-md border border-[#3d5273] bg-[#0b1321]/92 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#cfd9ee] shadow-[0_10px_26px_rgba(0,0,0,0.38)] md:hidden"
+                  onClick={() => setMobileMapHubOpen((open) => !open)}
+                  data-testid="board-mobile-map-toggle"
+                >
+                  {mobileMapHubOpen() ? "Hide Map" : "Map"}
+                </button>
 
-                  <div
-                    ref={minimapRef}
-                    class="relative h-[144px] w-[220px] cursor-crosshair overflow-hidden rounded-lg border border-[#415779] bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.28),rgba(8,14,24,0.95))]"
-                    onPointerDown={onMinimapPointerDown}
-                    onPointerMove={onMinimapPointerMove}
-                    onPointerUp={onMinimapPointerUp}
-                    title="Drag or click to recenter board"
-                  >
-                    <div class="pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]" />
+                <Show when={mobileMapHubOpen()}>
+                  <div class="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(240px,calc(100%-1.5rem))] -translate-x-1/2 md:hidden">
+                    <div class="pointer-events-auto rounded-xl border border-[#334665] bg-[#0b1321]/94 p-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+                      <div class="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.1em]">
+                        <span class="text-[#cfd9ee]">Map Hub</span>
+                        <span class={model().offscreenCount > 0 ? "text-[#f9c76f]" : "text-[#8fa2c6]"}>
+                          {model().offscreenCount > 0 ? `${model().offscreenCount} off-screen` : "All visible"}
+                        </span>
+                      </div>
 
-                    <For each={model().dots}>
-                      {(dot) => (
+                      <div
+                        class="relative mx-auto h-[144px] w-[220px] cursor-crosshair overflow-hidden rounded-lg border border-[#415779] bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.28),rgba(8,14,24,0.95))]"
+                        onPointerDown={onMinimapPointerDown}
+                        onPointerMove={onMinimapPointerMove}
+                        onPointerUp={onMinimapPointerUp}
+                        title="Drag or click to recenter board"
+                      >
+                        <div class="pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]" />
+
+                        <For each={model().dots}>
+                          {(dot) => (
+                            <div
+                              class={`pointer-events-none absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full ${
+                                dot.isSelected ? "ring-2 ring-[#e6edf9]" : ""
+                              } ${minimapDotClass(dot.kind, dot.isNextAction)}`}
+                              style={{
+                                left: `${dot.x}px`,
+                                top: `${dot.y}px`,
+                              }}
+                            />
+                          )}
+                        </For>
+
                         <div
-                          class={`pointer-events-none absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full ${
-                            dot.isSelected ? "ring-2 ring-[#e6edf9]" : ""
-                          } ${minimapDotClass(dot.kind, dot.isNextAction)}`}
+                          class="pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]"
                           style={{
-                            left: `${dot.x}px`,
-                            top: `${dot.y}px`,
+                            left: `${model().viewportRect.x}px`,
+                            top: `${model().viewportRect.y}px`,
+                            width: `${model().viewportRect.width}px`,
+                            height: `${model().viewportRect.height}px`,
                           }}
                         />
-                      )}
-                    </For>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
+
+                <div class="pointer-events-none absolute right-3 top-3 z-40 hidden md:block">
+                  <div class="pointer-events-auto rounded-xl border border-[#334665] bg-[#0b1321]/94 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+                    <div class="mb-2 flex items-center justify-between gap-4 text-[11px] uppercase tracking-[0.11em]">
+                      <span class="text-[#cfd9ee]">Map Hub</span>
+                      <span class={model().offscreenCount > 0 ? "text-[#f9c76f]" : "text-[#8fa2c6]"}>
+                        {model().offscreenCount > 0 ? `${model().offscreenCount} off-screen` : "All visible"}
+                      </span>
+                    </div>
 
                     <div
-                      class="pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]"
-                      style={{
-                        left: `${model().viewportRect.x}px`,
-                        top: `${model().viewportRect.y}px`,
-                        width: `${model().viewportRect.width}px`,
-                        height: `${model().viewportRect.height}px`,
-                      }}
-                    />
+                      class="relative h-[144px] w-[220px] cursor-crosshair overflow-hidden rounded-lg border border-[#415779] bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.28),rgba(8,14,24,0.95))]"
+                      onPointerDown={onMinimapPointerDown}
+                      onPointerMove={onMinimapPointerMove}
+                      onPointerUp={onMinimapPointerUp}
+                      title="Drag or click to recenter board"
+                    >
+                      <div class="pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]" />
+
+                      <For each={model().dots}>
+                        {(dot) => (
+                          <div
+                            class={`pointer-events-none absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full ${
+                              dot.isSelected ? "ring-2 ring-[#e6edf9]" : ""
+                            } ${minimapDotClass(dot.kind, dot.isNextAction)}`}
+                            style={{
+                              left: `${dot.x}px`,
+                              top: `${dot.y}px`,
+                            }}
+                          />
+                        )}
+                      </For>
+
+                      <div
+                        class="pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]"
+                        style={{
+                          left: `${model().viewportRect.x}px`,
+                          top: `${model().viewportRect.y}px`,
+                          width: `${model().viewportRect.width}px`,
+                          height: `${model().viewportRect.height}px`,
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              </>
             )}
           </Show>
 
@@ -3206,9 +3503,6 @@ export default function BoardRoute() {
               }}
             />
             <div class="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[170px] bg-gradient-to-t from-[#05070d] via-[#05070ddd] to-transparent" />
-            <div class="pointer-events-none absolute bottom-3 left-1/2 z-0 -translate-x-1/2 rounded-md border border-[#3c4960] bg-[#0e1420]/85 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#a0aec7]">
-              Deck row: up to 4 slots. Click deck to spawn packs. Use hub for overflow decks.
-            </div>
 
             <Show when={!loading()} fallback={<p class="p-4 text-sm text-[#a2adbf]">Loading board...</p>}>
               <div
@@ -3228,6 +3522,8 @@ export default function BoardRoute() {
                   const isInline = createMemo(() => inlineStackID() === stack.id);
                   const topIsDeckLike = createMemo(() => preview().isDeck);
                   const topIsPack = createMemo(() => preview().isPack);
+                  const villagerStatus = createMemo(() => villagerStatusForStack(stack, state()));
+                  const stackTooltip = createMemo(() => villagerTooltipLabel(villagerStatus()) ?? preview().title);
                   const hasNextActionModifier = createMemo(
                     () => stackHasKind(stack, "task") && stackHasCardDefID(stack, "mod.next_action"),
                   );
@@ -3255,6 +3551,7 @@ export default function BoardRoute() {
                         data-stack-id={stack.id}
                         data-stack-title={preview().title}
                         data-stack-root="true"
+                        title={stackTooltip()}
                         class={`group absolute select-none ${
                           topIsDeckLike() ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
                         } ${
@@ -3305,9 +3602,10 @@ export default function BoardRoute() {
                               const value = card();
                               const kind = value ? cardKind(value.defId) : "unknown";
                               const skin = cardSkin(kind, value?.defId ?? "");
+                              const villagerInfo = kind === "villager" ? villagerStatus() : null;
                               return {
                                 title: titleFromCard(value),
-                                subtitle: subtitleFromCard(value),
+                                subtitle: villagerInfo ? `VILLAGER · STA ${villagerInfo.stamina}` : subtitleFromCard(value),
                                 icon: cardIcon(value),
                                 shellClass: skin.shellClass,
                                 titleClass: skin.titleClass,
@@ -3397,9 +3695,10 @@ export default function BoardRoute() {
                                 const value = card();
                                 const kind = value ? cardKind(value.defId) : "unknown";
                                 const skin = cardSkin(kind, value?.defId ?? "");
+                                const villagerInfo = kind === "villager" ? villagerStatus() : null;
                                 return {
                                   title: titleFromCard(value),
-                                  subtitle: subtitleFromCard(value),
+                                  subtitle: villagerInfo ? `VILLAGER · STA ${villagerInfo.stamina}` : subtitleFromCard(value),
                                   icon: cardIcon(value),
                                   shellClass: skin.shellClass,
                                   titleClass: skin.titleClass,
@@ -3494,9 +3793,9 @@ export default function BoardRoute() {
       </div>
 
       <Show when={isDetailOpen() && !!selectedTaskCard()}>
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-[#05070fcc]/90 p-2 md:p-4">
+        <div class="fixed inset-0 z-[70] flex items-center justify-center bg-[#05070fcc]/90 p-2 pb-[calc(72px+env(safe-area-inset-bottom))] md:p-4">
           <div
-            class="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl border border-[#2a3242] bg-[linear-gradient(180deg,#101825,#0b121d)] shadow-[0_24px_64px_rgba(0,0,0,0.55)]"
+            class="w-full max-w-3xl max-h-[calc(100dvh-1rem-72px-env(safe-area-inset-bottom))] overflow-y-auto rounded-2xl border border-[#2a3242] bg-[linear-gradient(180deg,#101825,#0b121d)] shadow-[0_24px_64px_rgba(0,0,0,0.55)] md:max-h-[92vh]"
             data-testid="board-detail-modal"
           >
             <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[#273247] bg-[#101825]/96 px-5 py-4 backdrop-blur-sm">
@@ -3517,14 +3816,103 @@ export default function BoardRoute() {
                   <div class="mb-3 flex items-center gap-3">
                     <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-[#355077] bg-[#121f36] text-xl">📋</div>
                     <div class="min-w-0 flex-1">
-                      <input
+                      <textarea
+                        rows={2}
                         value={detailTitle()}
-                        onInput={(event) => setDetailTitle(event.currentTarget.value)}
-                        class="w-full rounded-lg border border-[#355077] bg-[#0f1828] px-3 py-2 text-2xl font-semibold text-[#edf3ff] outline-none focus:border-[var(--accent)]"
+                        onInput={(event) => onDetailTitleInput(event.currentTarget.value)}
+                        class="w-full resize-none rounded-lg border border-[#355077] bg-[#0f1828] px-3 py-2 text-lg leading-tight font-semibold text-[#edf3ff] outline-none focus:border-[var(--accent)] md:text-2xl"
                         data-testid="board-detail-title"
                       />
                     </div>
                   </div>
+
+                  <Show when={detailTokens().length > 0}>
+                    <div class="mb-3 rounded-lg border border-[#30496f] bg-[#0e1a30] px-3 py-2 text-sm leading-relaxed text-[#d8e4fb]">
+                      <For each={detailTokens()}>
+                        {(token) => (
+                          <span class={token.kind === "text" ? "" : `rounded-[4px] ${tokenClass(token.kind)}`}>
+                            {token.value}
+                          </span>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+
+                  <Show when={detailParsing()}>
+                    <p class="mb-2 text-xs text-[#8fa6cb]">Parsing schedule…</p>
+                  </Show>
+
+                  <Show when={detailParsedChips().length > 0}>
+                    <div class="mb-3 flex flex-wrap gap-1.5">
+                      <For each={detailParsedChips()}>
+                        {(chip) => (
+                          <span class="rounded-md border border-[#3a4d70] bg-[#121f34] px-2 py-0.5 text-[11px] text-[var(--text-main)]">
+                            {chip}
+                          </span>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+
+                  <Show when={detailModifierHints().length > 0}>
+                    <div class="mb-3 space-y-1">
+                      <For each={detailModifierHints()}>
+                        {(hint) => (
+                          <p class="rounded-md border border-[#5f4a2a] bg-[#2b2112] px-2.5 py-1.5 text-xs text-[#f7d9a1]">
+                            {hint}
+                          </p>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+
+                  <Show when={detailScheduleInput() || detailStoredDue() || detailStoredDeadline()}>
+                    <div class="mb-3 space-y-1 rounded-md border border-[#2d4b73] bg-[#0d1a30] px-2.5 py-2 text-xs text-[#c9daf8]">
+                      <Show when={detailScheduleInput()}>
+                        <p>
+                          Input: <span class="text-[#e8f1ff]">{detailScheduleInput()}</span>
+                        </p>
+                      </Show>
+                      <Show when={detailDueInputToken() || detailStoredDue()}>
+                        <p>
+                          Due:
+                          <Show when={detailDueInputToken()}>
+                            <span class="ml-1 text-[#9ec1ff]">{detailDueInputToken()}</span>
+                          </Show>
+                          <Show when={detailDueInputToken() && detailStoredDue()}>
+                            <span class="mx-1 text-[#88a4d1]">{"->"}</span>
+                          </Show>
+                          <Show when={detailStoredDue()}>
+                            <span class="text-[#e8f1ff]">
+                              {formatScheduleDateTime(detailStoredDue()) ?? detailStoredDue()}
+                            </span>
+                          </Show>
+                        </p>
+                      </Show>
+                      <Show when={detailDeadlineInputToken() || detailStoredDeadline()}>
+                        <p>
+                          Deadline:
+                          <Show when={detailDeadlineInputToken()}>
+                            <span class="ml-1 text-[#b8b5ff]">{detailDeadlineInputToken()}</span>
+                          </Show>
+                          <Show when={detailDeadlineInputToken() && detailStoredDeadline()}>
+                            <span class="mx-1 text-[#88a4d1]">{"->"}</span>
+                          </Show>
+                          <Show when={detailStoredDeadline()}>
+                            <span class="text-[#e8f1ff]">
+                              {formatScheduleDateTime(detailStoredDeadline()) ?? detailStoredDeadline()}
+                            </span>
+                          </Show>
+                        </p>
+                      </Show>
+                    </div>
+                  </Show>
+                  <Show when={detailScheduleWarning()}>
+                    <p class="mb-3 rounded-md border border-[#5f4a2a] bg-[#2b2112] px-2.5 py-1.5 text-xs text-[#f7d9a1]">
+                      {detailScheduleWarning()}
+                    </p>
+                  </Show>
+
                   <textarea
                     rows={5}
                     value={detailDescription()}

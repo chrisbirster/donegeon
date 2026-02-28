@@ -1,0 +1,375 @@
+meta:
+  daily_draw_count: 2
+  daily_no_repeat_days: 2
+
+story_labels_by_week:
+  1: { id: W01_Awakening, title: "Awakening" }
+  2: { id: W02_InboxToProject, title: "Inbox to Project" }
+  3: { id: W03_ModifiersAppear, title: "Modifiers Appear" }
+  4: { id: W04_RecurringBasics, title: "Recurring Basics" }
+  5: { id: W05_Deadlines, title: "Deadlines" }
+  8: { id: W08_StaminaMatters, title: "Stamina Matters" }
+  13: { id: W13_SpringFinale, title: "Spring Finale" }
+  14: { id: W14_SummerKickoff, title: "Summer Kickoff: Momentum" }
+  26: { id: W26_SummerFinale, title: "Summer Finale: Momentum Bank" }
+  27: { id: W27_AutumnKickoff, title: "Autumn Kickoff: Systems" }
+  39: { id: W39_AutumnFinale, title: "Autumn Finale: Complexity Tamed" }
+  40: { id: W40_WinterKickoff, title: "Winter Kickoff: Mastery" }
+  43: { id: W43_AutomationFirstRule, title: "Automation: First Rule" }
+  52: { id: W52_YearEnd, title: "Year End: The Eternal Backlog" }
+
+weekly_story_overrides_by_week:
+  1:
+    how_to_complete: "Create one task, open First Day deck one time, and assign one villager."
+    definition_of_done: "All three onboarding actions are complete in the same week."
+    acceptance_criteria:
+      - "create_task current >= 1"
+      - "open_deck with ref deck.first_day current >= 1"
+      - "assign_villager current >= 1"
+    objectives:
+      - op: create_task
+        count: 1
+        time_window: this_week
+      - op: open_deck
+        count: 1
+        ref: deck.first_day
+        time_window: this_week
+      - op: assign_villager
+        count: 1
+        time_window: this_week
+    unlocks:
+      - kind: deck
+        id: deck.first_day
+      - kind: system_feature
+        id: board_view
+  5:
+    unlocks:
+      - kind: system_feature
+        id: due_dates
+  13:
+    unlocks:
+      - kind: deck
+        id: deck.maintenance
+  26:
+    unlocks:
+      - kind: building
+        id: routine_farm
+  39:
+    unlocks:
+      - kind: system_feature
+        id: calendar_integration
+  43:
+    unlocks:
+      - kind: system_feature
+        id: automations
+
+bosses_by_week:
+  1:
+    id: B01_BacklogSeed
+    title: "Boss: The Backlog Seed"
+    type: boss
+    scope: week
+    week: 1
+    how_to_complete: "Finish three tasks this week."
+    definition_of_done: "complete_task progress reaches 3 within this_week."
+    acceptance_criteria:
+      - "complete_task current >= 3"
+    objectives:
+      - op: complete_task
+        count: 3
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: spawn_zombie
+        amount: 1
+  4:
+    id: B02_FirstCleanup
+    title: "Boss: First Cleanup"
+    type: boss
+    scope: week
+    week: 4
+    how_to_complete: "Keep zombie stacks at one or fewer during week 4."
+    definition_of_done: "keep_zombies_below objective evaluates true with value 1."
+    acceptance_criteria:
+      - "At quest refresh, zombie stack count is <= 1."
+    objectives:
+      - op: keep_zombies_below
+        value: 1
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: spawn_zombie
+        amount: 1
+  8:
+    id: B03_StaminaCheck
+    title: "Boss: Stamina Check"
+    type: boss
+    scope: week
+    week: 8
+    how_to_complete: "Complete ten tasks during week 8."
+    definition_of_done: "complete_task objective reaches target 10."
+    acceptance_criteria:
+      - "Quest metric quest.complete_task increases by task completion events."
+      - "Objective current >= 10."
+    objectives:
+      - op: complete_task
+        count: 10
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: apply_villager_tired
+        amount: 1
+        duration_days: 2
+  13:
+    id: B04_Overgrowth
+    title: "Season Boss: The Overgrowth"
+    type: boss
+    scope: week
+    week: 13
+    how_to_complete: "Keep zombies under control and shrink backlog at the same time."
+    definition_of_done: "zombies <= 2 and open backlog tasks <= 3 in week 13."
+    acceptance_criteria:
+      - "keep_zombies_below value 2 evaluates true."
+      - "reduce_backlog_to value 3 evaluates true."
+    objectives:
+      - op: keep_zombies_below
+        value: 2
+        time_window: this_week
+      - op: reduce_backlog_to
+        value: 3
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: spawn_zombie
+        amount: 2
+      - kind: increase_pack_cost
+        amount: 1
+        duration_days: 7
+  17:
+    id: B05_BurnoutHydra
+    title: "Boss: The Burnout Hydra"
+    type: boss
+    scope: week
+    week: 17
+    how_to_complete: "Complete twelve tasks while keeping zombies at two or fewer."
+    definition_of_done: "Both objectives complete in week 17."
+    acceptance_criteria:
+      - "complete_task current >= 12."
+      - "keep_zombies_below value 2 evaluates true."
+    objectives:
+      - op: complete_task
+        count: 12
+        time_window: this_week
+      - op: keep_zombies_below
+        value: 2
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: apply_villager_tired
+        amount: 1
+        duration_days: 3
+  26:
+    id: B06_MomentumBoss
+    title: "Season Boss: Momentum Bank"
+    type: boss
+    scope: week
+    week: 26
+    how_to_complete: "Finish fifteen tasks and keep zombie pressure low."
+    definition_of_done: "complete_task >= 15 and zombies <= 2."
+    acceptance_criteria:
+      - "complete_task objective reaches 15."
+      - "keep_zombies_below objective (2) evaluates true."
+    objectives:
+      - op: keep_zombies_below
+        value: 2
+        time_window: this_week
+      - op: complete_task
+        count: 15
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: spawn_zombie
+        amount: 2
+  39:
+    id: B07_EntropyEngine
+    title: "Season Boss: The Entropy Engine"
+    type: boss
+    scope: week
+    week: 39
+    how_to_complete: "Complete twelve tasks and keep zombies at two or fewer."
+    definition_of_done: "Both objectives complete in week 39."
+    acceptance_criteria:
+      - "complete_task current >= 12."
+      - "keep_zombies_below value 2 evaluates true."
+    objectives:
+      - op: complete_task
+        count: 12
+        time_window: this_week
+      - op: keep_zombies_below
+        value: 2
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: disable_blueprint_drops_temporarily
+        duration_days: 7
+  52:
+    id: B08_EternalBacklog
+    title: "Final Boss: The Eternal Backlog"
+    type: boss
+    scope: week
+    week: 52
+    how_to_complete: "Complete twenty tasks and keep zombies at two or fewer."
+    definition_of_done: "Both objectives complete in week 52."
+    acceptance_criteria:
+      - "complete_task current >= 20."
+      - "keep_zombies_below value 2 evaluates true."
+    objectives:
+      - op: complete_task
+        count: 20
+        time_window: this_week
+      - op: keep_zombies_below
+        value: 2
+        time_window: this_week
+    rewards:
+      - kind: roll_table
+        table_id: boss_big
+    consequences:
+      - kind: spawn_zombie
+        amount: 2
+      - kind: increase_pack_cost
+        amount: 1
+        duration_days: 7
+
+daily_templates:
+  - id: DQ_CompleteAny
+    template_id: DQ_CompleteAny
+    title: "Do Something"
+    type: daily
+    scope: day
+    how_to_complete: "Mark any one open task done."
+    definition_of_done: "complete_task objective reaches 1 during today's quest window."
+    acceptance_criteria:
+      - "Complete one task after daily quest draw."
+      - "Objective op complete_task current >= target(1)."
+    objectives:
+      - op: complete_task
+        count: 1
+        time_window: today
+    rewards:
+      - kind: roll_table
+        table_id: daily_small
+
+  - id: DQ_ProcessInbox
+    template_id: DQ_ProcessInbox
+    title: "Process the Inbox"
+    type: daily
+    scope: day
+    how_to_complete: "From Tasks page, click 'Make Live on Board' for three board-project tasks."
+    definition_of_done: "process_inbox_count objective reaches 3 during today's quest window."
+    acceptance_criteria:
+      - "Each successful task.activate increments process_inbox_count by 1."
+      - "Task activation must pass board requirements and succeed."
+      - "Objective op process_inbox_count current >= target(3)."
+    objectives:
+      - op: process_inbox_count
+        count: 3
+        time_window: today
+    rewards:
+      - kind: roll_table
+        table_id: daily_small
+
+  - id: DQ_AssignVillager
+    template_id: DQ_AssignVillager
+    title: "Put Someone to Work"
+    type: daily
+    scope: day
+    how_to_complete: "Drag a villager onto a task stack once."
+    definition_of_done: "assign_villager objective reaches 1 during today's quest window."
+    acceptance_criteria:
+      - "One successful villager-to-task assignment increments assign_villager by 1."
+    objectives:
+      - op: assign_villager
+        count: 1
+        time_window: today
+    rewards:
+      - kind: roll_table
+        table_id: daily_small
+
+  - id: DQ_KeepZombiesLow
+    template_id: DQ_KeepZombiesLow
+    title: "Keep the Dead Quiet"
+    type: daily
+    scope: day
+    how_to_complete: "Keep zombie stacks at one or fewer."
+    definition_of_done: "keep_zombies_below objective evaluates true (zombies <= 1)."
+    acceptance_criteria:
+      - "Objective remains complete while zombie count is <= 1."
+    objectives:
+      - op: keep_zombies_below
+        value: 1
+        time_window: today
+    rewards:
+      - kind: roll_table
+        table_id: daily_small
+
+reward_tables:
+  daily_small:
+    id: daily_small
+    rolls: 1
+    entries:
+      - weight: 40
+        reward: { kind: currency, currency: coin, amount: 10 }
+      - weight: 20
+        reward: { kind: card, card_type: paper_card, card_count: 1 }
+      - weight: 20
+        reward: { kind: card, card_type: ink_card, card_count: 1 }
+      - weight: 15
+        reward: { kind: card, card_type: coin_card, card_count: 1 }
+      - weight: 5
+        reward: { kind: card, card_type: blank_task, card_count: 1 }
+
+  weekly_story:
+    id: weekly_story
+    rolls: 1
+    entries:
+      - weight: 30
+        reward: { kind: currency, currency: coin, amount: 50 }
+      - weight: 20
+        reward: { kind: card, card_type: recurring_contract, card_count: 1, card_usage: 4 }
+      - weight: 15
+        reward: { kind: card, card_type: deadline_pin, card_count: 1 }
+      - weight: 15
+        reward: { kind: card, card_type: schedule_token, card_count: 1, card_usage: 2 }
+      - weight: 10
+        reward: { kind: card, card_type: villager, card_count: 1 }
+      - weight: 10
+        reward: { kind: card, card_type: blueprint_shard, card_count: 1 }
+
+  boss_big:
+    id: boss_big
+    rolls: 2
+    entries:
+      - weight: 35
+        reward: { kind: currency, currency: coin, amount: 150 }
+      - weight: 20
+        reward: { kind: card, card_type: villager, card_count: 1 }
+      - weight: 20
+        reward: { kind: card, card_type: blueprint_shard, card_count: 2 }
+      - weight: 15
+        reward: { kind: card, card_type: recurring_contract, card_count: 2, card_usage: 4 }
+      - weight: 10
+        reward: { kind: card, card_type: integration_core_part, card_count: 1 }

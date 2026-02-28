@@ -48,6 +48,7 @@ type Service struct {
 	repo      *Repository
 	tasks     TaskService
 	cfg       GameplayConfig
+	quests    QuestCatalog
 	validator *Validator
 	mu        sync.Mutex
 }
@@ -57,6 +58,12 @@ type ServiceOption func(*Service)
 func WithGameplayConfig(cfg GameplayConfig) ServiceOption {
 	return func(s *Service) {
 		s.cfg = cfg
+	}
+}
+
+func WithQuestCatalog(catalog QuestCatalog) ServiceOption {
+	return func(s *Service) {
+		s.quests = catalog
 	}
 }
 
@@ -89,9 +96,10 @@ func (e *VersionConflictError) Error() string {
 
 func NewService(repo *Repository, tasks TaskService, opts ...ServiceOption) *Service {
 	svc := &Service{
-		repo:  repo,
-		tasks: tasks,
-		cfg:   DefaultGameplayConfig(),
+		repo:   repo,
+		tasks:  tasks,
+		cfg:    DefaultGameplayConfig(),
+		quests: DefaultQuestCatalog(),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -99,6 +107,7 @@ func NewService(repo *Repository, tasks TaskService, opts ...ServiceOption) *Ser
 		}
 	}
 	svc.cfg.Normalize()
+	svc.quests.Normalize()
 	svc.validator = NewValidator(ValidationRulesFromGameplay(svc.cfg))
 	return svc
 }
@@ -318,6 +327,45 @@ func (s *Service) cmdStackMerge(ctx context.Context, state *State, args map[stri
 	// Deck stacks are not mergeable in normal stack flow.
 	if stackHasKind(state, target, "deck") || stackHasKind(state, source, "deck") {
 		return nil, ErrInvalidStackPair
+	}
+
+	targetHasTask := stackHasKind(state, target, "task")
+	targetHasVillager := stackHasKind(state, target, "villager")
+	targetHasZombie := stackHasKind(state, target, "zombie")
+	sourceHasTask := stackHasKind(state, source, "task")
+	sourceHasVillager := stackHasKind(state, source, "villager")
+	sourceHasZombie := stackHasKind(state, source, "zombie")
+
+	// Treat task+villager merges as explicit task assignment so assignment metadata/quests stay consistent.
+	if targetHasTask && sourceHasVillager && !sourceHasTask {
+		return s.cmdTaskAssignVillager(state, map[string]any{
+			"taskStackId":     targetID,
+			"villagerStackId": sourceID,
+			"targetStackId":   targetID,
+		})
+	}
+	if sourceHasTask && targetHasVillager && !targetHasTask {
+		return s.cmdTaskAssignVillager(state, map[string]any{
+			"taskStackId":     sourceID,
+			"villagerStackId": targetID,
+			"targetStackId":   targetID,
+		})
+	}
+
+	// Treat villager+zombie merges as explicit zombie clear commands.
+	if targetHasZombie && sourceHasVillager && !sourceHasZombie {
+		return s.cmdZombieClear(state, map[string]any{
+			"zombieStackId":   targetID,
+			"villagerStackId": sourceID,
+			"targetStackId":   targetID,
+		})
+	}
+	if sourceHasZombie && targetHasVillager && !targetHasZombie {
+		return s.cmdZombieClear(state, map[string]any{
+			"zombieStackId":   sourceID,
+			"villagerStackId": targetID,
+			"targetStackId":   targetID,
+		})
 	}
 
 	if s.validator != nil {
@@ -624,17 +672,22 @@ func (s *Service) cmdTaskSetTaskID(ctx context.Context, state *State, args map[s
 		card.Data = map[string]any{}
 	}
 	card.DefID = "task.instance"
-	card.Data["taskId"] = strings.TrimSpace(taskID)
+	nextTaskID := strings.TrimSpace(taskID)
+	previousTaskID := strings.TrimSpace(cardTaskID(card))
+	card.Data["taskId"] = nextTaskID
 
 	if stack := findStackByCardID(state, card.ID); stack != nil && stackHasCardDefID(state, stack, "mod.next_action") {
-		if err := s.ensureTaskHasNextActionLabel(ctx, strings.TrimSpace(taskID)); err != nil {
+		if err := s.ensureTaskHasNextActionLabel(ctx, nextTaskID); err != nil {
 			return nil, err
 		}
+	}
+	if previousTaskID == "" && nextTaskID != "" {
+		incrementQuestMetric(ensureMeta(state), "create_task", "", 1)
 	}
 
 	return map[string]any{
 		"card":   card,
-		"taskId": strings.TrimSpace(taskID),
+		"taskId": nextTaskID,
 	}, nil
 }
 
@@ -1167,6 +1220,9 @@ func (s *Service) cmdTaskSpawnExisting(ctx context.Context, state *State, boardI
 	cardIDs = append(cardIDs, card.ID)
 	stack := state.CreateStack(Point{X: x, Y: y}, cardIDs)
 	ensurePriorityFaceCard(state, stack)
+	if getBoolOr(args, "countAsCreated", false) {
+		incrementQuestMetric(ensureMeta(state), "create_task", "", 1)
+	}
 	if row.ProjectID != nil && strings.EqualFold(tenant.ProjectSlug(*row.ProjectID), "inbox") {
 		incrementQuestMetric(ensureMeta(state), "process_inbox_count", "", 1)
 	}
@@ -1315,6 +1371,7 @@ func (s *Service) cmdTaskActivate(ctx context.Context, state *State, boardID str
 	if err := s.ensureTaskHasBoardLiveLabel(ctx, row.ID); err != nil {
 		return nil, err
 	}
+	incrementQuestMetric(ensureMeta(state), "process_inbox_count", "", 1)
 
 	consumedModifierRows := make([]map[string]any, 0, len(consumedModifierCounts))
 	for _, defID := range sortedModifierDefIDs(consumedModifierCounts) {
@@ -1422,12 +1479,15 @@ func (s *Service) cmdTaskAssignVillager(state *State, args map[string]any) (any,
 	if targetStackID == villagerStackID {
 		taskStack.Pos = villagerStack.Pos
 	}
+	assignedVillagerID := firstVillagerIDFromStack(state, villagerStack)
+	if strings.TrimSpace(assignedVillagerID) == "" {
+		assignedVillagerID = strings.TrimSpace(villagerStackID)
+	}
 	if err := state.MergeStacks(taskStackID, villagerStackID); err != nil {
 		return nil, err
 	}
 	ensurePriorityFaceCard(state, taskStack)
 
-	assignedVillagerID := taskStackID
 	_ = ensureVillager(ensureMeta(state), assignedVillagerID)
 	for _, cardID := range taskStack.Cards {
 		card := state.GetCard(cardID)
@@ -1998,7 +2058,11 @@ func createSingleCardStack(state *State, defID string, pos Point, data map[strin
 		payload[key] = value
 	}
 	card := state.CreateCard(strings.TrimSpace(defID), payload)
-	return state.CreateStack(pos, []string{card.ID})
+	stack := state.CreateStack(pos, []string{card.ID})
+	if cardKind(card.DefID) == "villager" {
+		_ = villagerIDFromCard(card, stack.ID)
+	}
+	return stack
 }
 
 func topCard(state *State, stack *Stack) *Card {
@@ -2479,6 +2543,9 @@ func taskCardDataFromTaskRow(row task.Task) map[string]any {
 	}
 	if row.DueDeadline != nil && strings.TrimSpace(*row.DueDeadline) != "" {
 		data["dueDeadline"] = strings.TrimSpace(*row.DueDeadline)
+	}
+	if row.ScheduleInput != nil && strings.TrimSpace(*row.ScheduleInput) != "" {
+		data["scheduleInput"] = strings.TrimSpace(*row.ScheduleInput)
 	}
 
 	labels := make([]string, 0, len(row.Labels))
@@ -3234,14 +3301,34 @@ func firstVillagerIDFromStack(state *State, stack *Stack) string {
 		if card == nil || cardKind(card.DefID) != "villager" {
 			continue
 		}
-		if card.Data != nil {
-			if id, ok := card.Data["villagerId"].(string); ok && strings.TrimSpace(id) != "" {
-				return strings.TrimSpace(id)
-			}
-		}
-		return stack.ID
+		return villagerIDFromCard(card, stack.ID)
 	}
 	return ""
+}
+
+func villagerIDFromCard(card *Card, fallbackID string) string {
+	if card == nil || cardKind(card.DefID) != "villager" {
+		return ""
+	}
+	if card.Data == nil {
+		card.Data = map[string]any{}
+	}
+	if id, ok := card.Data["villagerId"].(string); ok {
+		normalized := strings.TrimSpace(id)
+		if normalized != "" {
+			card.Data["villagerId"] = normalized
+			return normalized
+		}
+	}
+	normalizedFallback := strings.TrimSpace(fallbackID)
+	if normalizedFallback == "" {
+		normalizedFallback = strings.TrimSpace(card.ID)
+	}
+	if normalizedFallback == "" {
+		normalizedFallback = "villager_default"
+	}
+	card.Data["villagerId"] = normalizedFallback
+	return normalizedFallback
 }
 
 func ensureVillager(meta *BoardMeta, villagerID string) *VillagerProgress {

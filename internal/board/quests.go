@@ -18,69 +18,71 @@ const (
 )
 
 type questObjectiveSpec struct {
-	Op         string
-	Count      int
-	Value      int
-	Ref        string
-	TimeWindow string
+	Op         string `yaml:"op"`
+	Count      int    `yaml:"count,omitempty"`
+	Value      int    `yaml:"value,omitempty"`
+	Ref        string `yaml:"ref,omitempty"`
+	TimeWindow string `yaml:"time_window,omitempty"`
 }
 
 type questRewardSpec struct {
-	Kind      string
-	Currency  string
-	Amount    int
-	TableID   string
-	CardType  string
-	CardCount int
-	CardUsage int
-	XP        int
+	Kind      string `yaml:"kind"`
+	Currency  string `yaml:"currency,omitempty"`
+	Amount    int    `yaml:"amount,omitempty"`
+	TableID   string `yaml:"table_id,omitempty"`
+	CardType  string `yaml:"card_type,omitempty"`
+	CardCount int    `yaml:"card_count,omitempty"`
+	CardUsage int    `yaml:"card_usage,omitempty"`
+	XP        int    `yaml:"xp,omitempty"`
 }
 
 type questUnlockSpec struct {
-	Kind string
-	ID   string
+	Kind string `yaml:"kind"`
+	ID   string `yaml:"id"`
 }
 
 type questConsequenceSpec struct {
-	Kind         string
-	Amount       int
-	DurationDays int
+	Kind         string `yaml:"kind"`
+	Amount       int    `yaml:"amount,omitempty"`
+	DurationDays int    `yaml:"duration_days,omitempty"`
 }
 
 type questDefinition struct {
-	ID           string
-	TemplateID   string
-	Title        string
-	Type         string
-	Scope        string
-	Week         int
-	Day          int
-	Objectives   []questObjectiveSpec
-	Rewards      []questRewardSpec
-	Unlocks      []questUnlockSpec
-	Consequences []questConsequenceSpec
+	ID                 string                 `yaml:"id"`
+	TemplateID         string                 `yaml:"template_id,omitempty"`
+	Title              string                 `yaml:"title"`
+	Type               string                 `yaml:"type"`
+	Scope              string                 `yaml:"scope"`
+	Week               int                    `yaml:"week,omitempty"`
+	Day                int                    `yaml:"day,omitempty"`
+	HowToComplete      string                 `yaml:"how_to_complete,omitempty"`
+	DefinitionOfDone   string                 `yaml:"definition_of_done,omitempty"`
+	AcceptanceCriteria []string               `yaml:"acceptance_criteria,omitempty"`
+	Objectives         []questObjectiveSpec   `yaml:"objectives,omitempty"`
+	Rewards            []questRewardSpec      `yaml:"rewards,omitempty"`
+	Unlocks            []questUnlockSpec      `yaml:"unlocks,omitempty"`
+	Consequences       []questConsequenceSpec `yaml:"consequences,omitempty"`
 }
 
 type questRewardTable struct {
-	ID      string
-	Rolls   int
-	Entries []questRewardTableEntry
+	ID      string                  `yaml:"id"`
+	Rolls   int                     `yaml:"rolls"`
+	Entries []questRewardTableEntry `yaml:"entries"`
 }
 
 type questRewardTableEntry struct {
-	Weight int
-	Reward questRewardSpec
+	Weight int             `yaml:"weight"`
+	Reward questRewardSpec `yaml:"reward"`
 }
 
 type questDefinitionLabel struct {
-	ID    string
-	Title string
+	ID    string `yaml:"id"`
+	Title string `yaml:"title"`
 }
 
 const (
-	questDailyDrawCount     = 2
-	questDailyNoRepeatDays  = 2
-	questDailyFailureWindow = questDailyDrawCount * questDailyNoRepeatDays
+	questDailyDrawCount    = 2
+	questDailyNoRepeatDays = 2
 )
 
 var questStoryLabelsByWeek = map[int]questDefinitionLabel{
@@ -338,12 +340,12 @@ func questSeasonForWeek(week int) string {
 	}
 }
 
-func questStoryDefinitionForWeek(week int) questDefinition {
+func questStoryDefinitionForWeek(week int, catalog QuestCatalog) questDefinition {
 	label := questDefinitionLabel{
 		ID:    fmt.Sprintf("W%02d_Story", week),
 		Title: fmt.Sprintf("Week %02d Story Quest", week),
 	}
-	if provided, ok := questStoryLabelsByWeek[week]; ok {
+	if provided, ok := catalog.StoryLabelsByWeek[week]; ok {
 		label = provided
 	}
 
@@ -368,42 +370,78 @@ func questStoryDefinitionForWeek(week int) questDefinition {
 		Rewards: []questRewardSpec{
 			{Kind: "roll_table", TableID: "weekly_story"},
 		},
+		HowToComplete:    "Complete the listed weekly objective(s) on your board.",
+		DefinitionOfDone: "All story quest objectives reach their target this week.",
 	}
 
-	switch week {
-	case 1:
-		def.Objectives = []questObjectiveSpec{
-			{Op: "create_task", Count: 1, TimeWindow: "this_week"},
-			{Op: "open_deck", Count: 1, Ref: "deck.first_day", TimeWindow: "this_week"},
-			{Op: "assign_villager", Count: 1, TimeWindow: "this_week"},
-		}
-		def.Unlocks = []questUnlockSpec{
-			{Kind: "deck", ID: "deck.first_day"},
-			{Kind: "system_feature", ID: "board_view"},
-		}
-	case 5:
-		def.Unlocks = []questUnlockSpec{{Kind: "system_feature", ID: "due_dates"}}
-	case 13:
-		def.Unlocks = []questUnlockSpec{{Kind: "deck", ID: "deck.maintenance"}}
-	case 26:
-		def.Unlocks = []questUnlockSpec{{Kind: "building", ID: "routine_farm"}}
-	case 39:
-		def.Unlocks = []questUnlockSpec{{Kind: "system_feature", ID: "calendar_integration"}}
-	case 43:
-		def.Unlocks = []questUnlockSpec{{Kind: "system_feature", ID: "automations"}}
+	if override, ok := catalog.StoryOverridesByWeek[week]; ok {
+		def = mergeQuestDefinition(def, override)
 	}
 
 	return def
 }
 
-func questDailyTemplates() []questDefinition {
+func mergeQuestDefinition(base questDefinition, override questDefinition) questDefinition {
+	merged := copyQuestDefinition(base)
+	if strings.TrimSpace(override.ID) != "" {
+		merged.ID = strings.TrimSpace(override.ID)
+	}
+	if strings.TrimSpace(override.TemplateID) != "" {
+		merged.TemplateID = strings.TrimSpace(override.TemplateID)
+	}
+	if strings.TrimSpace(override.Title) != "" {
+		merged.Title = strings.TrimSpace(override.Title)
+	}
+	if strings.TrimSpace(override.Type) != "" {
+		merged.Type = strings.TrimSpace(override.Type)
+	}
+	if strings.TrimSpace(override.Scope) != "" {
+		merged.Scope = strings.TrimSpace(override.Scope)
+	}
+	if override.Week > 0 {
+		merged.Week = override.Week
+	}
+	if override.Day > 0 {
+		merged.Day = override.Day
+	}
+	if strings.TrimSpace(override.HowToComplete) != "" {
+		merged.HowToComplete = strings.TrimSpace(override.HowToComplete)
+	}
+	if strings.TrimSpace(override.DefinitionOfDone) != "" {
+		merged.DefinitionOfDone = strings.TrimSpace(override.DefinitionOfDone)
+	}
+	if len(override.AcceptanceCriteria) > 0 {
+		merged.AcceptanceCriteria = append([]string(nil), override.AcceptanceCriteria...)
+	}
+	if len(override.Objectives) > 0 {
+		merged.Objectives = append([]questObjectiveSpec(nil), override.Objectives...)
+	}
+	if len(override.Rewards) > 0 {
+		merged.Rewards = append([]questRewardSpec(nil), override.Rewards...)
+	}
+	if len(override.Unlocks) > 0 {
+		merged.Unlocks = append([]questUnlockSpec(nil), override.Unlocks...)
+	}
+	if len(override.Consequences) > 0 {
+		merged.Consequences = append([]questConsequenceSpec(nil), override.Consequences...)
+	}
+	return merged
+}
+
+func legacyQuestDailyTemplates() []questDefinition {
 	return []questDefinition{
 		{
-			ID:         "DQ_CompleteAny",
-			TemplateID: "DQ_CompleteAny",
-			Title:      "Do Something",
-			Type:       questTypeDaily,
-			Scope:      "day",
+			ID:               "DQ_CompleteAny",
+			TemplateID:       "DQ_CompleteAny",
+			Title:            "Do Something",
+			Type:             questTypeDaily,
+			Scope:            "day",
+			HowToComplete:    "Mark any one open task as done.",
+			DefinitionOfDone: "complete_task progress reaches 1 for today's quest window.",
+			AcceptanceCriteria: []string{
+				"Complete one task after today's daily quests are drawn.",
+				"Progress increments from board quest metric quest.complete_task.",
+			},
 			Objectives: []questObjectiveSpec{
 				{Op: "complete_task", Count: 1, TimeWindow: "today"},
 			},
@@ -412,11 +450,17 @@ func questDailyTemplates() []questDefinition {
 			},
 		},
 		{
-			ID:         "DQ_ProcessInbox",
-			TemplateID: "DQ_ProcessInbox",
-			Title:      "Process the Inbox",
-			Type:       questTypeDaily,
-			Scope:      "day",
+			ID:               "DQ_ProcessInbox",
+			TemplateID:       "DQ_ProcessInbox",
+			Title:            "Process the Inbox",
+			Type:             questTypeDaily,
+			Scope:            "day",
+			HowToComplete:    "From Tasks view, activate tasks onto the board using 'Make Live on Board'.",
+			DefinitionOfDone: "process_inbox_count progress reaches 3 during today's quest window.",
+			AcceptanceCriteria: []string{
+				"Each successful board activation (task.activate) increments progress by 1.",
+				"Quest completes when process_inbox_count current >= 3.",
+			},
 			Objectives: []questObjectiveSpec{
 				{Op: "process_inbox_count", Count: 3, TimeWindow: "today"},
 			},
@@ -425,11 +469,16 @@ func questDailyTemplates() []questDefinition {
 			},
 		},
 		{
-			ID:         "DQ_AssignVillager",
-			TemplateID: "DQ_AssignVillager",
-			Title:      "Put Someone to Work",
-			Type:       questTypeDaily,
-			Scope:      "day",
+			ID:               "DQ_AssignVillager",
+			TemplateID:       "DQ_AssignVillager",
+			Title:            "Put Someone to Work",
+			Type:             questTypeDaily,
+			Scope:            "day",
+			HowToComplete:    "Stack a villager card onto a task stack.",
+			DefinitionOfDone: "assign_villager progress reaches 1 for today's quest window.",
+			AcceptanceCriteria: []string{
+				"Any valid villager-to-task assignment increments progress by 1.",
+			},
 			Objectives: []questObjectiveSpec{
 				{Op: "assign_villager", Count: 1, TimeWindow: "today"},
 			},
@@ -438,11 +487,16 @@ func questDailyTemplates() []questDefinition {
 			},
 		},
 		{
-			ID:         "DQ_KeepZombiesLow",
-			TemplateID: "DQ_KeepZombiesLow",
-			Title:      "Keep the Dead Quiet",
-			Type:       questTypeDaily,
-			Scope:      "day",
+			ID:               "DQ_KeepZombiesLow",
+			TemplateID:       "DQ_KeepZombiesLow",
+			Title:            "Keep the Dead Quiet",
+			Type:             questTypeDaily,
+			Scope:            "day",
+			HowToComplete:    "End the day with no more than one zombie on board.",
+			DefinitionOfDone: "keep_zombies_below objective evaluates true (zombies <= 1).",
+			AcceptanceCriteria: []string{
+				"Objective remains complete while zombie stack count is 0 or 1.",
+			},
 			Objectives: []questObjectiveSpec{
 				{Op: "keep_zombies_below", Value: 1, TimeWindow: "today"},
 			},
@@ -451,6 +505,10 @@ func questDailyTemplates() []questDefinition {
 			},
 		},
 	}
+}
+
+func questDailyTemplates(catalog QuestCatalog) []questDefinition {
+	return copyQuestDefinitions(catalog.DailyTemplates)
 }
 
 func normalizeQuestOp(op string) string {
@@ -655,17 +713,20 @@ func instantiateQuest(meta *BoardMeta, def questDefinition, day int, week int) *
 	}
 
 	return &QuestRuntime{
-		ID:           questID,
-		TemplateID:   templateID,
-		Title:        strings.TrimSpace(def.Title),
-		Type:         normalizeQuestOp(def.Type),
-		Scope:        strings.TrimSpace(strings.ToLower(def.Scope)),
-		Day:          questDay,
-		Week:         questWeek,
-		Objectives:   objectives,
-		Rewards:      rewards,
-		Unlocks:      unlocks,
-		Consequences: consequences,
+		ID:                 questID,
+		TemplateID:         templateID,
+		Title:              strings.TrimSpace(def.Title),
+		Type:               normalizeQuestOp(def.Type),
+		Scope:              strings.TrimSpace(strings.ToLower(def.Scope)),
+		Day:                questDay,
+		Week:               questWeek,
+		HowToComplete:      strings.TrimSpace(def.HowToComplete),
+		DefinitionOfDone:   strings.TrimSpace(def.DefinitionOfDone),
+		AcceptanceCriteria: append([]string(nil), def.AcceptanceCriteria...),
+		Objectives:         objectives,
+		Rewards:            rewards,
+		Unlocks:            unlocks,
+		Consequences:       consequences,
 	}
 }
 
@@ -674,18 +735,21 @@ func archiveQuest(quests *QuestState, quest *QuestRuntime, failed bool) {
 		return
 	}
 	entry := QuestHistoryEntry{
-		ID:           quest.ID,
-		TemplateID:   quest.TemplateID,
-		Title:        quest.Title,
-		Type:         quest.Type,
-		Scope:        quest.Scope,
-		Day:          quest.Day,
-		Week:         quest.Week,
-		Completed:    quest.Completed,
-		Claimed:      quest.Claimed,
-		Failed:       failed || quest.Failed,
-		CompletedDay: quest.CompletedDay,
-		ClaimedDay:   quest.ClaimedDay,
+		ID:                 quest.ID,
+		TemplateID:         quest.TemplateID,
+		Title:              quest.Title,
+		Type:               quest.Type,
+		Scope:              quest.Scope,
+		Day:                quest.Day,
+		Week:               quest.Week,
+		HowToComplete:      quest.HowToComplete,
+		DefinitionOfDone:   quest.DefinitionOfDone,
+		AcceptanceCriteria: append([]string(nil), quest.AcceptanceCriteria...),
+		Completed:          quest.Completed,
+		Claimed:            quest.Claimed,
+		Failed:             failed || quest.Failed,
+		CompletedDay:       quest.CompletedDay,
+		ClaimedDay:         quest.ClaimedDay,
 	}
 	quests.History = append(quests.History, entry)
 }
@@ -740,8 +804,8 @@ func sortActiveQuests(quests *QuestState) {
 	})
 }
 
-func drawDailyQuestTemplates(quests *QuestState, day int) []questDefinition {
-	pool := questDailyTemplates()
+func drawDailyQuestTemplates(quests *QuestState, day int, catalog QuestCatalog) []questDefinition {
+	pool := questDailyTemplates(catalog)
 	if len(pool) == 0 {
 		return nil
 	}
@@ -766,7 +830,7 @@ func drawDailyQuestTemplates(quests *QuestState, day int) []questDefinition {
 		}
 		candidates = append(candidates, item)
 	}
-	if len(candidates) < questDailyDrawCount {
+	if len(candidates) < maxInt(catalog.DailyDrawCount, 1) {
 		candidates = append([]questDefinition(nil), pool...)
 	}
 
@@ -774,7 +838,7 @@ func drawDailyQuestTemplates(quests *QuestState, day int) []questDefinition {
 		candidates[i], candidates[j] = candidates[j], candidates[i]
 	})
 
-	selected := make([]questDefinition, 0, questDailyDrawCount)
+	selected := make([]questDefinition, 0, maxInt(catalog.DailyDrawCount, 1))
 	seen := map[string]struct{}{}
 	for _, item := range candidates {
 		if _, ok := seen[item.TemplateID]; ok {
@@ -782,7 +846,7 @@ func drawDailyQuestTemplates(quests *QuestState, day int) []questDefinition {
 		}
 		seen[item.TemplateID] = struct{}{}
 		selected = append(selected, item)
-		if len(selected) >= questDailyDrawCount {
+		if len(selected) >= maxInt(catalog.DailyDrawCount, 1) {
 			break
 		}
 	}
@@ -814,6 +878,9 @@ func (s *Service) countOpenBacklogTasks(ctx context.Context) (int, error) {
 func (s *Service) refreshQuestState(ctx context.Context, state *State) error {
 	meta := ensureMeta(state)
 	quests := ensureQuestState(meta)
+	catalog := s.quests
+	dailyDrawCount := maxInt(catalog.DailyDrawCount, 1)
+	dailyFailureWindow := maxInt(catalog.DailyNoRepeatDays, 1) * dailyDrawCount
 
 	day := questCurrentDay(meta)
 	week := questCurrentWeek(day)
@@ -834,7 +901,7 @@ func (s *Service) refreshQuestState(ctx context.Context, state *State) error {
 		}
 		quests.Active = remaining
 
-		selected := drawDailyQuestTemplates(quests, day)
+		selected := drawDailyQuestTemplates(quests, day, catalog)
 		drawnTemplateIDs := make([]string, 0, len(selected))
 		for _, daily := range selected {
 			instance := instantiateQuest(meta, daily, day, week)
@@ -850,20 +917,20 @@ func (s *Service) refreshQuestState(ctx context.Context, state *State) error {
 		if len(drawnTemplateIDs) > 0 {
 			next := append([]string{}, drawnTemplateIDs...)
 			next = append(next, quests.RecentDailyTemplateIDs...)
-			if len(next) > questDailyFailureWindow {
-				next = next[:questDailyFailureWindow]
+			if len(next) > dailyFailureWindow {
+				next = next[:dailyFailureWindow]
 			}
 			quests.RecentDailyTemplateIDs = next
 		}
 		quests.LastDailyRefreshDay = day
 	}
 
-	story := questStoryDefinitionForWeek(week)
+	story := questStoryDefinitionForWeek(week, catalog)
 	if !hasQuest(quests, story.ID) {
 		quests.Active = append(quests.Active, instantiateQuest(meta, story, day, week))
 	}
 
-	if boss, ok := questBossByWeek[week]; ok && !hasQuest(quests, boss.ID) {
+	if boss, ok := catalog.BossesByWeek[week]; ok && !hasQuest(quests, boss.ID) {
 		quests.Active = append(quests.Active, instantiateQuest(meta, boss, day, week))
 	}
 
@@ -1229,7 +1296,7 @@ func (s *Service) applyQuestReward(state *State, reward QuestRewardState, rng *r
 		}}, created, nil
 	case "roll_table":
 		tableID := strings.TrimSpace(strings.ToLower(reward.TableID))
-		table, ok := questRewardTables[tableID]
+		table, ok := s.quests.RewardTables[tableID]
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown reward table: %s", tableID)
 		}

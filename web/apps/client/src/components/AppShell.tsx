@@ -2,7 +2,7 @@ import { A } from "@solidjs/router";
 import { Show, createSignal, type JSX } from "solid-js";
 
 type ShellProps = {
-  activeView: "task" | "board" | "builder";
+  activeView: "task" | "board" | "builder" | "profile" | "team";
   headerRight?: JSX.Element;
   mobileSidebar?: JSX.Element;
   children: JSX.Element;
@@ -50,10 +50,44 @@ export default function AppShell(props: ShellProps) {
             >
               Builder
             </A>
+            <A
+              href="/profile"
+              class={`rounded px-2 py-1 transition ${props.activeView === "profile" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
+            >
+              Profile
+            </A>
+            <A
+              href="/team/settings"
+              class={`rounded px-2 py-1 transition ${props.activeView === "team" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
+            >
+              Team
+            </A>
           </nav>
         </div>
 
-        <div class="flex items-center gap-2">{props.headerRight}</div>
+        <div class="flex items-center gap-2">
+          <A
+            href="/profile"
+            class={`rounded-md border px-2 py-1 text-xs transition md:hidden ${
+              props.activeView === "profile"
+                ? "border-[#4a6084] bg-[#1f2a3d] text-[#eef3ff]"
+                : "border-[#334258] bg-[#141b28] text-[#c8d4ea] hover:border-[#4a6084] hover:text-[#eef3ff]"
+            }`}
+          >
+            Profile
+          </A>
+          <A
+            href="/team/settings"
+            class={`rounded-md border px-2 py-1 text-xs transition md:hidden ${
+              props.activeView === "team"
+                ? "border-[#4a6084] bg-[#1f2a3d] text-[#eef3ff]"
+                : "border-[#334258] bg-[#141b28] text-[#c8d4ea] hover:border-[#4a6084] hover:text-[#eef3ff]"
+            }`}
+          >
+            Team
+          </A>
+          {props.headerRight}
+        </div>
       </header>
 
       <div class="h-[calc(100vh-48px-62px-env(safe-area-inset-bottom))] md:h-[calc(100vh-48px)]">

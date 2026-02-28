@@ -2,6 +2,7 @@ package board
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1194,6 +1195,282 @@ func TestQuestWeekOneStoryCanBeClaimed(t *testing.T) {
 	}
 	if !hasQuestUnlock(afterClaim.Meta.Quests.Unlocked, "system_feature", "board_view") {
 		t.Fatalf("expected week-one quest unlock to include system_feature/board_view, got=%+v", afterClaim.Meta.Quests.Unlocked)
+	}
+}
+
+func TestQuestProcessInboxCompletesViaTaskActivate(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	catalog := DefaultQuestCatalog()
+	catalog.DailyDrawCount = 1
+	catalog.DailyTemplates = []questDefinition{
+		{
+			ID:               "DQ_ProcessInbox",
+			TemplateID:       "DQ_ProcessInbox",
+			Title:            "Process the Inbox",
+			Type:             questTypeDaily,
+			Scope:            "day",
+			HowToComplete:    "Activate three tasks onto the board.",
+			DefinitionOfDone: "process_inbox_count reaches 3.",
+			Objectives: []questObjectiveSpec{
+				{Op: "process_inbox_count", Count: 3, TimeWindow: "today"},
+			},
+			Rewards: []questRewardSpec{
+				{Kind: "roll_table", TableID: "daily_small"},
+			},
+		},
+	}
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithQuestCatalog(catalog))
+
+	initial := env.state(t)
+	quest := findActiveQuestByID(initial.Meta.Quests.Active, "DQ_ProcessInbox::day1")
+	if quest == nil {
+		t.Fatalf("expected process inbox quest active on day 1, active=%v", questIDs(initial.Meta.Quests.Active))
+	}
+
+	projectID := "board"
+	for i := 0; i < 3; i++ {
+		created, err := env.taskService.Create(env.ctx, task.CreateInput{
+			Content:   fmt.Sprintf("Process inbox quest task %d", i+1),
+			ProjectID: &projectID,
+			Priority:  4,
+		})
+		if err != nil {
+			t.Fatalf("create board project task %d: %v", i+1, err)
+		}
+		env.command(t, "task.activate", map[string]any{
+			"taskId": created.ID,
+			"x":      360 + i*30,
+			"y":      260,
+		})
+	}
+
+	after := env.state(t)
+	quest = findActiveQuestByID(after.Meta.Quests.Active, "DQ_ProcessInbox::day1")
+	if quest == nil {
+		t.Fatalf("expected process inbox quest to remain active until claimed, active=%v", questIDs(after.Meta.Quests.Active))
+	}
+	if !quest.Completed || !quest.Claimable {
+		t.Fatalf("expected process inbox quest completed+claimable after three activations, quest=%+v", *quest)
+	}
+	if len(quest.Objectives) != 1 {
+		t.Fatalf("expected one objective on process inbox quest, got %d", len(quest.Objectives))
+	}
+	if quest.Objectives[0].Current < 3 {
+		t.Fatalf("expected process_inbox_count progress >= 3, objective=%+v", quest.Objectives[0])
+	}
+}
+
+func TestVillagerLevelingPersistsAcrossStackMerges(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	cfg.Villagers.Leveling.XPSources.CompleteTask.BaseXP = 1
+	cfg.Villagers.Leveling.Thresholds = map[int]int{
+		2: 2,
+		3: 4,
+	}
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+	spawnVillager := env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     420,
+		"y":     220,
+	})
+	villagerStack := patchStack(t, spawnVillager, "stack")
+	villagerCard := patchCard(t, spawnVillager, "card")
+	villagerID := dataStringPatch(villagerCard.Data["villagerId"])
+	if villagerID == "" {
+		t.Fatalf("expected spawned villager card to include villagerId, card=%+v", villagerCard)
+	}
+
+	currentVillagerStackID := villagerStack.ID
+	for i := 0; i < 2; i++ {
+		spawnTask := env.command(t, "card.spawn", map[string]any{
+			"defId": "task.blank",
+			"x":     560 + i*20,
+			"y":     240 + i*20,
+			"data": map[string]any{
+				"title": fmt.Sprintf("villager leveling task %d", i+1),
+			},
+		})
+		taskStack := patchStack(t, spawnTask, "stack")
+
+		env.command(t, "task.assign_villager", map[string]any{
+			"taskStackId":     taskStack.ID,
+			"villagerStackId": currentVillagerStackID,
+		})
+
+		complete := env.command(t, "task.complete_stack", map[string]any{
+			"stackId": taskStack.ID,
+		})
+		completePatch := patchMap(t, complete, "")
+		progressPatch := patchAnyMap(t, completePatch, "villagerProgress")
+		if gotID := dataStringPatch(progressPatch["id"]); gotID != villagerID {
+			t.Fatalf("expected stable villager progress id=%s, got=%s patch=%v", villagerID, gotID, progressPatch)
+		}
+
+		createdStacks := patchStacks(t, complete, "createdStacks")
+		nextVillagerStackID := ""
+		after := env.state(t)
+		for _, created := range createdStacks {
+			if created == nil {
+				continue
+			}
+			createdState := after.Stacks[created.ID]
+			if createdState == nil {
+				continue
+			}
+			if stackHasKindFromResponse(after, createdState, "villager") {
+				nextVillagerStackID = createdState.ID
+				break
+			}
+		}
+		if nextVillagerStackID == "" {
+			t.Fatalf("expected completion to leave villager survivor stack, created=%+v", createdStacks)
+		}
+		currentVillagerStackID = nextVillagerStackID
+	}
+
+	final := env.state(t)
+	progress := final.Meta.Villagers[villagerID]
+	if progress == nil {
+		t.Fatalf("expected villager progress for villagerId=%s, villagers=%+v", villagerID, final.Meta.Villagers)
+	}
+	if progress.XP < 2 {
+		t.Fatalf("expected villager XP to accumulate across completions, got=%d progress=%+v", progress.XP, *progress)
+	}
+	if progress.Level < 2 {
+		t.Fatalf("expected villager level >= 2 after two completions, got=%d progress=%+v", progress.Level, *progress)
+	}
+}
+
+func TestStackMergeTaskAndVillagerCountsAsAssignmentForQuests(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     480,
+		"y":     220,
+		"data": map[string]any{
+			"title": "Assignment metric task",
+		},
+	}), "stack")
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     540,
+		"y":     220,
+	}), "stack")
+
+	before := env.state(t).Meta.Metrics["quest.assign_villager"]
+	env.command(t, "stack.merge", map[string]any{
+		"targetId": taskStack.ID,
+		"sourceId": villagerStack.ID,
+	})
+
+	afterState := env.state(t)
+	after := afterState.Meta.Metrics["quest.assign_villager"]
+	if after != before+1 {
+		t.Fatalf("expected quest.assign_villager metric +1 after task+villager merge, before=%d after=%d", before, after)
+	}
+
+	merged := afterState.Stacks[taskStack.ID]
+	if merged == nil {
+		t.Fatalf("expected merged stack %s", taskStack.ID)
+	}
+	foundAssignedID := false
+	for _, cardID := range merged.Cards {
+		card := afterState.Cards[cardID]
+		if card == nil || cardKind(card.DefID) != "task" {
+			continue
+		}
+		if dataStringPatch(card.Data["assignedVillagerId"]) != "" {
+			foundAssignedID = true
+			break
+		}
+	}
+	if !foundAssignedID {
+		t.Fatalf("expected task card in merged stack to include assignedVillagerId: stack=%+v", merged)
+	}
+}
+
+func TestStackMergeVillagerOntoZombieTriggersZombieClear(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	zombieStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "zombie.default",
+		"x":     520,
+		"y":     260,
+	}), "stack")
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     560,
+		"y":     260,
+	}), "stack")
+
+	beforeCleared := env.state(t).Meta.Metrics["zombies_cleared"]
+	result := env.command(t, "stack.merge", map[string]any{
+		"targetId": zombieStack.ID,
+		"sourceId": villagerStack.ID,
+	})
+	patch, ok := result.Patch.(map[string]any)
+	if !ok {
+		t.Fatalf("expected patch map from villager+zombie merge, got %T", result.Patch)
+	}
+	if got := dataStringPatch(patch["villagerStackId"]); got != villagerStack.ID {
+		t.Fatalf("expected villagerStackId=%s in patch, got=%q", villagerStack.ID, got)
+	}
+
+	after := env.state(t)
+	if after.Meta.Metrics["zombies_cleared"] != beforeCleared+1 {
+		t.Fatalf(
+			"expected zombies_cleared metric +1 after villager+zombie merge, before=%d after=%d",
+			beforeCleared,
+			after.Meta.Metrics["zombies_cleared"],
+		)
+	}
+	if after.Stacks[villagerStack.ID] == nil {
+		t.Fatalf("expected villager stack %s to remain after zombie clear", villagerStack.ID)
+	}
+	if cleared := after.Stacks[zombieStack.ID]; cleared != nil && stackHasKindFromResponse(after, cleared, "zombie") {
+		t.Fatalf("expected zombie stack %s to be cleared, stack=%+v", zombieStack.ID, cleared)
+	}
+}
+
+func TestTaskSetTaskIDCountsAsCreateTaskForQuests(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	spawn := env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     520,
+		"y":     260,
+		"data": map[string]any{
+			"title": "Link task id quest metric",
+		},
+	})
+	card := patchCard(t, spawn, "card")
+
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:  "Persistent task for linking",
+		Priority: 4,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	before := env.state(t).Meta.Metrics["quest.create_task"]
+	env.command(t, "task.set_task_id", map[string]any{
+		"taskCardId": card.ID,
+		"taskId":     created.ID,
+	})
+	after := env.state(t).Meta.Metrics["quest.create_task"]
+	if after != before+1 {
+		t.Fatalf("expected quest.create_task metric +1 on first task.set_task_id link, before=%d after=%d", before, after)
 	}
 }
 
