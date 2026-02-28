@@ -11,6 +11,7 @@ import (
 
 	apperrors "donegeon/internal/errors"
 	"donegeon/internal/sessionctx"
+	"donegeon/internal/tenant"
 )
 
 type Repository struct {
@@ -134,5 +135,7 @@ func cleanName(id string) string {
 	if id == "" {
 		return id
 	}
-	return id
+	// Strip workspace prefix (e.g. "W_abc::home" → "home") so the
+	// human-readable slug is used as the display name.
+	return tenant.ProjectSlug(id)
 }

@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jmoiron/sqlx"
+
 	"donegeon/internal/account"
 	"donegeon/internal/board"
 	"donegeon/internal/config"
@@ -42,13 +44,26 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
 	defer cancel()
 
-	if err := datbase.RunMigrations(cfg.DBPath); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
-	}
-
-	db, err := datbase.Open(ctx, cfg.DBPath)
-	if err != nil {
-		return fmt.Errorf("open sqlite: %w", err)
+	var db *sqlx.DB
+	switch cfg.DBBackend {
+	case "turso":
+		logger.Info("db_backend", slog.String("backend", "turso"), slog.String("url", cfg.DBURL))
+		if err := datbase.RunMigrationsTurso(cfg.DBURL, cfg.DBAuthToken); err != nil {
+			return fmt.Errorf("run turso migrations: %w", err)
+		}
+		db, err = datbase.OpenTurso(ctx, cfg.DBURL, cfg.DBAuthToken)
+		if err != nil {
+			return fmt.Errorf("open turso: %w", err)
+		}
+	default:
+		logger.Info("db_backend", slog.String("backend", "sqlite"), slog.String("path", cfg.DBPath))
+		if err := datbase.RunMigrations(cfg.DBPath); err != nil {
+			return fmt.Errorf("run migrations: %w", err)
+		}
+		db, err = datbase.Open(ctx, cfg.DBPath)
+		if err != nil {
+			return fmt.Errorf("open sqlite: %w", err)
+		}
 	}
 	defer func() {
 		_ = db.Close()
@@ -64,6 +79,12 @@ func run() error {
 	taskService := task.NewService(taskRepo, parser)
 	projectRepo := project.NewRepository(db, queries)
 	projectService := project.NewService(projectRepo)
+
+	// Auto-create projects when a task references one that doesn't exist yet.
+	taskService.SetEnsureProject(func(ctx context.Context, slug string) error {
+		_, err := projectService.Upsert(ctx, slug, project.UpsertInput{})
+		return err
+	})
 	accountService := account.NewService(db)
 	todoistService := todoistcompat.NewService(db, taskService, projectService)
 	boardRepo := board.NewRepository(db, queries)

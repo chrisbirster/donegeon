@@ -215,6 +215,14 @@ export type AuthSession = {
   team?: AuthTeam;
 };
 
+export type LoginCodeRequestResponse = {
+  challengeId: string;
+  expiresAt: string;
+  delivery: string;
+  debugCode?: string;
+  deliveryWarning?: string;
+};
+
 type UpdateTaskPayload = {
   content?: string;
   description?: string;
@@ -330,8 +338,13 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const authApi = {
   me: () => api<{ session: AuthSession }>("/api/auth/me"),
-  login: (payload: { email: string; name?: string }) =>
-    api<{ session: AuthSession }>("/api/auth/login", {
+  requestLoginCode: (payload: { email: string; name?: string }) =>
+    api<LoginCodeRequestResponse>("/api/auth/login/request", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  verifyLoginCode: (payload: { challengeId: string; code: string }) =>
+    api<{ session: AuthSession }>("/api/auth/login/verify", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

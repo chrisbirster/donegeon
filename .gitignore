@@ -8,6 +8,7 @@ donegeon.db*
 # web
 web/node_modules/
 web/apps/client/node_modules/
+web/apps/marketing/node_modules/
 web/.turbo/
 web/dist/*
 !web/dist/embed.go
@@ -17,9 +18,16 @@ web/dist/assets/*
 !web/dist/assets/app.js
 !web/dist/assets/app.css
 web/apps/client/.turbo
+web/apps/marketing/.turbo
 web/apps/client/playwright-report/
 web/apps/client/test-results/
 web/apps/client/blob-report/
+
+# infra
+infra/node_modules/
+infra/.sst/
+infra/.env
+infra/.env.*
 
 # editor
 .DS_Store

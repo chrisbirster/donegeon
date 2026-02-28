@@ -10,17 +10,32 @@ import (
 )
 
 type Config struct {
-	HTTPPort         string
-	DBPath           string
-	BoardConfigPath  string
-	QuestConfigPath  string
-	RequireAuth      bool
-	WriteToken       string
-	ReadOnlyToken    string
-	RequestTimeout   time.Duration
-	ShutdownTimeout  time.Duration
-	LogLevel         slog.Level
-	CookieSigningKey string
+	HTTPPort            string
+	DBBackend           string
+	DBPath              string
+	DBURL               string
+	DBAuthToken         string
+	BoardConfigPath     string
+	QuestConfigPath     string
+	RequireAuth         bool
+	WriteToken          string
+	ReadOnlyToken       string
+	RequestTimeout      time.Duration
+	ShutdownTimeout     time.Duration
+	LogLevel            slog.Level
+	CookieSigningKey    string
+	CookieSecure        bool
+	CookieSameSite      string
+	CookieDomain        string
+	AuthSessionTTL      time.Duration
+	AuthCodeTTL         time.Duration
+	AuthCodeLength      int
+	AuthMaxCodeAttempts int
+	AuthCodePepper      string
+	AuthDebugCode       bool
+	EmailSendURL        string
+	EmailSendAuthHeader string
+	EmailSendAuthValue  string
 }
 
 func Load() (Config, error) {
@@ -34,15 +49,29 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		HTTPPort:         envOr("DONEGEON_HTTP_PORT", "42069"),
-		DBPath:           envOr("DONEGEON_DB_PATH", "donegeon.db"),
-		BoardConfigPath:  boardConfigPath,
-		QuestConfigPath:  questConfigPath,
-		WriteToken:       envOr("DONEGEON_API_TOKEN", "TOKEN_VALID"),
-		ReadOnlyToken:    envOr("DONEGEON_READONLY_API_TOKEN", "TOKEN_READONLY"),
-		RequestTimeout:   envDurationOr("DONEGEON_REQUEST_TIMEOUT", 15*time.Second),
-		ShutdownTimeout:  envDurationOr("DONEGEON_SHUTDOWN_TIMEOUT", 10*time.Second),
-		CookieSigningKey: envOr("DONEGEON_COOKIE_SIGNING_KEY", "change-me-in-prod"),
+		HTTPPort:            envOr("DONEGEON_HTTP_PORT", "42069"),
+		DBBackend:           strings.ToLower(envOr("DONEGEON_DB_BACKEND", "sqlite")),
+		DBPath:              envOr("DONEGEON_DB_PATH", "donegeon.db"),
+		DBURL:               envOr("DONEGEON_DB_URL", ""),
+		DBAuthToken:         envOr("DONEGEON_DB_AUTH_TOKEN", ""),
+		BoardConfigPath:     boardConfigPath,
+		QuestConfigPath:     questConfigPath,
+		WriteToken:          envOr("DONEGEON_API_TOKEN", "TOKEN_VALID"),
+		ReadOnlyToken:       envOr("DONEGEON_READONLY_API_TOKEN", "TOKEN_READONLY"),
+		RequestTimeout:      envDurationOr("DONEGEON_REQUEST_TIMEOUT", 15*time.Second),
+		ShutdownTimeout:     envDurationOr("DONEGEON_SHUTDOWN_TIMEOUT", 10*time.Second),
+		CookieSigningKey:    envOr("DONEGEON_COOKIE_SIGNING_KEY", "change-me-in-prod"),
+		CookieSameSite:      strings.ToLower(envOr("DONEGEON_COOKIE_SAMESITE", "lax")),
+		CookieDomain:        envOr("DONEGEON_COOKIE_DOMAIN", ""),
+		AuthSessionTTL:      envDurationOr("DONEGEON_AUTH_SESSION_TTL", 30*24*time.Hour),
+		AuthCodeTTL:         envDurationOr("DONEGEON_AUTH_CODE_TTL", 10*time.Minute),
+		AuthCodeLength:      envIntOr("DONEGEON_AUTH_CODE_LENGTH", 6),
+		AuthMaxCodeAttempts: envIntOr("DONEGEON_AUTH_MAX_CODE_ATTEMPTS", 5),
+		AuthCodePepper:      envOr("DONEGEON_AUTH_CODE_PEPPER", ""),
+		AuthDebugCode:       false,
+		EmailSendURL:        envOr("DONEGEON_EMAIL_SEND_URL", ""),
+		EmailSendAuthHeader: envOr("DONEGEON_EMAIL_SEND_AUTH_HEADER", "Authorization"),
+		EmailSendAuthValue:  envOr("DONEGEON_EMAIL_SEND_AUTH_VALUE", ""),
 	}
 
 	requireAuth, err := envBoolOr("DONEGEON_REQUIRE_AUTH", true)
@@ -50,6 +79,18 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("parse DONEGEON_REQUIRE_AUTH: %w", err)
 	}
 	cfg.RequireAuth = requireAuth
+
+	cookieSecure, err := envBoolOr("DONEGEON_COOKIE_SECURE", false)
+	if err != nil {
+		return Config{}, fmt.Errorf("parse DONEGEON_COOKIE_SECURE: %w", err)
+	}
+	cfg.CookieSecure = cookieSecure
+
+	authDebugCode, err := envBoolOr("DONEGEON_AUTH_DEBUG_CODE", false)
+	if err != nil {
+		return Config{}, fmt.Errorf("parse DONEGEON_AUTH_DEBUG_CODE: %w", err)
+	}
+	cfg.AuthDebugCode = authDebugCode
 
 	logLevel := strings.ToLower(strings.TrimSpace(envOr("DONEGEON_LOG_LEVEL", "info")))
 	switch logLevel {
@@ -65,6 +106,40 @@ func Load() (Config, error) {
 
 	if cfg.RequireAuth && strings.TrimSpace(cfg.WriteToken) == "" {
 		return Config{}, fmt.Errorf("DONEGEON_API_TOKEN is required when auth is enabled")
+	}
+	if cfg.AuthCodePepper == "" {
+		cfg.AuthCodePepper = cfg.CookieSigningKey
+	}
+	if cfg.AuthCodeLength < 4 || cfg.AuthCodeLength > 10 {
+		return Config{}, fmt.Errorf("DONEGEON_AUTH_CODE_LENGTH must be between 4 and 10")
+	}
+	if cfg.AuthMaxCodeAttempts < 1 || cfg.AuthMaxCodeAttempts > 10 {
+		return Config{}, fmt.Errorf("DONEGEON_AUTH_MAX_CODE_ATTEMPTS must be between 1 and 10")
+	}
+	if cfg.AuthCodeTTL < time.Minute {
+		return Config{}, fmt.Errorf("DONEGEON_AUTH_CODE_TTL must be at least 1m")
+	}
+	if cfg.AuthSessionTTL < time.Hour {
+		return Config{}, fmt.Errorf("DONEGEON_AUTH_SESSION_TTL must be at least 1h")
+	}
+	switch cfg.DBBackend {
+	case "sqlite", "turso":
+	default:
+		return Config{}, fmt.Errorf("DONEGEON_DB_BACKEND must be one of sqlite, turso")
+	}
+	if cfg.DBBackend == "turso" && strings.TrimSpace(cfg.DBURL) == "" {
+		return Config{}, fmt.Errorf("DONEGEON_DB_URL is required when DONEGEON_DB_BACKEND=turso")
+	}
+	switch cfg.CookieSameSite {
+	case "lax", "strict", "none":
+	default:
+		return Config{}, fmt.Errorf("DONEGEON_COOKIE_SAMESITE must be one of lax, strict, none")
+	}
+	if cfg.CookieSameSite == "none" && !cfg.CookieSecure {
+		return Config{}, fmt.Errorf("DONEGEON_COOKIE_SECURE must be true when DONEGEON_COOKIE_SAMESITE=none")
+	}
+	if cfg.EmailSendURL != "" && strings.TrimSpace(cfg.EmailSendAuthHeader) == "" {
+		return Config{}, fmt.Errorf("DONEGEON_EMAIL_SEND_AUTH_HEADER is required when DONEGEON_EMAIL_SEND_URL is set")
 	}
 
 	return cfg, nil
@@ -137,4 +212,16 @@ func envDurationOr(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+func envIntOr(key string, fallback int) int {
+	val := strings.TrimSpace(os.Getenv(key))
+	if val == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil {
+		return fallback
+	}
+	return n
 }

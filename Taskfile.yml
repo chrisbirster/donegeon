@@ -69,3 +69,42 @@ tasks:
     dir: web
     cmds:
       - bun run build
+
+  deploy:infra:
+    desc: Deploy SST infra (loads infra/.env automatically)
+    dir: infra
+    dotenv:
+      - .env
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+      - sh: test -f .env
+        msg: infra/.env not found. Copy from .env.example and fill in values.
+    cmds:
+      - bun install
+      - bunx sst deploy --stage production
+
+  deploy:infra:dev:
+    desc: Deploy SST infra to dev stage (loads infra/.env)
+    dir: infra
+    dotenv:
+      - .env
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+      - sh: test -f .env
+        msg: infra/.env not found. Copy from .env.example and fill in values.
+    cmds:
+      - bun install
+      - bunx sst deploy --stage dev
+
+  deploy:infra:remove:
+    desc: Remove SST infra stack
+    dir: infra
+    dotenv:
+      - .env
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+    cmds:
+      - bunx sst remove --stage production

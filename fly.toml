@@ -1,0 +1,44 @@
+app = "donegeon"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DONEGEON_ENV = "production"
+  DONEGEON_ADDR = ":42069"
+  DONEGEON_CONFIG_PATH = "/app/donegeon_config.yml"
+  DONEGEON_DATA_DIR = "/app/data"
+  DONEGEON_STATIC_DIR = "/app/static"
+  DONEGEON_DB_BACKEND = "turso"
+  DONEGEON_COOKIE_SECURE = "true"
+  DONEGEON_COOKIE_SAMESITE = "lax"
+  DONEGEON_OTP_MAIL_PROVIDER = "sst"
+  DONEGEON_EMAIL_SEND_AUTH_HEADER = "Authorization"
+
+[http_service]
+  internal_port = 42069
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/healthz"
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "20s"
+    method = "GET"
+    timeout = "5s"
+    path = "/readyz"
+
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

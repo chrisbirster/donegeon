@@ -1,0 +1,24 @@
+{
+  "name": "@donegeon/marketing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint not configured'"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.15.3",
+    "solid-js": "^1.9.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@tailwindcss/vite": "^4.1.11",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3",
+    "vite-plugin-solid": "^2.11.8"
+  }
+}

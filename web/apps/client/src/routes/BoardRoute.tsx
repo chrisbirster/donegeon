@@ -1907,13 +1907,17 @@ export default function BoardRoute() {
   function switchBoard(nextBoardID: string) {
     const normalized = normalizeBoardID(nextBoardID);
     if (normalized === activeBoardID()) return;
+    setState(null); // Reset so the loading spinner shows for the new board.
     navigate(boardHref(normalized));
   }
 
-  async function loadBoard(options: { syncTasks?: boolean; boardID?: string } = {}) {
+  async function loadBoard(options: { syncTasks?: boolean; boardID?: string; silent?: boolean } = {}) {
     const syncTasks = options.syncTasks ?? false;
     const boardID = normalizeBoardID(options.boardID ?? activeBoardID());
-    setLoading(true);
+    // Only show full loading spinner on initial load (state is null).
+    // Subsequent refreshes update silently to avoid hiding the board.
+    const silent = options.silent ?? (state() !== null);
+    if (!silent) setLoading(true);
     try {
       let response = await boardApi.getState(boardID);
       if (Object.keys(response.stacks ?? {}).length === 0) {
@@ -1959,7 +1963,7 @@ export default function BoardRoute() {
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 

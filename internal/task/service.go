@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,9 +14,10 @@ import (
 )
 
 type Service struct {
-	repo   *Repository
-	parser *quickadd.Parser
-	nowFn  func() time.Time
+	repo          *Repository
+	parser        *quickadd.Parser
+	nowFn         func() time.Time
+	ensureProject func(ctx context.Context, slug string) error
 }
 
 func NewService(repo *Repository, parser *quickadd.Parser) *Service {
@@ -24,6 +26,13 @@ func NewService(repo *Repository, parser *quickadd.Parser) *Service {
 		parser: parser,
 		nowFn:  time.Now,
 	}
+}
+
+// SetEnsureProject sets a callback that the service will invoke to ensure a
+// project exists (by slug) before inserting a task that references it. The
+// callback should be idempotent (e.g. an upsert).
+func (s *Service) SetEnsureProject(fn func(ctx context.Context, slug string) error) {
+	s.ensureProject = fn
 }
 
 func (s *Service) List(ctx context.Context, params ListParams) (ListResult, error) {
@@ -67,6 +76,12 @@ func (s *Service) ParseQuickAdd(ctx context.Context, text string) quickadd.Parse
 func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 	if in.Content == "" {
 		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "content is required"), "content")
+	}
+	// Ensure referenced project exists before canonicalization + insert.
+	if in.ProjectID != nil && strings.TrimSpace(*in.ProjectID) != "" && s.ensureProject != nil {
+		if err := s.ensureProject(ctx, strings.TrimSpace(*in.ProjectID)); err != nil {
+			return Task{}, fmt.Errorf("ensure project %q: %w", *in.ProjectID, err)
+		}
 	}
 	in.ProjectID = canonicalizeProjectID(ctx, in.ProjectID)
 	in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())

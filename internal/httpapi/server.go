@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"path"
 	"strconv"
@@ -85,7 +87,9 @@ func New(
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", api.handleHealth)
-	mux.HandleFunc("POST /api/auth/login", api.handleAuthLogin)
+	mux.HandleFunc("POST /api/auth/login", api.handleAuthLoginRequest)
+	mux.HandleFunc("POST /api/auth/login/request", api.handleAuthLoginRequest)
+	mux.HandleFunc("POST /api/auth/login/verify", api.handleAuthLoginVerify)
 	mux.HandleFunc("GET /api/auth/me", api.handleAuthMe)
 	mux.HandleFunc("POST /api/auth/onboarding", api.handleAuthOnboarding)
 	mux.HandleFunc("POST /api/auth/logout", api.handleAuthLogout)
@@ -136,7 +140,7 @@ func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *API) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
+func (a *API) handleAuthLoginRequest(w http.ResponseWriter, r *http.Request) {
 	if a.accounts == nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
 		return
@@ -151,9 +155,70 @@ func (a *API) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := a.accounts.Login(r.Context(), strings.TrimSpace(req.Email), strings.TrimSpace(req.Name))
+	challenge, code, err := a.accounts.BeginEmailLogin(
+		r.Context(),
+		strings.TrimSpace(req.Email),
+		strings.TrimSpace(req.Name),
+		a.cfg.AuthCodePepper,
+		a.cfg.AuthCodeTTL,
+		a.cfg.AuthCodeLength,
+		clientIPFromRequest(r),
+		strings.TrimSpace(r.UserAgent()),
+	)
 	if err != nil {
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "email"))
+		return
+	}
+
+	sendErr := a.sendLoginCodeEmail(r.Context(), challenge.Email, code, challenge.ExpiresAt)
+	if sendErr != nil && !a.cfg.AuthDebugCode {
+		a.logError(r, "send_login_code_failed", sendErr)
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to deliver login code"))
+		return
+	}
+
+	response := map[string]any{
+		"challengeId": challenge.ID,
+		"expiresAt":   challenge.ExpiresAt,
+		"delivery":    "email",
+	}
+	if a.cfg.AuthDebugCode {
+		response["debugCode"] = code
+	}
+	if sendErr != nil && a.cfg.AuthDebugCode {
+		response["deliveryWarning"] = sendErr.Error()
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (a *API) handleAuthLoginVerify(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		ChallengeID string `json:"challengeId"`
+		Code        string `json:"code"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	session, err := a.accounts.VerifyEmailLogin(
+		r.Context(),
+		strings.TrimSpace(req.ChallengeID),
+		strings.TrimSpace(req.Code),
+		a.cfg.AuthCodePepper,
+		a.cfg.AuthMaxCodeAttempts,
+	)
+	if err != nil {
+		field := "code"
+		if strings.TrimSpace(req.ChallengeID) == "" {
+			field = "challengeId"
+		}
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), field))
 		return
 	}
 
@@ -164,7 +229,22 @@ func (a *API) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 	if session.User.CurrentWorkspace != nil {
 		principal.WorkspaceID = strings.TrimSpace(*session.User.CurrentWorkspace)
 	}
-	if err := a.writeSessionCookie(w, principal); err != nil {
+
+	webSession, err := a.accounts.CreateAuthSession(
+		r.Context(),
+		principal,
+		a.cfg.AuthSessionTTL,
+		strings.TrimSpace(r.UserAgent()),
+		clientIPFromRequest(r),
+	)
+	if err != nil {
+		a.logError(r, "create_auth_session_failed", err)
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to start auth session"))
+		return
+	}
+	if err := a.writeSessionCookie(w, webSession.ID); err != nil {
+		a.logError(r, "write_session_cookie_failed", err)
+		_ = a.accounts.RevokeAuthSession(r.Context(), webSession.ID)
 		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to set auth session"))
 		return
 	}
@@ -221,9 +301,12 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 	if session.User.CurrentWorkspace != nil {
 		newPrincipal.WorkspaceID = strings.TrimSpace(*session.User.CurrentWorkspace)
 	}
-	if err := a.writeSessionCookie(w, newPrincipal); err != nil {
-		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to update auth session"))
-		return
+	if sessionID, ok := a.readSessionID(r); ok {
+		if err := a.accounts.UpdateAuthSessionPrincipal(r.Context(), sessionID, newPrincipal); err != nil {
+			a.logError(r, "update_auth_session_failed", err)
+			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to update auth session"))
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -233,6 +316,11 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
+	if a.accounts != nil {
+		if sessionID, ok := a.readSessionID(r); ok {
+			_ = a.accounts.RevokeAuthSession(r.Context(), sessionID)
+		}
+	}
 	a.clearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -457,6 +545,7 @@ func (a *API) handleQuickAddTask(w http.ResponseWriter, r *http.Request) {
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 	created, parsed, err := a.tasks.CreateFromQuickAdd(ctx, strings.TrimSpace(req.Text))
 	if err != nil {
+		a.logError(r, "quick_add_task_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -494,6 +583,7 @@ func (a *API) handleTodoistAction(w http.ResponseWriter, r *http.Request) {
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 	result, err := a.todoist.Dispatch(ctx, action, req.Payload)
 	if err != nil {
+		a.logError(r, "todoist_dispatch_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -512,6 +602,7 @@ func (a *API) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		Cursor:    cursor,
 	})
 	if err != nil {
+		a.logError(r, "list_tasks_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -526,6 +617,7 @@ func (a *API) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		IncludeArchived: includeArchived,
 	})
 	if err != nil {
+		a.logError(r, "list_projects_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -543,6 +635,7 @@ func (a *API) handleGetBoardState(w http.ResponseWriter, r *http.Request) {
 
 	state, err := a.boards.GetState(r.Context(), boardIDFromRequest(r))
 	if err != nil {
+		a.logError(r, "get_board_state_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -568,6 +661,7 @@ func (a *API) handleBoardCommand(w http.ResponseWriter, r *http.Request) {
 
 	result, err := a.boards.Command(r.Context(), boardIDFromRequest(r), req)
 	if err != nil {
+		a.logError(r, "board_command_failed", err)
 		var conflict *board.VersionConflictError
 		if errors.As(err, &conflict) {
 			writeJSON(w, http.StatusConflict, map[string]any{
@@ -577,6 +671,7 @@ func (a *API) handleBoardCommand(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		a.logError(r, "board_command_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -610,6 +705,7 @@ func (a *API) handlePatchProject(w http.ResponseWriter, r *http.Request) {
 		IsFavorite: req.IsFavorite,
 	})
 	if err != nil {
+		a.logError(r, "upsert_project_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -627,6 +723,7 @@ func (a *API) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 	item, err := a.tasks.Get(ctx, id)
 	if err != nil {
+		a.logError(r, "get_task_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -672,6 +769,7 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Labels:        cleanStringSlice(req.Labels),
 	})
 	if err != nil {
+		a.logError(r, "create_task_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -728,6 +826,7 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := a.tasks.Update(ctx, id, input)
 	if err != nil {
+		a.logError(r, "update_task_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -749,6 +848,7 @@ func (a *API) handleCloseTask(w http.ResponseWriter, r *http.Request) {
 
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 	if err := a.tasks.Close(ctx, id); err != nil {
+		a.logError(r, "close_task_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -768,6 +868,7 @@ func (a *API) handleReopenTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.tasks.Reopen(r.Context(), id); err != nil {
+		a.logError(r, "reopen_task_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -787,6 +888,7 @@ func (a *API) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.tasks.Delete(r.Context(), id); err != nil {
+		a.logError(r, "delete_task_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -800,7 +902,10 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/logout" {
+		if r.URL.Path == "/api/auth/login" ||
+			r.URL.Path == "/api/auth/login/request" ||
+			r.URL.Path == "/api/auth/login/verify" ||
+			r.URL.Path == "/api/auth/logout" {
 			ctx := context.WithValue(r.Context(), ctxKeyScope, ScopeWrite)
 			ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -862,68 +967,161 @@ func isWriteRequest(method string) bool {
 }
 
 func (a *API) readSessionPrincipal(r *http.Request) (sessionctx.Principal, bool) {
-	cookie, err := r.Cookie(authSessionCookieName)
-	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+	if a.accounts == nil {
 		return sessionctx.Principal{}, false
 	}
-
-	value := map[string]string{}
-	if err := a.cookies.Decode(authSessionCookieName, cookie.Value, &value); err != nil {
+	sessionID, ok := a.readSessionID(r)
+	if !ok {
 		return sessionctx.Principal{}, false
 	}
-
-	userID := strings.TrimSpace(value["userId"])
-	if userID == "" {
+	principal, authenticated, err := a.accounts.AuthSessionPrincipal(r.Context(), sessionID)
+	if err != nil {
 		return sessionctx.Principal{}, false
 	}
-
-	principal := sessionctx.Principal{
-		UserID:      userID,
-		WorkspaceID: strings.TrimSpace(value["workspaceId"]),
-		Email:       strings.TrimSpace(value["email"]),
-	}
-	if principal.WorkspaceID == "" {
-		principal.WorkspaceID = sessionctx.DefaultWorkspaceID
+	if !authenticated {
+		return sessionctx.Principal{}, false
 	}
 	return principal, true
 }
 
-func (a *API) writeSessionCookie(w http.ResponseWriter, principal sessionctx.Principal) error {
-	if strings.TrimSpace(principal.UserID) == "" {
-		return fmt.Errorf("user id is required")
+func (a *API) readSessionID(r *http.Request) (string, bool) {
+	cookie, err := r.Cookie(authSessionCookieName)
+	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+		return "", false
 	}
-	if strings.TrimSpace(principal.WorkspaceID) == "" {
-		principal.WorkspaceID = sessionctx.DefaultWorkspaceID
+
+	value := map[string]string{}
+	if err := a.cookies.Decode(authSessionCookieName, cookie.Value, &value); err != nil {
+		return "", false
+	}
+	sessionID := strings.TrimSpace(value["sid"])
+	if sessionID == "" {
+		return "", false
+	}
+	return sessionID, true
+}
+
+func (a *API) writeSessionCookie(w http.ResponseWriter, sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return fmt.Errorf("session id is required")
 	}
 	value := map[string]string{
-		"userId":      strings.TrimSpace(principal.UserID),
-		"workspaceId": strings.TrimSpace(principal.WorkspaceID),
-		"email":       strings.TrimSpace(principal.Email),
+		"sid": sessionID,
 	}
 	encoded, err := a.cookies.Encode(authSessionCookieName, value)
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{
+	maxAge := int(a.cfg.AuthSessionTTL.Seconds())
+	if maxAge <= 0 {
+		maxAge = 86400 * 30
+	}
+	cookie := &http.Cookie{
 		Name:     authSessionCookieName,
 		Value:    encoded,
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   86400 * 30,
-	})
+		SameSite: cookieSameSiteMode(a.cfg.CookieSameSite),
+		Secure:   a.cfg.CookieSecure,
+		MaxAge:   maxAge,
+	}
+	if strings.TrimSpace(a.cfg.CookieDomain) != "" {
+		cookie.Domain = strings.TrimSpace(a.cfg.CookieDomain)
+	}
+	http.SetCookie(w, cookie)
 	return nil
 }
 
 func (a *API) clearSessionCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     authSessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: cookieSameSiteMode(a.cfg.CookieSameSite),
+		Secure:   a.cfg.CookieSecure,
 		MaxAge:   -1,
-	})
+		Expires:  time.Unix(0, 0),
+	}
+	if strings.TrimSpace(a.cfg.CookieDomain) != "" {
+		cookie.Domain = strings.TrimSpace(a.cfg.CookieDomain)
+	}
+	http.SetCookie(w, cookie)
+}
+
+func cookieSameSiteMode(raw string) http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return http.SameSiteLaxMode
+	}
+}
+
+func clientIPFromRequest(r *http.Request) string {
+	forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+	if forwarded != "" {
+		parts := strings.Split(forwarded, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err == nil {
+		return strings.TrimSpace(host)
+	}
+	return strings.TrimSpace(r.RemoteAddr)
+}
+
+func (a *API) sendLoginCodeEmail(ctx context.Context, to string, code string, expiresAt string) error {
+	sendURL := strings.TrimSpace(a.cfg.EmailSendURL)
+	if sendURL == "" {
+		return fmt.Errorf("email sender is not configured")
+	}
+
+	payload := map[string]string{
+		"to":        strings.TrimSpace(to),
+		"otpCode":   strings.TrimSpace(code),
+		"expiresAt": strings.TrimSpace(expiresAt),
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sendURL, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	authHeader := strings.TrimSpace(a.cfg.EmailSendAuthHeader)
+	authValue := strings.TrimSpace(a.cfg.EmailSendAuthValue)
+	if authHeader != "" && authValue != "" {
+		req.Header.Set(authHeader, authValue)
+	}
+
+	client := &http.Client{
+		Timeout: a.cfg.RequestTimeout,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	message := strings.TrimSpace(string(body))
+	if message == "" {
+		message = "unknown email send error"
+	}
+	return fmt.Errorf("email sender returned %d: %s", resp.StatusCode, message)
 }
 
 func (a *API) rateLimitMiddleware(next http.Handler) http.Handler {
@@ -955,14 +1153,25 @@ func (a *API) loggingMiddleware(next http.Handler) http.Handler {
 		lw := &loggingResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(lw, r)
 
-		a.logger.Info("http_request",
+		attrs := []slog.Attr{
 			slog.String("request_id", requestIDFromContext(r.Context())),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", lw.status),
 			slog.Int("bytes", lw.bytesWritten),
 			slog.Int64("duration_ms", time.Since(start).Milliseconds()),
-		)
+		}
+
+		switch {
+		case lw.status >= 500:
+			attrs = append(attrs, slog.String("response_body", strings.TrimSpace(string(lw.errBody))))
+			a.logger.LogAttrs(r.Context(), slog.LevelError, "http_request", attrs...)
+		case lw.status >= 400:
+			attrs = append(attrs, slog.String("response_body", strings.TrimSpace(string(lw.errBody))))
+			a.logger.LogAttrs(r.Context(), slog.LevelWarn, "http_request", attrs...)
+		default:
+			a.logger.LogAttrs(r.Context(), slog.LevelInfo, "http_request", attrs...)
+		}
 	})
 }
 
@@ -988,6 +1197,17 @@ func chain(middlewares ...func(http.Handler) http.Handler) func(http.Handler) ht
 		}
 		return next
 	}
+}
+
+// logError logs an error with request context. Use this in handlers before
+// calling writeAPIError when you want the underlying cause visible in logs.
+func (a *API) logError(r *http.Request, msg string, err error) {
+	a.logger.Error(msg,
+		slog.String("request_id", requestIDFromContext(r.Context())),
+		slog.String("method", r.Method),
+		slog.String("path", r.URL.Path),
+		slog.String("error", err.Error()),
+	)
 }
 
 func writeAPIError(w http.ResponseWriter, err error) {
@@ -1147,6 +1367,7 @@ type loggingResponseWriter struct {
 	http.ResponseWriter
 	status       int
 	bytesWritten int
+	errBody      []byte // captured for error responses (4xx/5xx)
 }
 
 func (w *loggingResponseWriter) WriteHeader(statusCode int) {
@@ -1157,6 +1378,10 @@ func (w *loggingResponseWriter) WriteHeader(statusCode int) {
 func (w *loggingResponseWriter) Write(p []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(p)
 	w.bytesWritten += n
+	// Capture response body for error statuses so the logging middleware can include it.
+	if w.status >= 400 && len(w.errBody) < 2048 {
+		w.errBody = append(w.errBody, p...)
+	}
 	return n, err
 }
 

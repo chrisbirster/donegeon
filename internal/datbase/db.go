@@ -9,9 +9,17 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 	_ "modernc.org/sqlite"
 )
 
+func init() {
+	// Register the libsql driver bind type so sqlx uses ? placeholders
+	// (same as sqlite3) instead of the unknown/default bind type.
+	sqlx.BindDriver("libsql", sqlx.QUESTION)
+}
+
+// Open connects to a local SQLite file using the modernc driver.
 func Open(ctx context.Context, path string) (*sqlx.DB, error) {
 	db, err := sqlx.ConnectContext(ctx, "sqlite", sqliteDSN(path))
 	if err != nil {
@@ -19,6 +27,25 @@ func Open(ctx context.Context, path string) (*sqlx.DB, error) {
 	}
 	db.SetMaxOpenConns(1)
 	db.SetConnMaxIdleTime(2 * time.Minute)
+	return db, nil
+}
+
+// OpenTurso connects to a remote Turso/libsql database over HTTPS.
+func OpenTurso(ctx context.Context, dbURL string, authToken string) (*sqlx.DB, error) {
+	dsn := strings.TrimSpace(dbURL)
+	if dsn == "" {
+		return nil, fmt.Errorf("turso database url is required")
+	}
+	if token := strings.TrimSpace(authToken); token != "" {
+		dsn = dsn + "?authToken=" + token
+	}
+	db, err := sqlx.ConnectContext(ctx, "libsql", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("connect to turso: %w", err)
+	}
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 	return db, nil
 }
 
