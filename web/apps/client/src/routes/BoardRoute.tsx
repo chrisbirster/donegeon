@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 
+import { getCachedBoardState, setCachedBoardState } from "../lib/boardCache";
 import {
   boardApi,
   parseApi,
@@ -1916,7 +1917,9 @@ export default function BoardRoute() {
     const boardID = normalizeBoardID(options.boardID ?? activeBoardID());
     // Only show full loading spinner on initial load (state is null).
     // Subsequent refreshes update silently to avoid hiding the board.
-    const silent = options.silent ?? (state() !== null);
+    // Use untrack to avoid making this a reactive dependency (would cause
+    // infinite loops when called from createEffect).
+    const silent = options.silent ?? (untrack(() => state()) !== null);
     if (!silent) setLoading(true);
     try {
       let response = await boardApi.getState(boardID);
@@ -1959,7 +1962,8 @@ export default function BoardRoute() {
       } else {
         setError("");
       }
-      setLocalPositions({});
+      // Persist to IndexedDB for instant load next time.
+      void setCachedBoardState(boardID, response);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -2686,6 +2690,13 @@ export default function BoardRoute() {
               const targetDef = topDefID(targetStack);
 
               if (targetStack && isCollectDeck(targetStack)) {
+                // Optimistic: remove the newly-split stack before collecting.
+                setState((current) => {
+                  if (!current) return current;
+                  const nextStacks = { ...current.stacks };
+                  delete nextStacks[newStackID];
+                  return { ...current, stacks: nextStacks };
+                });
                 await sendCommand({
                   cmd: "loot.collect_stack",
                   args: { stackId: newStackID },
@@ -2694,6 +2705,17 @@ export default function BoardRoute() {
               }
 
               if (!targetDef || cardKind(targetDef) !== "deck") {
+                // Optimistic: merge new stack cards into target.
+                setState((current) => {
+                  if (!current) return current;
+                  const src = current.stacks[newStackID];
+                  const tgt = current.stacks[targetID];
+                  if (!src || !tgt) return current;
+                  const nextStacks = { ...current.stacks };
+                  nextStacks[targetID] = { ...tgt, cards: [...tgt.cards, ...src.cards] };
+                  delete nextStacks[newStackID];
+                  return { ...current, stacks: nextStacks };
+                });
                 await sendCommand({
                   cmd: "stack.merge",
                   args: { targetId: targetID, sourceId: newStackID },
@@ -2715,6 +2737,13 @@ export default function BoardRoute() {
 
         if (targetStack && isCollectDeck(targetStack) && sourceDef && !isDeckDef(sourceDef) && !isPackDef(sourceDef)) {
           suppressStackClick(drag.stackId);
+          // Optimistic: remove source stack so the card doesn't flash back.
+          setState((current) => {
+            if (!current) return current;
+            const nextStacks = { ...current.stacks };
+            delete nextStacks[drag.stackId];
+            return { ...current, stacks: nextStacks };
+          });
           clearLocalPosition(drag.stackId);
           void sendCommand({
             cmd: "loot.collect_stack",
@@ -2730,6 +2759,19 @@ export default function BoardRoute() {
           }
         } else {
           suppressStackClick(drag.stackId);
+          // Optimistic: move cards from source into target so the card
+          // doesn't flash back to the source position while the server
+          // processes the merge.
+          setState((current) => {
+            if (!current) return current;
+            const src = current.stacks[drag.stackId];
+            const tgt = current.stacks[targetID];
+            if (!src || !tgt) return current;
+            const nextStacks = { ...current.stacks };
+            nextStacks[targetID] = { ...tgt, cards: [...tgt.cards, ...src.cards] };
+            delete nextStacks[drag.stackId];
+            return { ...current, stacks: nextStacks };
+          });
           clearLocalPosition(drag.stackId);
           void sendCommand({
             cmd: "stack.merge",
@@ -2822,6 +2864,7 @@ export default function BoardRoute() {
 
     onCleanup(() => {
       window.clearInterval(miningTickTimer);
+      if (syncTimer) window.clearInterval(syncTimer);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerCancel);
@@ -2836,9 +2879,18 @@ export default function BoardRoute() {
     });
   });
 
+  // Periodic background sync — reconcile with server every 2 minutes.
+  const SYNC_INTERVAL_MS = 2 * 60 * 1000;
+  let syncTimer: ReturnType<typeof setInterval> | undefined;
+
+  onMount(() => {
+    syncTimer = setInterval(() => {
+      void loadBoard({ syncTasks: false });
+    }, SYNC_INTERVAL_MS);
+  });
+
   createEffect(() => {
     const boardID = activeBoardID();
-    setState(null);
     setError("");
     setSelectedStackID(null);
     setIsDetailOpen(false);
@@ -2855,7 +2907,18 @@ export default function BoardRoute() {
     setDeckHubDragDefID(null);
     setComposerParsed(null);
     setComposerText("");
-    void loadBoard({ syncTasks: true, boardID });
+
+    // Load from IndexedDB cache first for instant render, then sync from server.
+    void (async () => {
+      const cached = await getCachedBoardState<BoardStateResponse>(boardID);
+      if (cached) {
+        setState(cached);
+        setLoading(false); // Dismiss spinner immediately so the cached board is visible.
+      } else {
+        setState(null); // Show loading spinner only when there's no cache.
+      }
+      await loadBoard({ syncTasks: true, boardID });
+    })();
   });
 
   return (
