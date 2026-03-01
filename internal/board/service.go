@@ -552,6 +552,10 @@ func (s *Service) cmdTaskSetTitle(ctx context.Context, state *State, args map[st
 	}
 	card.DefID = "task.instance"
 	card.Data["title"] = title
+	if shouldCountQuestCreateFromTitle(card, title) {
+		incrementQuestMetric(ensureMeta(state), "create_task", "", 1)
+		markQuestCreateCounted(card)
+	}
 
 	if s.tasks != nil {
 		if taskID := cardTaskID(card); taskID != "" {
@@ -674,6 +678,7 @@ func (s *Service) cmdTaskSetTaskID(ctx context.Context, state *State, args map[s
 	card.DefID = "task.instance"
 	nextTaskID := strings.TrimSpace(taskID)
 	previousTaskID := strings.TrimSpace(cardTaskID(card))
+	alreadyCounted := cardQuestCreateCounted(card)
 	card.Data["taskId"] = nextTaskID
 
 	if stack := findStackByCardID(state, card.ID); stack != nil && stackHasCardDefID(state, stack, "mod.next_action") {
@@ -681,8 +686,11 @@ func (s *Service) cmdTaskSetTaskID(ctx context.Context, state *State, args map[s
 			return nil, err
 		}
 	}
-	if previousTaskID == "" && nextTaskID != "" {
+	if previousTaskID == "" && nextTaskID != "" && !alreadyCounted {
 		incrementQuestMetric(ensureMeta(state), "create_task", "", 1)
+	}
+	if nextTaskID != "" {
+		markQuestCreateCounted(card)
 	}
 
 	return map[string]any{
@@ -2561,6 +2569,52 @@ func taskCardDataFromTaskRow(row task.Task) map[string]any {
 	}
 
 	return data
+}
+
+func cardQuestCreateCounted(card *Card) bool {
+	if card == nil || card.Data == nil {
+		return false
+	}
+	switch value := card.Data["questCreateCounted"].(type) {
+	case bool:
+		return value
+	case float64:
+		return value != 0
+	case int:
+		return value != 0
+	case string:
+		normalized := strings.TrimSpace(strings.ToLower(value))
+		return normalized == "1" || normalized == "true" || normalized == "yes"
+	default:
+		return false
+	}
+}
+
+func markQuestCreateCounted(card *Card) {
+	if card == nil {
+		return
+	}
+	if card.Data == nil {
+		card.Data = map[string]any{}
+	}
+	card.Data["questCreateCounted"] = true
+}
+
+func shouldCountQuestCreateFromTitle(card *Card, title string) bool {
+	if card == nil {
+		return false
+	}
+	if cardQuestCreateCounted(card) {
+		return false
+	}
+	if strings.TrimSpace(cardTaskID(card)) != "" {
+		return false
+	}
+	normalized := strings.TrimSpace(title)
+	if normalized == "" {
+		return false
+	}
+	return !strings.EqualFold(normalized, "untitled task")
 }
 
 func modifierRequirementCounts(defIDs []string) map[string]int {

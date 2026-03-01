@@ -113,6 +113,34 @@ func (r *Repository) Upsert(ctx context.Context, id string, in UpsertInput) (Pro
 	return r.Get(ctx, id)
 }
 
+func (r *Repository) Delete(ctx context.Context, id string) error {
+	query, err := r.query("project_archive.sql")
+	if err != nil {
+		return err
+	}
+
+	principal := sessionctx.PrincipalFromContext(ctx)
+	args := map[string]any{
+		"id":           id,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	result, err := r.db.NamedExecContext(ctx, query, args)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return apperrors.WithField(apperrors.New(apperrors.CodeNotFound, "project not found"), "projectId")
+	}
+	return nil
+}
+
 func boolAsInt(value bool) int {
 	if value {
 		return 1

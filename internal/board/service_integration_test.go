@@ -1474,6 +1474,57 @@ func TestTaskSetTaskIDCountsAsCreateTaskForQuests(t *testing.T) {
 	}
 }
 
+func TestTaskSetTitleCountsCreateTaskOnceBeforeLinking(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	spawn := env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     520,
+		"y":     280,
+		"data": map[string]any{
+			"title": "Untitled task",
+		},
+	})
+	card := patchCard(t, spawn, "card")
+
+	before := env.state(t).Meta.Metrics["quest.create_task"]
+	env.command(t, "task.set_title", map[string]any{
+		"taskCardId": card.ID,
+		"title":      "Write release notes",
+	})
+	afterTitle := env.state(t).Meta.Metrics["quest.create_task"]
+	if afterTitle != before+1 {
+		t.Fatalf("expected task.set_title to increment quest.create_task once, before=%d after=%d", before, afterTitle)
+	}
+
+	env.command(t, "task.set_title", map[string]any{
+		"taskCardId": card.ID,
+		"title":      "Write release notes v2",
+	})
+	afterSecondTitle := env.state(t).Meta.Metrics["quest.create_task"]
+	if afterSecondTitle != afterTitle {
+		t.Fatalf("expected second task.set_title not to increment again, afterTitle=%d afterSecondTitle=%d", afterTitle, afterSecondTitle)
+	}
+
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:  "Persistent linked task",
+		Priority: 4,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	env.command(t, "task.set_task_id", map[string]any{
+		"taskCardId": card.ID,
+		"taskId":     created.ID,
+	})
+	afterLink := env.state(t).Meta.Metrics["quest.create_task"]
+	if afterLink != afterSecondTitle {
+		t.Fatalf("expected task.set_task_id after counted title not to double count, afterSecondTitle=%d afterLink=%d", afterSecondTitle, afterLink)
+	}
+}
+
 func findActiveQuestByID(active []*QuestRuntime, id string) *QuestRuntime {
 	for _, item := range active {
 		if item == nil {

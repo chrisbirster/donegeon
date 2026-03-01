@@ -12,6 +12,7 @@ function parseInviteEmails(raw: string): string[] {
 
 export default function OnboardingRoute() {
   const navigate = useNavigate();
+  const [name, setName] = createSignal("");
   const [teamName, setTeamName] = createSignal("");
   const [inviteInput, setInviteInput] = createSignal("");
   const [saving, setSaving] = createSignal(false);
@@ -22,7 +23,9 @@ export default function OnboardingRoute() {
       const { session } = await authApi.me();
       if (!session.user.showOnboarding) {
         navigate("/task/inbox", { replace: true });
+        return;
       }
+      setName(session.user.name || "");
     } catch {
       navigate("/login", { replace: true });
     }
@@ -33,7 +36,7 @@ export default function OnboardingRoute() {
     setError("");
     setSaving(true);
     try {
-      await authApi.completeOnboarding(teamName().trim(), parseInviteEmails(inviteInput()));
+      await authApi.completeOnboarding(teamName().trim(), name().trim(), parseInviteEmails(inviteInput()));
       navigate("/task/inbox", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Onboarding failed");
@@ -53,6 +56,14 @@ export default function OnboardingRoute() {
         <p class="mt-1 text-sm text-[#9fb0cc]">
           Set your team/workspace name and optionally invite teammates by email.
         </p>
+
+        <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Your name (optional)</label>
+        <input
+          value={name()}
+          onInput={(event) => setName(event.currentTarget.value)}
+          class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+          placeholder="Your name"
+        />
 
         <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Team name</label>
         <input
@@ -86,4 +97,3 @@ export default function OnboardingRoute() {
     </main>
   );
 }
-

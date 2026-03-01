@@ -718,6 +718,18 @@ function boardProjectIDForBoard(boardID: string): string {
   return normalized;
 }
 
+function boardIDFromName(name: string): string | null {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!normalized) return null;
+  if (normalized === "board") return null;
+  if (normalized.startsWith("board-")) return normalized;
+  return `board-${normalized}`;
+}
+
 function boardIDFromSearch(search: string): string {
   const params = new URLSearchParams(search);
   return normalizeBoardID(params.get("board"));
@@ -871,6 +883,8 @@ export default function BoardRoute() {
   const [deckHubDragDefID, setDeckHubDragDefID] = createSignal<string | null>(null);
   const [mobileMapHubOpen, setMobileMapHubOpen] = createSignal(false);
   const [questClaimingID, setQuestClaimingID] = createSignal<string | null>(null);
+  const [newBoardName, setNewBoardName] = createSignal("");
+  const [boardCrudBusy, setBoardCrudBusy] = createSignal(false);
 
   let boardRef: HTMLDivElement | undefined;
   let composerParseTimer: number | undefined;
@@ -1912,6 +1926,70 @@ export default function BoardRoute() {
     navigate(boardHref(normalized));
   }
 
+  async function createBoard(nameOverride?: string) {
+    const rawName = (nameOverride ?? newBoardName()).trim();
+    if (!rawName) {
+      setError("Board name is required.");
+      return;
+    }
+    const boardID = boardIDFromName(rawName);
+    if (!boardID) {
+      setError('Board name must include letters or numbers and cannot be just "board".');
+      return;
+    }
+    if (boardChoices().some((choice) => choice.boardID === boardID)) {
+      setError("A board with that name already exists.");
+      return;
+    }
+
+    setBoardCrudBusy(true);
+    try {
+      await projectApi.create({
+        id: boardProjectIDForBoard(boardID),
+        name: rawName,
+      });
+      if (!nameOverride) {
+        setNewBoardName("");
+      }
+      await loadProjects();
+      switchBoard(boardID);
+      setError("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBoardCrudBusy(false);
+    }
+  }
+
+  async function deleteActiveBoard() {
+    const boardID = activeBoardID();
+    if (boardID === DEFAULT_BOARD) {
+      setError("The default board cannot be deleted.");
+      return;
+    }
+    const boardName = activeBoardChoice()?.name || boardProjectIDForBoard(boardID);
+    const ok = window.confirm(`Delete "${boardName}"? This removes the board from your project list.`);
+    if (!ok) return;
+
+    setBoardCrudBusy(true);
+    try {
+      await projectApi.remove(activeBoardProjectID());
+      await loadProjects();
+      switchBoard(DEFAULT_BOARD);
+      setError("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBoardCrudBusy(false);
+    }
+  }
+
+  async function createBoardFromPrompt() {
+    const raw = window.prompt('New board name');
+    if (raw == null) return;
+    await createBoard(raw);
+  }
+
   async function loadBoard(options: { syncTasks?: boolean; boardID?: string; silent?: boolean } = {}) {
     const syncTasks = options.syncTasks ?? false;
     const boardID = normalizeBoardID(options.boardID ?? activeBoardID());
@@ -2948,6 +3026,40 @@ export default function BoardRoute() {
                 Team board
               </p>
             </Show>
+            <div class="mt-3 space-y-2">
+              <label class="block text-[11px] uppercase tracking-[0.1em] text-[#8ca1c5]">
+                New board
+                <input
+                  value={newBoardName()}
+                  onInput={(event) => setNewBoardName(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    void createBoard();
+                  }}
+                  placeholder="Sprint Board"
+                  class="mt-1 w-full rounded-md border border-[#3a4d6d] bg-[#0f1728] px-2 py-1.5 text-xs text-[#dce8ff] outline-none focus:border-[var(--accent)]"
+                />
+              </label>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  class="flex-1 rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                  onClick={() => void createBoard()}
+                  disabled={busy() || boardCrudBusy()}
+                >
+                  Create
+                </button>
+                <button
+                  type="button"
+                  class="flex-1 rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
+                  onClick={() => void deleteActiveBoard()}
+                  disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           </section>
 
           <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
@@ -3118,6 +3230,22 @@ export default function BoardRoute() {
                 Team board
               </span>
             </Show>
+            <button
+              type="button"
+              class="rounded-md border border-[#435f83] bg-[#13253e] px-2 py-1 text-[11px] text-[#dce8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+              onClick={() => void createBoardFromPrompt()}
+              disabled={busy() || boardCrudBusy()}
+            >
+              New board
+            </button>
+            <button
+              type="button"
+              class="rounded-md border border-[#6f3c3c] bg-[#2a1416] px-2 py-1 text-[11px] text-[#ffb3ad] transition hover:border-[#a55e5a] disabled:opacity-60"
+              onClick={() => void deleteActiveBoard()}
+              disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
+            >
+              Delete board
+            </button>
           </div>
 
           <div class="hidden items-center gap-3 text-xs text-[#aeb6c5] lg:flex">
@@ -3192,6 +3320,40 @@ export default function BoardRoute() {
                 Team board
               </p>
             </Show>
+            <div class="mt-3 space-y-2">
+              <label class="block text-[11px] uppercase tracking-[0.1em] text-[#8ca1c5]">
+                New board
+                <input
+                  value={newBoardName()}
+                  onInput={(event) => setNewBoardName(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    void createBoard();
+                  }}
+                  placeholder="Sprint Board"
+                  class="mt-1 w-full rounded-md border border-[#3a4d6d] bg-[#0f1728] px-2 py-1.5 text-xs text-[#dce8ff] outline-none focus:border-[var(--accent)]"
+                />
+              </label>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  class="flex-1 rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                  onClick={() => void createBoard()}
+                  disabled={busy() || boardCrudBusy()}
+                >
+                  Create
+                </button>
+                <button
+                  type="button"
+                  class="flex-1 rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
+                  onClick={() => void deleteActiveBoard()}
+                  disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           </section>
 
           <div class="border-b border-[#252c39] px-4 py-3">
@@ -3862,7 +4024,7 @@ export default function BoardRoute() {
       <Show when={isDetailOpen() && !!selectedTaskCard()}>
         <div class="fixed inset-0 z-[70] flex items-center justify-center bg-[#05070fcc]/90 p-2 pb-[calc(72px+env(safe-area-inset-bottom))] md:p-4">
           <div
-            class="w-full max-w-3xl max-h-[calc(100dvh-1rem-72px-env(safe-area-inset-bottom))] overflow-y-auto rounded-2xl border border-[#2a3242] bg-[linear-gradient(180deg,#101825,#0b121d)] shadow-[0_24px_64px_rgba(0,0,0,0.55)] md:max-h-[92vh]"
+            class="w-full max-w-3xl max-h-[92dvh] overflow-y-auto rounded-2xl border border-[#2a3242] bg-[linear-gradient(180deg,#101825,#0b121d)] shadow-[0_24px_64px_rgba(0,0,0,0.55)] md:max-h-[92vh]"
             data-testid="board-detail-modal"
           >
             <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[#273247] bg-[#101825]/96 px-5 py-4 backdrop-blur-sm">
@@ -3884,10 +4046,10 @@ export default function BoardRoute() {
                     <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-[#355077] bg-[#121f36] text-xl">📋</div>
                     <div class="min-w-0 flex-1">
                       <textarea
-                        rows={2}
+                        rows={3}
                         value={detailTitle()}
                         onInput={(event) => onDetailTitleInput(event.currentTarget.value)}
-                        class="w-full resize-none rounded-lg border border-[#355077] bg-[#0f1828] px-3 py-2 text-lg leading-tight font-semibold text-[#edf3ff] outline-none focus:border-[var(--accent)] md:text-2xl"
+                        class="w-full resize-none rounded-lg border border-[#355077] bg-[#0f1828] px-3 py-2 text-base leading-tight font-semibold text-[#edf3ff] outline-none focus:border-[var(--accent)] md:text-2xl"
                         data-testid="board-detail-title"
                       />
                     </div>

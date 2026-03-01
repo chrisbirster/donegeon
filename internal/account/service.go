@@ -37,6 +37,7 @@ type TeamInvite struct {
 	InvitationCode string `db:"invitation_code" json:"invitationCode"`
 	WorkspaceID    string `db:"workspace_id" json:"workspaceId"`
 	Email          string `db:"email" json:"email"`
+	Role           string `db:"role" json:"role"`
 	Status         string `db:"status" json:"status"`
 	CreatedAt      string `db:"created_at" json:"createdAt"`
 	UpdatedAt      string `db:"updated_at" json:"updatedAt"`
@@ -49,6 +50,14 @@ type TeamMember struct {
 	Name        string `db:"name" json:"name"`
 	Role        string `db:"role" json:"role"`
 	CreatedAt   string `db:"created_at" json:"createdAt"`
+}
+
+type workspaceInvitation struct {
+	InvitationCode string `db:"invitation_code"`
+	WorkspaceID    string `db:"workspace_id"`
+	Email          string `db:"email"`
+	Role           string `db:"role"`
+	Status         string `db:"status"`
 }
 
 type TeamSettings struct {
@@ -65,9 +74,19 @@ type Session struct {
 	Team *Team `json:"team,omitempty"`
 }
 
+type InvitationForLogin struct {
+	InvitationCode string `json:"invitationCode"`
+	Email          string `json:"email"`
+	TeamName       string `json:"teamName"`
+	Status         string `json:"status"`
+}
+
 const (
 	TeamRoleOwner  = "owner"
 	TeamRoleAdmin  = "admin"
+	TeamRoleEditor = "editor"
+	TeamRoleReader = "reader"
+	// TeamRoleMember is kept for backward compatibility with older data/clients.
 	TeamRoleMember = "member"
 )
 
@@ -182,7 +201,7 @@ func (s *Service) GetSession(ctx context.Context, userID string) (Session, error
 	}, nil
 }
 
-func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamName string, inviteEmails []string) (Session, []TeamInvite, error) {
+func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamName string, displayName string, inviteEmails []string) (Session, []TeamInvite, error) {
 	trimmedTeamName := strings.TrimSpace(teamName)
 	if trimmedTeamName == "" {
 		return Session{}, nil, fmt.Errorf("team name is required")
@@ -210,6 +229,21 @@ LIMIT 1
 	}
 
 	now := nowRFC3339()
+	displayName = strings.TrimSpace(displayName)
+	if displayName != "" && displayName != user.Name {
+		if _, err := tx.ExecContext(ctx, `
+UPDATE users
+SET
+	name = ?,
+	updated_at = ?
+WHERE id = ?
+`, displayName, now, user.ID); err != nil {
+			return Session{}, nil, err
+		}
+		user.Name = displayName
+		user.UpdatedAt = now
+	}
+
 	workspaceID := ""
 	if user.CurrentWorkspace != nil && strings.TrimSpace(*user.CurrentWorkspace) != "" {
 		workspaceID = strings.TrimSpace(*user.CurrentWorkspace)
@@ -245,15 +279,16 @@ ON CONFLICT(workspace_id, user_id) DO UPDATE SET
 	for _, email := range normalizeInviteEmails(inviteEmails, user.Email) {
 		code := uuid.NewString()
 		if _, err := tx.ExecContext(ctx, `
-INSERT INTO workspace_invitations (invitation_code, workspace_id, email, status, created_at, updated_at)
-VALUES (?, ?, ?, 'pending', ?, ?)
-`, code, workspaceID, email, now, now); err != nil {
+INSERT INTO workspace_invitations (invitation_code, workspace_id, email, role, status, created_at, updated_at)
+VALUES (?, ?, ?, ?, 'pending', ?, ?)
+`, code, workspaceID, email, TeamRoleEditor, now, now); err != nil {
 			return Session{}, nil, err
 		}
 		invites = append(invites, TeamInvite{
 			InvitationCode: code,
 			WorkspaceID:    workspaceID,
 			Email:          email,
+			Role:           TeamRoleEditor,
 			Status:         "pending",
 			CreatedAt:      now,
 			UpdatedAt:      now,
@@ -272,6 +307,9 @@ WHERE id = ?
 	}
 
 	if err := ensureDefaultProjectsTx(ctx, tx, user.ID, workspaceID, trimmedTeamName, now); err != nil {
+		return Session{}, nil, err
+	}
+	if err := ensurePersonalBoardProjectTx(ctx, tx, user.ID, workspaceID, user.Name, now); err != nil {
 		return Session{}, nil, err
 	}
 
@@ -314,27 +352,36 @@ func (s *Service) GetTeamSettings(ctx context.Context, actorUserID string, works
 SELECT workspace_id, user_id, email, name, role, created_at
 FROM workspace_users
 WHERE workspace_id = ?
-ORDER BY
-	CASE role
-		WHEN 'owner' THEN 0
-		WHEN 'admin' THEN 1
-		ELSE 2
-	END,
-	LOWER(name) ASC,
-	LOWER(email) ASC
-`, workspaceID); err != nil {
+	ORDER BY
+		CASE role
+			WHEN 'owner' THEN 0
+			WHEN 'admin' THEN 1
+			WHEN 'editor' THEN 2
+			WHEN 'member' THEN 2
+			WHEN 'reader' THEN 3
+			ELSE 4
+		END,
+		LOWER(name) ASC,
+		LOWER(email) ASC
+	`, workspaceID); err != nil {
 		return TeamSettings{}, err
+	}
+	for i := range members {
+		members[i].Role = normalizeTeamRole(members[i].Role)
 	}
 
 	invitations := []TeamInvite{}
 	if err := s.db.SelectContext(ctx, &invitations, `
-SELECT invitation_code, workspace_id, email, status, created_at, updated_at
+SELECT invitation_code, workspace_id, email, role, status, created_at, updated_at
 FROM workspace_invitations
 WHERE workspace_id = ?
 	AND status = 'pending'
 ORDER BY created_at DESC
-`, workspaceID); err != nil {
+	`, workspaceID); err != nil {
 		return TeamSettings{}, err
+	}
+	for i := range invitations {
+		invitations[i].Role = normalizeTeamRole(invitations[i].Role)
 	}
 
 	return TeamSettings{
@@ -399,15 +446,22 @@ WHERE id = ?
 	return s.workspaceByID(ctx, workspaceID)
 }
 
-func (s *Service) InviteMember(ctx context.Context, actorUserID string, workspaceID string, rawEmail string) (TeamInvite, error) {
+func (s *Service) InviteMember(ctx context.Context, actorUserID string, workspaceID string, rawEmail string, rawRole string) (TeamInvite, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
 	workspaceID = strings.TrimSpace(workspaceID)
 	email := strings.ToLower(strings.TrimSpace(rawEmail))
+	inviteRole := normalizeTeamRole(rawRole)
+	if strings.TrimSpace(rawRole) == "" {
+		inviteRole = TeamRoleEditor
+	}
 	if actorUserID == "" || workspaceID == "" {
 		return TeamInvite{}, fmt.Errorf("team context is required")
 	}
 	if email == "" || !strings.Contains(email, "@") {
 		return TeamInvite{}, fmt.Errorf("valid invite email is required")
+	}
+	if !isAssignableInviteRole(inviteRole) {
+		return TeamInvite{}, fmt.Errorf("invite role must be one of admin, editor, reader")
 	}
 
 	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
@@ -436,14 +490,30 @@ WHERE workspace_id = ?
 
 	var existing TeamInvite
 	if err := s.db.GetContext(ctx, &existing, `
-SELECT invitation_code, workspace_id, email, status, created_at, updated_at
+SELECT invitation_code, workspace_id, email, role, status, created_at, updated_at
 FROM workspace_invitations
 WHERE workspace_id = ?
 	AND LOWER(email) = LOWER(?)
 	AND status = 'pending'
 ORDER BY created_at DESC
 LIMIT 1
-`, workspaceID, email); err == nil {
+	`, workspaceID, email); err == nil {
+		existing.Role = normalizeTeamRole(existing.Role)
+		if existing.Role == inviteRole {
+			return existing, nil
+		}
+		now := nowRFC3339()
+		if _, updateErr := s.db.ExecContext(ctx, `
+UPDATE workspace_invitations
+SET
+	role = ?,
+	updated_at = ?
+WHERE invitation_code = ?
+`, inviteRole, now, existing.InvitationCode); updateErr != nil {
+			return TeamInvite{}, updateErr
+		}
+		existing.Role = inviteRole
+		existing.UpdatedAt = now
 		return existing, nil
 	} else if err != sql.ErrNoRows {
 		return TeamInvite{}, err
@@ -454,15 +524,16 @@ LIMIT 1
 		InvitationCode: uuid.NewString(),
 		WorkspaceID:    workspaceID,
 		Email:          email,
+		Role:           inviteRole,
 		Status:         "pending",
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
 
 	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO workspace_invitations (invitation_code, workspace_id, email, status, created_at, updated_at)
-VALUES (?, ?, ?, 'pending', ?, ?)
-`, invite.InvitationCode, invite.WorkspaceID, invite.Email, invite.CreatedAt, invite.UpdatedAt); err != nil {
+INSERT INTO workspace_invitations (invitation_code, workspace_id, email, role, status, created_at, updated_at)
+VALUES (?, ?, ?, ?, 'pending', ?, ?)
+`, invite.InvitationCode, invite.WorkspaceID, invite.Email, invite.Role, invite.CreatedAt, invite.UpdatedAt); err != nil {
 		return TeamInvite{}, err
 	}
 
@@ -482,7 +553,7 @@ func (s *Service) UpdateMemberRole(ctx context.Context, actorUserID string, work
 		return TeamMember{}, fmt.Errorf("target user is required")
 	}
 	if !isSupportedTeamRole(nextRole) {
-		return TeamMember{}, fmt.Errorf("role must be one of owner, admin, member")
+		return TeamMember{}, fmt.Errorf("role must be one of owner, admin, editor, reader")
 	}
 
 	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
@@ -654,6 +725,158 @@ WHERE invitation_code = ?
 	return nil
 }
 
+func (s *Service) InvitationForLogin(ctx context.Context, invitationCode string) (InvitationForLogin, error) {
+	invitationCode = strings.TrimSpace(invitationCode)
+	if invitationCode == "" {
+		return InvitationForLogin{}, fmt.Errorf("invitation code is required")
+	}
+
+	var row struct {
+		InvitationCode string `db:"invitation_code"`
+		Email          string `db:"email"`
+		Status         string `db:"status"`
+		TeamName       string `db:"team_name"`
+	}
+	if err := s.db.GetContext(ctx, &row, `
+SELECT
+	i.invitation_code,
+	i.email,
+	i.status,
+	w.name AS team_name
+FROM workspace_invitations i
+JOIN workspaces w ON w.id = i.workspace_id
+WHERE i.invitation_code = ?
+LIMIT 1
+`, invitationCode); err != nil {
+		if err == sql.ErrNoRows {
+			return InvitationForLogin{}, fmt.Errorf("invitation not found")
+		}
+		return InvitationForLogin{}, err
+	}
+
+	status := strings.ToLower(strings.TrimSpace(row.Status))
+	if status != "pending" && status != "accepted" {
+		return InvitationForLogin{}, fmt.Errorf("invitation is no longer valid")
+	}
+
+	return InvitationForLogin{
+		InvitationCode: strings.TrimSpace(row.InvitationCode),
+		Email:          strings.TrimSpace(row.Email),
+		TeamName:       strings.TrimSpace(row.TeamName),
+		Status:         status,
+	}, nil
+}
+
+func (s *Service) AcceptInvitation(ctx context.Context, userID string, invitationCode string) (Session, error) {
+	userID = strings.TrimSpace(userID)
+	invitationCode = strings.TrimSpace(invitationCode)
+	if userID == "" {
+		return Session{}, fmt.Errorf("user is required")
+	}
+	if invitationCode == "" {
+		return Session{}, fmt.Errorf("invitation code is required")
+	}
+
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return Session{}, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	var user User
+	if err := tx.GetContext(ctx, &user, `
+SELECT id, email, name, show_onboarding, current_workspace_id, created_at, updated_at
+FROM users
+WHERE id = ?
+LIMIT 1
+`, userID); err != nil {
+		if err == sql.ErrNoRows {
+			return Session{}, fmt.Errorf("user not found")
+		}
+		return Session{}, err
+	}
+
+	var inv workspaceInvitation
+	if err := tx.GetContext(ctx, &inv, `
+SELECT invitation_code, workspace_id, email, role, status
+FROM workspace_invitations
+WHERE invitation_code = ?
+LIMIT 1
+`, invitationCode); err != nil {
+		if err == sql.ErrNoRows {
+			return Session{}, fmt.Errorf("invitation not found")
+		}
+		return Session{}, err
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(inv.Email), strings.TrimSpace(user.Email)) {
+		return Session{}, fmt.Errorf("invitation email does not match your account")
+	}
+	status := strings.ToLower(strings.TrimSpace(inv.Status))
+	if status != "pending" && status != "accepted" {
+		return Session{}, fmt.Errorf("invitation is no longer valid")
+	}
+	inviteRole := normalizeTeamRole(inv.Role)
+	if !isAssignableInviteRole(inviteRole) {
+		inviteRole = TeamRoleEditor
+	}
+
+	now := nowRFC3339()
+	if _, err := tx.ExecContext(ctx, `
+	INSERT INTO workspace_users (workspace_id, user_id, email, name, role, created_at)
+	VALUES (?, ?, ?, ?, ?, ?)
+	ON CONFLICT(workspace_id, user_id) DO UPDATE SET
+		email = excluded.email,
+		name = excluded.name
+	`, inv.WorkspaceID, user.ID, user.Email, user.Name, inviteRole, now); err != nil {
+		return Session{}, err
+	}
+
+	if status == "pending" {
+		if _, err := tx.ExecContext(ctx, `
+UPDATE workspace_invitations
+SET
+	status = 'accepted',
+	updated_at = ?
+WHERE invitation_code = ?
+`, now, inv.InvitationCode); err != nil {
+			return Session{}, err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+UPDATE users
+SET
+	show_onboarding = 0,
+	current_workspace_id = ?,
+	updated_at = ?
+WHERE id = ?
+`, inv.WorkspaceID, now, user.ID); err != nil {
+		return Session{}, err
+	}
+
+	workspace, err := workspaceByIDTx(ctx, tx, inv.WorkspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Session{}, fmt.Errorf("team not found")
+		}
+		return Session{}, err
+	}
+	if err := ensureDefaultProjectsTx(ctx, tx, user.ID, inv.WorkspaceID, workspace.Name, now); err != nil {
+		return Session{}, err
+	}
+	if err := ensurePersonalBoardProjectTx(ctx, tx, user.ID, inv.WorkspaceID, user.Name, now); err != nil {
+		return Session{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Session{}, err
+	}
+	return s.GetSession(ctx, user.ID)
+}
+
 func (s *Service) ensureDefaultProjects(ctx context.Context, userID string, workspaceID string, teamName string) error {
 	now := nowRFC3339()
 	boardName := defaultBoardProjectName(teamName)
@@ -701,6 +924,26 @@ ON CONFLICT(id) DO UPDATE SET
 	return nil
 }
 
+func ensurePersonalBoardProjectTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, userName string, now string) error {
+	slug := "board-" + personalBoardSuffix(userID)
+	displayName := strings.TrimSpace(userName)
+	if displayName == "" {
+		displayName = "Personal"
+	}
+	boardName := fmt.Sprintf("%s's board", displayName)
+
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
+VALUES (?, ?, 0, 0, 0, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+	name = excluded.name,
+	updated_at = excluded.updated_at
+`, projectStorageID(workspaceID, slug), boardName, userID, workspaceID, now, now); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Service) userByID(ctx context.Context, id string) (User, error) {
 	var row User
 	err := s.db.GetContext(ctx, &row, `
@@ -723,9 +966,24 @@ LIMIT 1
 	return row, err
 }
 
+func (s *Service) GetWorkspace(ctx context.Context, id string) (Team, error) {
+	return s.workspaceByID(ctx, id)
+}
+
 func (s *Service) workspaceByID(ctx context.Context, id string) (Team, error) {
 	var row Team
 	err := s.db.GetContext(ctx, &row, `
+SELECT id, name, plan, is_archived, created_at, updated_at
+FROM workspaces
+WHERE id = ?
+LIMIT 1
+`, id)
+	return row, err
+}
+
+func workspaceByIDTx(ctx context.Context, tx *sqlx.Tx, id string) (Team, error) {
+	var row Team
+	err := tx.GetContext(ctx, &row, `
 SELECT id, name, plan, is_archived, created_at, updated_at
 FROM workspaces
 WHERE id = ?
@@ -772,14 +1030,20 @@ func normalizeTeamRole(role string) string {
 		return TeamRoleOwner
 	case TeamRoleAdmin:
 		return TeamRoleAdmin
+	case TeamRoleEditor:
+		return TeamRoleEditor
+	case TeamRoleReader:
+		return TeamRoleReader
+	case TeamRoleMember:
+		return TeamRoleEditor
 	default:
-		return TeamRoleMember
+		return TeamRoleReader
 	}
 }
 
 func isSupportedTeamRole(role string) bool {
 	switch strings.ToLower(strings.TrimSpace(role)) {
-	case TeamRoleOwner, TeamRoleAdmin, TeamRoleMember:
+	case TeamRoleOwner, TeamRoleAdmin, TeamRoleEditor, TeamRoleReader, TeamRoleMember:
 		return true
 	default:
 		return false
@@ -789,6 +1053,11 @@ func isSupportedTeamRole(role string) bool {
 func canManageTeam(role string) bool {
 	role = normalizeTeamRole(role)
 	return role == TeamRoleOwner || role == TeamRoleAdmin
+}
+
+func isAssignableInviteRole(role string) bool {
+	role = normalizeTeamRole(role)
+	return role == TeamRoleAdmin || role == TeamRoleEditor || role == TeamRoleReader
 }
 
 func defaultBoardProjectName(teamName string) string {
@@ -831,6 +1100,20 @@ func normalizeInviteEmails(raw []string, ownerEmail string) []string {
 		result = append(result, email)
 	}
 	return result
+}
+
+func personalBoardSuffix(userID string) string {
+	clean := strings.ToLower(strings.TrimSpace(userID))
+	clean = strings.TrimPrefix(clean, "u_")
+	clean = strings.NewReplacer("_", "-", " ", "-", ".", "-").Replace(clean)
+	clean = strings.Trim(clean, "-")
+	if clean == "" {
+		return "member"
+	}
+	if len(clean) > 16 {
+		return clean[:16]
+	}
+	return clean
 }
 
 func projectStorageID(workspaceID, slug string) string {

@@ -1,21 +1,57 @@
-import { useNavigate } from "@solidjs/router";
-import { createSignal, onMount } from "solid-js";
+import { useLocation, useNavigate } from "@solidjs/router";
+import { createMemo, createSignal, onMount } from "solid-js";
 
-import { authApi } from "../server/api";
+import { authApi, teamApi } from "../server/api";
 
 export default function LoginRoute() {
+  const location = useLocation();
   const navigate = useNavigate();
   const [email, setEmail] = createSignal("");
-  const [name, setName] = createSignal("");
   const [code, setCode] = createSignal("");
   const [challengeId, setChallengeId] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
+  const [resolvingInvite, setResolvingInvite] = createSignal(false);
+  const [inviteEmailLocked, setInviteEmailLocked] = createSignal(false);
+  const [inviteTeamName, setInviteTeamName] = createSignal("");
   const [error, setError] = createSignal("");
+  const inviteCode = createMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return (params.get("invite") || "").trim();
+  });
 
   onMount(async () => {
+    const code = inviteCode();
+    if (code) {
+      setResolvingInvite(true);
+      try {
+        const { invitation } = await authApi.invitation(code);
+        setEmail(invitation.email);
+        setInviteEmailLocked(true);
+        setInviteTeamName(invitation.teamName || "");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load invitation");
+      } finally {
+        setResolvingInvite(false);
+      }
+    }
+
     try {
-      const { session } = await authApi.me();
-      if (session.user.showOnboarding) {
+      const { session: currentSession } = await authApi.me();
+      if (code) {
+        try {
+          const accepted = await teamApi.acceptInvitation(code);
+          if (accepted.session.user.showOnboarding) {
+            navigate("/onboarding", { replace: true });
+            return;
+          }
+          navigate("/task/inbox", { replace: true });
+          return;
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to accept invitation");
+          return;
+        }
+      }
+      if (currentSession.user.showOnboarding) {
         navigate("/onboarding", { replace: true });
         return;
       }
@@ -32,7 +68,6 @@ export default function LoginRoute() {
     try {
       const res = await authApi.requestLoginCode({
         email: email().trim(),
-        name: name().trim() || undefined,
       });
       setChallengeId(res.challengeId);
     } catch (err) {
@@ -53,6 +88,7 @@ export default function LoginRoute() {
       const { session } = await authApi.verifyLoginCode({
         challengeId: id,
         code: code().trim(),
+        invitationCode: inviteCode() || undefined,
       });
       if (session.user.showOnboarding) {
         navigate("/onboarding", { replace: true });
@@ -75,28 +111,35 @@ export default function LoginRoute() {
           <form onSubmit={(event) => void submitRequest(event)}>
             <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">Sign in</h1>
             <p class="mt-1 text-sm text-[#9fb0cc]">Log in with your email to start onboarding your team.</p>
+            {inviteCode() ? (
+              <p class="mt-2 text-xs text-[#8ea3c7]">
+                {resolvingInvite()
+                  ? "Loading invitation..."
+                  : `You were invited${inviteTeamName() ? ` to ${inviteTeamName()}` : " to a team"}. Complete login to accept it.`}
+              </p>
+            ) : null}
 
             <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Email</label>
             <input
               type="email"
               required
               value={email()}
-              onInput={(event) => setEmail(event.currentTarget.value)}
+              readOnly={inviteEmailLocked()}
+              onInput={(event) => {
+                if (!inviteEmailLocked()) {
+                  setEmail(event.currentTarget.value);
+                }
+              }}
               class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
               placeholder="you@company.com"
             />
-
-            <label class="mt-4 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Name (optional)</label>
-            <input
-              value={name()}
-              onInput={(event) => setName(event.currentTarget.value)}
-              class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-              placeholder="Your name"
-            />
+            {inviteEmailLocked() ? (
+              <p class="mt-2 text-xs text-[#8ea3c7]">Email is locked to your invitation address.</p>
+            ) : null}
 
             <button
               type="submit"
-              disabled={saving()}
+              disabled={saving() || resolvingInvite() || !email().trim()}
               class="mt-5 w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#161616] transition hover:bg-[var(--accent-soft)] disabled:opacity-60"
             >
               {saving() ? "Sending code..." : "Continue"}
@@ -127,13 +170,15 @@ export default function LoginRoute() {
               {saving() ? "Verifying..." : "Verify"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setChallengeId(null)}
-              class="mt-3 w-full text-xs text-[#8ea3c7] hover:text-[#edf3ff] transition"
-            >
-              Use a different email
-            </button>
+            {!inviteEmailLocked() ? (
+              <button
+                type="button"
+                onClick={() => setChallengeId(null)}
+                class="mt-3 w-full text-xs text-[#8ea3c7] hover:text-[#edf3ff] transition"
+              >
+                Use a different email
+              </button>
+            ) : null}
           </form>
         )}
 
@@ -142,4 +187,3 @@ export default function LoginRoute() {
     </main>
   );
 }
-

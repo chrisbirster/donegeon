@@ -240,6 +240,30 @@ function parseLabelsInput(value: string): string[] {
   return labels;
 }
 
+/** Convert stored date value (ISO-8601 / YYYY-MM-DD) to the format required by <input type="datetime-local">. */
+function toDatetimeLocalValue(value: string | undefined): string {
+  if (!value) return "";
+  const raw = value.trim();
+  if (!raw) return "";
+
+  // YYYY-MM-DD -> default to midnight
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}T00:00`;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+/** Convert a datetime-local value (YYYY-MM-DDTHH:mm) back to a storable ISO string. */
+function fromDatetimeLocalValue(value: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toISOString();
+}
+
 function slugifyProjectID(value: string): string {
   const normalized = value
     .trim()
@@ -531,6 +555,7 @@ export default function HomeRoute() {
   const [detailActivationLoading, setDetailActivationLoading] = createSignal(false);
   const [detailActivationError, setDetailActivationError] = createSignal("");
   const [detailActivating, setDetailActivating] = createSignal(false);
+  const [detailNewProjectName, setDetailNewProjectName] = createSignal<string | null>(null);
 
   let mainInputRef: HTMLInputElement | undefined;
   let parseTimer: number | undefined;
@@ -1035,6 +1060,7 @@ export default function HomeRoute() {
     setDetailActivationError("");
     setDetailActivationLoading(false);
     setDetailActivating(false);
+    setDetailNewProjectName(null);
     setIsDetailOpen(true);
     if (isBoardProject(item.projectId)) {
       void loadDetailActivationPreview(item.id, item.projectId);
@@ -1855,24 +1881,77 @@ export default function HomeRoute() {
               <div class="overflow-y-auto border-t border-[#27344d] p-6 md:border-l md:border-t-0">
                 <div class="space-y-4">
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Project</label>
-                  <input
-                    value={detailProjectId()}
-                    onInput={(event) => setDetailProjectId(event.currentTarget.value)}
-                    list="project-options"
-                    placeholder="project name or id"
-                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-                    data-testid="task-detail-project"
-                  />
-                  <datalist id="project-options">
-                    <For each={sidebarProjects()}>
-                      {(project) => (
-                        <option value={project.id}>{project.name}</option>
-                      )}
-                    </For>
-                  </datalist>
-                  <p class="text-xs text-[var(--text-dim)]">
-                    Enter an existing project id/name, or a new name to create it on save.
-                  </p>
+                  <Show
+                    when={detailNewProjectName() === null}
+                    fallback={
+                      <div class="flex items-center gap-2">
+                        <input
+                          value={detailNewProjectName() ?? ""}
+                          onInput={(event) => setDetailNewProjectName(event.currentTarget.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              const name = (detailNewProjectName() ?? "").trim();
+                              if (name) {
+                                setDetailProjectId(name);
+                              }
+                              setDetailNewProjectName(null);
+                            } else if (event.key === "Escape") {
+                              setDetailNewProjectName(null);
+                            }
+                          }}
+                          placeholder="New project name"
+                          autofocus
+                          class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                          data-testid="task-detail-new-project"
+                        />
+                        <button
+                          type="button"
+                          class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                          onClick={() => {
+                            const name = (detailNewProjectName() ?? "").trim();
+                            if (name) {
+                              setDetailProjectId(name);
+                            }
+                            setDetailNewProjectName(null);
+                          }}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          type="button"
+                          class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                          onClick={() => setDetailNewProjectName(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    }
+                  >
+                    <select
+                      value={detailProjectId()}
+                      onInput={(event) => {
+                        const value = event.currentTarget.value;
+                        if (value === "__create_new__") {
+                          setDetailNewProjectName("");
+                          // Reset select to current value so it doesn't stay on the sentinel option.
+                          event.currentTarget.value = detailProjectId();
+                          return;
+                        }
+                        setDetailProjectId(value);
+                      }}
+                      class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                      data-testid="task-detail-project"
+                    >
+                      <For each={sidebarProjects()}>
+                        {(project) => (
+                          <option value={project.name} selected={detailProjectId() === project.name || detailProjectId() === project.id}>
+                            {project.name}{project.isInboxProject ? " (inbox)" : ""}
+                          </option>
+                        )}
+                      </For>
+                      <option value="__create_new__">+ Create new project…</option>
+                    </select>
+                  </Show>
                   <Show when={isTeamBoardProject(detailTask()?.projectId)}>
                     <p class="inline-flex rounded-md border border-[#4d62a9] bg-[#202955] px-2 py-0.5 text-[11px] text-[#d5dcff]">
                       Team board project
@@ -1905,33 +1984,57 @@ export default function HomeRoute() {
                   </select>
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Due</label>
-                  <input
-                    value={detailDueText()}
-                    onInput={(event) => setDetailDueText(event.currentTarget.value)}
-                    placeholder="tomorrow"
-                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-                    data-testid="task-detail-due"
-                  />
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="datetime-local"
+                      value={toDatetimeLocalValue(detailDueText())}
+                      onInput={(event) => setDetailDueText(fromDatetimeLocalValue(event.currentTarget.value))}
+                      class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)] [color-scheme:dark]"
+                      data-testid="task-detail-due"
+                    />
+                    <Show when={detailDueText()}>
+                      <button
+                        type="button"
+                        class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                        onClick={() => setDetailDueText("")}
+                        title="Clear due date"
+                      >
+                        ✕
+                      </button>
+                    </Show>
+                  </div>
                   <Show when={detailDueInputToken()}>
                     <p class="text-xs text-[#8fa6cb]">Original token: {detailDueInputToken()}</p>
                   </Show>
                   <Show when={detailDueStoredValue()}>
-                    <p class="text-xs text-[#9cb2d6]">Stored value: {detailDueStoredValue()}</p>
+                    <p class="text-xs text-[#9cb2d6]">Stored: {detailDueStoredValue()}</p>
                   </Show>
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Deadline</label>
-                  <input
-                    value={detailDeadline()}
-                    onInput={(event) => setDetailDeadline(event.currentTarget.value)}
-                    placeholder="in 2 days"
-                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-                    data-testid="task-detail-deadline"
-                  />
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="datetime-local"
+                      value={toDatetimeLocalValue(detailDeadline())}
+                      onInput={(event) => setDetailDeadline(fromDatetimeLocalValue(event.currentTarget.value))}
+                      class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)] [color-scheme:dark]"
+                      data-testid="task-detail-deadline"
+                    />
+                    <Show when={detailDeadline()}>
+                      <button
+                        type="button"
+                        class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                        onClick={() => setDetailDeadline("")}
+                        title="Clear deadline"
+                      >
+                        ✕
+                      </button>
+                    </Show>
+                  </div>
                   <Show when={detailDeadlineInputToken()}>
                     <p class="text-xs text-[#8fa6cb]">Original token: {detailDeadlineInputToken()}</p>
                   </Show>
                   <Show when={detailDeadlineStoredValue()}>
-                    <p class="text-xs text-[#9cb2d6]">Stored value: {detailDeadlineStoredValue()}</p>
+                    <p class="text-xs text-[#9cb2d6]">Stored: {detailDeadlineStoredValue()}</p>
                   </Show>
                   <Show when={detailScheduleWarning()}>
                     <p class="rounded-md border border-[#5f4a2a] bg-[#2b2112] px-2.5 py-1.5 text-xs text-[#f7d9a1]">

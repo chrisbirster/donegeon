@@ -13,7 +13,9 @@ function parseInviteEmails(raw: string): string[] {
 function formatRoleLabel(role: string): string {
   if (role === "owner") return "Owner";
   if (role === "admin") return "Admin";
-  return "Member";
+  if (role === "editor" || role === "member") return "Editor";
+  if (role === "reader") return "Reader";
+  return "Unknown";
 }
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -34,6 +36,11 @@ function roleBadgeClass(role: string): string {
       return "border-[#4a6bc7] bg-[#1e2b57] text-[#d8e1ff]";
     case "admin":
       return "border-[#4f7287] bg-[#173245] text-[#c9ecff]";
+    case "editor":
+    case "member":
+      return "border-[#53724e] bg-[#1c3720] text-[#d7f2d2]";
+    case "reader":
+      return "border-[#5a5572] bg-[#272145] text-[#e2dcff]";
     default:
       return "border-[#3b4f73] bg-[#152238] text-[#cfe0ff]";
   }
@@ -48,6 +55,7 @@ export default function TeamSettingsRoute() {
   const [saveTeamLoading, setSaveTeamLoading] = createSignal(false);
 
   const [inviteInput, setInviteInput] = createSignal("");
+  const [inviteRole, setInviteRole] = createSignal<"admin" | "editor" | "reader">("editor");
   const [inviteLoading, setInviteLoading] = createSignal(false);
 
   const [roleSavingByUserID, setRoleSavingByUserID] = createSignal<Record<string, boolean>>({});
@@ -131,10 +139,14 @@ export default function TeamSettingsRoute() {
     try {
       for (const email of emails) {
         // Keep sequential so API validation messages are deterministic per address.
-        await teamApi.invite(email);
+        await teamApi.invite(email, inviteRole());
       }
       setInviteInput("");
-      setActionNotice(emails.length === 1 ? "Invitation sent." : `${emails.length} invitations sent.`);
+      setActionNotice(
+        emails.length === 1
+          ? `Invitation sent as ${formatRoleLabel(inviteRole())}.`
+          : `${emails.length} invitations sent as ${formatRoleLabel(inviteRole())}.`,
+      );
       await loadSettings();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to send invitation");
@@ -143,7 +155,7 @@ export default function TeamSettingsRoute() {
     }
   }
 
-  async function changeRole(member: TeamMember, role: "admin" | "member") {
+  async function changeRole(member: TeamMember, role: "admin" | "editor" | "reader") {
     if (!canManageRoles()) return;
 
     setRoleSavingByUserID((current) => ({
@@ -341,12 +353,17 @@ export default function TeamSettingsRoute() {
                                   class="rounded-md border border-[#395072] bg-[#0d182b] px-2 py-1 text-xs text-[#e0ebff] outline-none focus:border-[var(--accent)] disabled:opacity-60"
                                   disabled={!!roleSavingByUserID()[member.userId]}
                                   onChange={(event) => {
-                                    const role = event.currentTarget.value === "admin" ? "admin" : "member";
+                                    const nextRole = event.currentTarget.value;
+                                    const role =
+                                      nextRole === "admin" || nextRole === "editor" || nextRole === "reader"
+                                        ? nextRole
+                                        : "editor";
                                     void changeRole(member, role);
                                   }}
                                 >
                                   <option value="admin">Admin</option>
-                                  <option value="member">Member</option>
+                                  <option value="editor">Editor</option>
+                                  <option value="reader">Reader</option>
                                 </select>
                               </Show>
 
@@ -383,6 +400,22 @@ export default function TeamSettingsRoute() {
 
                 <form class="mt-3" onSubmit={(event) => void inviteMembers(event)}>
                   <label class="text-xs uppercase tracking-[0.12em] text-[#93a3bf]">
+                    Invite role
+                    <select
+                      value={inviteRole()}
+                      onChange={(event) => {
+                        const nextRole = event.currentTarget.value;
+                        setInviteRole(nextRole === "admin" || nextRole === "reader" ? nextRole : "editor");
+                      }}
+                      class="mt-2 w-full rounded-lg border border-[#3a4d6f] bg-[#0c1524] px-3 py-2 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
+                      disabled={!canManage() || inviteLoading()}
+                    >
+                      <option value="editor">Editor</option>
+                      <option value="reader">Reader</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </label>
+                  <label class="text-xs uppercase tracking-[0.12em] text-[#93a3bf]">
                     Invite by email
                     <textarea
                       rows={3}
@@ -417,6 +450,9 @@ export default function TeamSettingsRoute() {
                           </div>
 
                           <div class="flex flex-wrap items-center gap-2">
+                            <span class={`rounded-md border px-2 py-0.5 text-[11px] ${roleBadgeClass(invitation.role)}`}>
+                              {formatRoleLabel(invitation.role)}
+                            </span>
                             <span class="rounded-md border border-[#3a4f74] bg-[#16243b] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
                               {invitation.status}
                             </span>

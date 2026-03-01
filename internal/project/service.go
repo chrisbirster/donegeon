@@ -61,3 +61,32 @@ func (s *Service) Upsert(ctx context.Context, id string, in UpsertInput) (Projec
 	}
 	return updated, nil
 }
+
+func (s *Service) Delete(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project id is required"), "projectId")
+	}
+
+	workspaceID := sessionctx.WorkspaceID(ctx)
+	canonicalID := id
+	if workspaceID != sessionctx.DefaultWorkspaceID || strings.Contains(id, "::") {
+		canonicalID = tenant.CanonicalProjectID(workspaceID, id)
+	}
+
+	slug := tenant.ProjectSlug(canonicalID)
+	if tenant.IsInboxProject(slug) {
+		return apperrors.WithField(
+			apperrors.New(apperrors.CodeValidationError, "inbox project cannot be deleted"),
+			"projectId",
+		)
+	}
+	if strings.EqualFold(slug, "board") {
+		return apperrors.WithField(
+			apperrors.New(apperrors.CodeValidationError, "default board cannot be deleted"),
+			"projectId",
+		)
+	}
+
+	return s.repo.Delete(ctx, canonicalID)
+}

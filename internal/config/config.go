@@ -33,9 +33,11 @@ type Config struct {
 	AuthMaxCodeAttempts int
 	AuthCodePepper      string
 	AuthDebugCode       bool
+	AppBaseURL          string
 	EmailSendURL        string
 	EmailSendAuthHeader string
 	EmailSendAuthValue  string
+	CorsAllowedOrigins  []string
 }
 
 func Load() (Config, error) {
@@ -69,9 +71,11 @@ func Load() (Config, error) {
 		AuthMaxCodeAttempts: envIntOr("DONEGEON_AUTH_MAX_CODE_ATTEMPTS", 5),
 		AuthCodePepper:      envOr("DONEGEON_AUTH_CODE_PEPPER", ""),
 		AuthDebugCode:       false,
+		AppBaseURL:          strings.TrimRight(envOr("DONEGEON_APP_BASE_URL", "https://app.donegeon.com"), "/"),
 		EmailSendURL:        envOr("DONEGEON_EMAIL_SEND_URL", ""),
 		EmailSendAuthHeader: envOr("DONEGEON_EMAIL_SEND_AUTH_HEADER", "Authorization"),
 		EmailSendAuthValue:  envOr("DONEGEON_EMAIL_SEND_AUTH_VALUE", ""),
+		CorsAllowedOrigins:  parseCorsOrigins(envOr("DONEGEON_CORS_ALLOWED_ORIGINS", "")),
 	}
 
 	requireAuth, err := envBoolOr("DONEGEON_REQUIRE_AUTH", true)
@@ -140,6 +144,9 @@ func Load() (Config, error) {
 	}
 	if cfg.EmailSendURL != "" && strings.TrimSpace(cfg.EmailSendAuthHeader) == "" {
 		return Config{}, fmt.Errorf("DONEGEON_EMAIL_SEND_AUTH_HEADER is required when DONEGEON_EMAIL_SEND_URL is set")
+	}
+	if strings.TrimSpace(cfg.AppBaseURL) == "" {
+		return Config{}, fmt.Errorf("DONEGEON_APP_BASE_URL is required")
 	}
 
 	return cfg, nil
@@ -224,4 +231,20 @@ func envIntOr(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func parseCorsOrigins(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	var origins []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			origins = append(origins, p)
+		}
+	}
+	return origins
 }

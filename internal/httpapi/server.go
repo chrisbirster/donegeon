@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -90,12 +91,14 @@ func New(
 	mux.HandleFunc("POST /api/auth/login", api.handleAuthLoginRequest)
 	mux.HandleFunc("POST /api/auth/login/request", api.handleAuthLoginRequest)
 	mux.HandleFunc("POST /api/auth/login/verify", api.handleAuthLoginVerify)
+	mux.HandleFunc("GET /api/auth/invitation", api.handleAuthInvitation)
 	mux.HandleFunc("GET /api/auth/me", api.handleAuthMe)
 	mux.HandleFunc("POST /api/auth/onboarding", api.handleAuthOnboarding)
 	mux.HandleFunc("POST /api/auth/logout", api.handleAuthLogout)
 	mux.HandleFunc("GET /api/team/settings", api.handleTeamSettings)
 	mux.HandleFunc("PATCH /api/team/settings", api.handlePatchTeamSettings)
 	mux.HandleFunc("POST /api/team/invitations", api.handleCreateTeamInvitation)
+	mux.HandleFunc("POST /api/team/invitations/accept", api.handleAcceptTeamInvitation)
 	mux.HandleFunc("DELETE /api/team/invitations/{code}", api.handleDeleteTeamInvitation)
 	mux.HandleFunc("PATCH /api/team/members/{userId}", api.handlePatchTeamMember)
 	mux.HandleFunc("DELETE /api/team/members/{userId}", api.handleDeleteTeamMember)
@@ -105,9 +108,11 @@ func New(
 	mux.HandleFunc("POST /api/todoist/action", api.handleTodoistAction)
 	mux.HandleFunc("GET /api/tasks", api.handleListTasks)
 	mux.HandleFunc("GET /api/projects", api.handleListProjects)
+	mux.HandleFunc("POST /api/projects", api.handleCreateProject)
 	mux.HandleFunc("GET /api/board/state", api.handleGetBoardState)
 	mux.HandleFunc("POST /api/board/cmd", api.handleBoardCommand)
 	mux.HandleFunc("PATCH /api/projects/{id}", api.handlePatchProject)
+	mux.HandleFunc("DELETE /api/projects/{id}", api.handleDeleteProject)
 	mux.HandleFunc("POST /api/tasks", api.handleCreateTask)
 	mux.HandleFunc("GET /api/tasks/{id}", api.handleGetTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}", api.handlePatchTask)
@@ -127,6 +132,7 @@ func New(
 		api.requestIDMiddleware,
 		api.recoverMiddleware,
 		api.loggingMiddleware,
+		api.corsMiddleware,
 		api.rateLimitMiddleware,
 		api.authMiddleware,
 	)(mux)
@@ -198,8 +204,9 @@ func (a *API) handleAuthLoginVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		ChallengeID string `json:"challengeId"`
-		Code        string `json:"code"`
+		ChallengeID    string `json:"challengeId"`
+		Code           string `json:"code"`
+		InvitationCode string `json:"invitationCode"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
@@ -220,6 +227,15 @@ func (a *API) handleAuthLoginVerify(w http.ResponseWriter, r *http.Request) {
 		}
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), field))
 		return
+	}
+
+	if inviteCode := strings.TrimSpace(req.InvitationCode); inviteCode != "" {
+		nextSession, acceptErr := a.accounts.AcceptInvitation(r.Context(), session.User.ID, inviteCode)
+		if acceptErr != nil {
+			writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, acceptErr.Error()), "invitationCode"))
+			return
+		}
+		session = nextSession
 	}
 
 	principal := sessionctx.Principal{
@@ -252,6 +268,27 @@ func (a *API) handleAuthLoginVerify(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"session": session})
 }
 
+func (a *API) handleAuthInvitation(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	invitationCode := strings.TrimSpace(r.URL.Query().Get("code"))
+	if invitationCode == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invitation code is required"), "invitationCode"))
+		return
+	}
+
+	invitation, err := a.accounts.InvitationForLogin(r.Context(), invitationCode)
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "invitationCode"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"invitation": invitation})
+}
+
 func (a *API) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	if a.accounts == nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
@@ -275,6 +312,7 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		TeamName string   `json:"teamName"`
+		Name     string   `json:"name"`
 		Emails   []string `json:"emails"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
@@ -287,6 +325,7 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		principal.UserID,
 		strings.TrimSpace(req.TeamName),
+		strings.TrimSpace(req.Name),
 		req.Emails,
 	)
 	if err != nil {
@@ -306,6 +345,13 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 			a.logError(r, "update_auth_session_failed", err)
 			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to update auth session"))
 			return
+		}
+	}
+
+	trimmedTeamName := strings.TrimSpace(req.TeamName)
+	for _, inv := range invites {
+		if err := a.sendInviteEmail(r.Context(), inv.Email, trimmedTeamName, inv.InvitationCode); err != nil {
+			a.logError(r, "send_invite_email_failed", err)
 		}
 	}
 
@@ -383,6 +429,7 @@ func (a *API) handleCreateTeamInvitation(w http.ResponseWriter, r *http.Request)
 
 	var req struct {
 		Email string `json:"email"`
+		Role  string `json:"role"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
@@ -390,13 +437,72 @@ func (a *API) handleCreateTeamInvitation(w http.ResponseWriter, r *http.Request)
 	}
 
 	principal := sessionctx.PrincipalFromContext(r.Context())
-	invite, err := a.accounts.InviteMember(r.Context(), principal.UserID, principal.WorkspaceID, strings.TrimSpace(req.Email))
+	invite, err := a.accounts.InviteMember(
+		r.Context(),
+		principal.UserID,
+		principal.WorkspaceID,
+		strings.TrimSpace(req.Email),
+		strings.TrimSpace(req.Role),
+	)
 	if err != nil {
-		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "email"))
+		field := "email"
+		if strings.Contains(strings.ToLower(err.Error()), "role") {
+			field = "role"
+		}
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), field))
 		return
 	}
 
+	teamName := "your team"
+	if ws, wsErr := a.accounts.GetWorkspace(r.Context(), principal.WorkspaceID); wsErr == nil && strings.TrimSpace(ws.Name) != "" {
+		teamName = strings.TrimSpace(ws.Name)
+	}
+	if err := a.sendInviteEmail(r.Context(), invite.Email, teamName, invite.InvitationCode); err != nil {
+		a.logError(r, "send_invite_email_failed", err)
+	}
+
 	writeJSON(w, http.StatusCreated, map[string]any{"invitation": invite})
+}
+
+func (a *API) handleAcceptTeamInvitation(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		InvitationCode string `json:"invitationCode"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	session, err := a.accounts.AcceptInvitation(r.Context(), principal.UserID, strings.TrimSpace(req.InvitationCode))
+	if err != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "invitationCode"))
+		return
+	}
+
+	if sessionID, ok := a.readSessionID(r); ok {
+		nextPrincipal := sessionctx.Principal{
+			UserID: session.User.ID,
+			Email:  session.User.Email,
+		}
+		if session.User.CurrentWorkspace != nil {
+			nextPrincipal.WorkspaceID = strings.TrimSpace(*session.User.CurrentWorkspace)
+		}
+		if err := a.accounts.UpdateAuthSessionPrincipal(r.Context(), sessionID, nextPrincipal); err != nil {
+			a.logError(r, "update_auth_session_after_accept_failed", err)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"session": session})
 }
 
 func (a *API) handleDeleteTeamInvitation(w http.ResponseWriter, r *http.Request) {
@@ -627,6 +733,56 @@ func (a *API) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *API) handleCreateProject(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	var req struct {
+		ID         *string `json:"id"`
+		Name       *string `json:"name"`
+		IsFavorite *bool   `json:"isFavorite"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	name := ""
+	if req.Name != nil {
+		name = strings.TrimSpace(*req.Name)
+	}
+	if name == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project name is required"), "name"))
+		return
+	}
+
+	projectID := ""
+	if req.ID != nil {
+		projectID = strings.TrimSpace(*req.ID)
+	}
+	if projectID == "" {
+		projectID = projectIDFromName(name)
+	}
+	if projectID == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project id is required"), "projectId"))
+		return
+	}
+
+	created, err := a.projects.Upsert(r.Context(), projectID, project.UpsertInput{
+		Name:       cleanPtr(&name),
+		IsFavorite: req.IsFavorite,
+	})
+	if err != nil {
+		a.logError(r, "create_project_failed", err)
+		writeAPIError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, created)
+}
+
 func (a *API) handleGetBoardState(w http.ResponseWriter, r *http.Request) {
 	if a.boards == nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "board service unavailable"))
@@ -711,6 +867,27 @@ func (a *API) handlePatchProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *API) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project id is required"), "projectId"))
+		return
+	}
+
+	if err := a.projects.Delete(r.Context(), id); err != nil {
+		a.logError(r, "delete_project_failed", err)
+		writeAPIError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) handleGetTask(w http.ResponseWriter, r *http.Request) {
@@ -905,14 +1082,24 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 		if r.URL.Path == "/api/auth/login" ||
 			r.URL.Path == "/api/auth/login/request" ||
 			r.URL.Path == "/api/auth/login/verify" ||
+			r.URL.Path == "/api/auth/invitation" ||
 			r.URL.Path == "/api/auth/logout" {
-			ctx := context.WithValue(r.Context(), ctxKeyScope, ScopeWrite)
+			scope := ScopeWrite
+			if !isWriteRequest(r.Method) {
+				scope = ScopeRead
+			}
+			ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
 			ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 
-		if principal, ok := a.readSessionPrincipal(r); ok {
+		if principal, ok, extended := a.readSessionPrincipal(r); ok {
+			if extended {
+				if sessionID, sidOk := a.readSessionID(r); sidOk {
+					_ = a.writeSessionCookie(w, sessionID)
+				}
+			}
 			scope := ScopeRead
 			if isWriteRequest(r.Method) {
 				scope = ScopeWrite
@@ -966,22 +1153,19 @@ func isWriteRequest(method string) bool {
 	}
 }
 
-func (a *API) readSessionPrincipal(r *http.Request) (sessionctx.Principal, bool) {
+func (a *API) readSessionPrincipal(r *http.Request) (sessionctx.Principal, bool, bool) {
 	if a.accounts == nil {
-		return sessionctx.Principal{}, false
+		return sessionctx.Principal{}, false, false
 	}
 	sessionID, ok := a.readSessionID(r)
 	if !ok {
-		return sessionctx.Principal{}, false
+		return sessionctx.Principal{}, false, false
 	}
-	principal, authenticated, err := a.accounts.AuthSessionPrincipal(r.Context(), sessionID)
-	if err != nil {
-		return sessionctx.Principal{}, false
+	result, err := a.accounts.AuthSessionPrincipal(r.Context(), sessionID, a.cfg.AuthSessionTTL)
+	if err != nil || !result.Authenticated {
+		return sessionctx.Principal{}, false, false
 	}
-	if !authenticated {
-		return sessionctx.Principal{}, false
-	}
-	return principal, true
+	return result.Principal, true, result.Extended
 }
 
 func (a *API) readSessionID(r *http.Request) (string, bool) {
@@ -1122,6 +1306,95 @@ func (a *API) sendLoginCodeEmail(ctx context.Context, to string, code string, ex
 		message = "unknown email send error"
 	}
 	return fmt.Errorf("email sender returned %d: %s", resp.StatusCode, message)
+}
+
+func (a *API) sendInviteEmail(ctx context.Context, to string, teamName string, invitationCode string) error {
+	sendURL := strings.TrimSpace(a.cfg.EmailSendURL)
+	if sendURL == "" {
+		return fmt.Errorf("email sender is not configured")
+	}
+	loginURL := strings.TrimSpace(a.cfg.AppBaseURL) + "/login"
+	if code := strings.TrimSpace(invitationCode); code != "" {
+		loginURL = loginURL + "?invite=" + url.QueryEscape(code)
+	}
+
+	subject := fmt.Sprintf("You've been invited to join %s on Donegeon", teamName)
+	body := fmt.Sprintf(
+		"Hi!\n\n"+
+			"%s has invited you to collaborate on Donegeon.\n\n"+
+			"Sign in or create your account to get started:\n"+
+			"%s\n\n"+
+			"Once you're logged in, the invitation will be waiting for you.\n\n"+
+			"– Donegeon",
+		teamName,
+		loginURL,
+	)
+
+	payload := map[string]string{
+		"to":      strings.TrimSpace(to),
+		"subject": subject,
+		"text":    body,
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sendURL, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	authHeader := strings.TrimSpace(a.cfg.EmailSendAuthHeader)
+	authValue := strings.TrimSpace(a.cfg.EmailSendAuthValue)
+	if authHeader != "" && authValue != "" {
+		req.Header.Set(authHeader, authValue)
+	}
+
+	client := &http.Client{
+		Timeout: a.cfg.RequestTimeout,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	message := strings.TrimSpace(string(respBody))
+	if message == "" {
+		message = "unknown email send error"
+	}
+	return fmt.Errorf("email sender returned %d: %s", resp.StatusCode, message)
+}
+
+func (a *API) corsMiddleware(next http.Handler) http.Handler {
+	allowedSet := make(map[string]bool, len(a.cfg.CorsAllowedOrigins))
+	for _, o := range a.cfg.CorsAllowedOrigins {
+		allowedSet[strings.TrimSpace(o)] = true
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin != "" && allowedSet[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Vary", "Origin")
+
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id")
+				w.Header().Set("Access-Control-Max-Age", "86400")
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (a *API) rateLimitMiddleware(next http.Handler) http.Handler {
@@ -1316,6 +1589,33 @@ func cleanStringSlice(values []string) []string {
 		cleaned = append(cleaned, trimmed)
 	}
 	return cleaned
+}
+
+func projectIDFromName(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	lastDash := false
+	for _, ch := range name {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+			b.WriteRune(ch)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+
+	slug := strings.Trim(b.String(), "-")
+	if slug == "" {
+		return ""
+	}
+	return slug
 }
 
 func parseIntOrDefault(raw string, fallback int) int {

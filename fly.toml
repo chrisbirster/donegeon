@@ -13,8 +13,10 @@ primary_region = "iad"
   DONEGEON_DB_BACKEND = "turso"
   DONEGEON_COOKIE_SECURE = "true"
   DONEGEON_COOKIE_SAMESITE = "lax"
+  DONEGEON_APP_BASE_URL = "https://app.donegeon.com"
   DONEGEON_OTP_MAIL_PROVIDER = "sst"
   DONEGEON_EMAIL_SEND_AUTH_HEADER = "Authorization"
+  DONEGEON_CORS_ALLOWED_ORIGINS = "https://donegeon.com"
 
 [http_service]
   internal_port = 42069

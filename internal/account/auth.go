@@ -270,10 +270,16 @@ VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
 	return record, nil
 }
 
-func (s *Service) AuthSessionPrincipal(ctx context.Context, sessionID string) (sessionctx.Principal, bool, error) {
+type AuthSessionResult struct {
+	Principal     sessionctx.Principal
+	Authenticated bool
+	Extended      bool // true when expires_at was pushed forward (sliding window)
+}
+
+func (s *Service) AuthSessionPrincipal(ctx context.Context, sessionID string, sessionTTL time.Duration) (AuthSessionResult, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		return sessionctx.Principal{}, false, nil
+		return AuthSessionResult{}, nil
 	}
 
 	var row authSessionRow
@@ -284,31 +290,49 @@ WHERE id = ?
 LIMIT 1
 `, sessionID); err != nil {
 		if err == sql.ErrNoRows {
-			return sessionctx.Principal{}, false, nil
+			return AuthSessionResult{}, nil
 		}
-		return sessionctx.Principal{}, false, err
+		return AuthSessionResult{}, err
 	}
 
 	if row.RevokedAt.Valid {
-		return sessionctx.Principal{}, false, nil
+		return AuthSessionResult{}, nil
 	}
 	expiresAt, err := time.Parse(time.RFC3339, strings.TrimSpace(row.ExpiresAt))
 	if err != nil {
-		return sessionctx.Principal{}, false, nil
+		return AuthSessionResult{}, nil
 	}
 	now := time.Now().UTC()
 	if now.After(expiresAt) {
-		return sessionctx.Principal{}, false, nil
+		return AuthSessionResult{}, nil
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
+	// Sliding window: extend session when less than half the TTL remains.
+	extended := false
+	remaining := expiresAt.Sub(now)
+	if sessionTTL > 0 && remaining < sessionTTL/2 {
+		newExpiry := now.Add(sessionTTL)
+		if _, err := s.db.ExecContext(ctx, `
+UPDATE auth_sessions
+SET
+	last_seen_at = ?,
+	updated_at = ?,
+	expires_at = ?
+WHERE id = ?
+`, now.Format(time.RFC3339), now.Format(time.RFC3339), newExpiry.Format(time.RFC3339), row.ID); err != nil {
+			return AuthSessionResult{}, err
+		}
+		extended = true
+	} else {
+		if _, err := s.db.ExecContext(ctx, `
 UPDATE auth_sessions
 SET
 	last_seen_at = ?,
 	updated_at = ?
 WHERE id = ?
 `, now.Format(time.RFC3339), now.Format(time.RFC3339), row.ID); err != nil {
-		return sessionctx.Principal{}, false, err
+			return AuthSessionResult{}, err
+		}
 	}
 
 	principal := sessionctx.Principal{
@@ -317,12 +341,16 @@ WHERE id = ?
 		Email:       strings.TrimSpace(row.Email),
 	}
 	if principal.UserID == "" {
-		return sessionctx.Principal{}, false, nil
+		return AuthSessionResult{}, nil
 	}
 	if principal.WorkspaceID == "" {
 		principal.WorkspaceID = sessionctx.DefaultWorkspaceID
 	}
-	return principal, true, nil
+	return AuthSessionResult{
+		Principal:     principal,
+		Authenticated: true,
+		Extended:      extended,
+	}, nil
 }
 
 func (s *Service) RevokeAuthSession(ctx context.Context, sessionID string) error {

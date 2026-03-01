@@ -188,7 +188,7 @@ export type TeamMember = {
   userId: string;
   email: string;
   name: string;
-  role: "owner" | "admin" | "member";
+  role: "owner" | "admin" | "editor" | "reader";
   createdAt: string;
 };
 
@@ -196,9 +196,17 @@ export type TeamInvitation = {
   invitationCode: string;
   workspaceId: string;
   email: string;
+  role: "admin" | "editor" | "reader";
   status: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type InvitationForLogin = {
+  invitationCode: string;
+  email: string;
+  teamName: string;
+  status: string;
 };
 
 export type TeamSettings = {
@@ -206,7 +214,7 @@ export type TeamSettings = {
   members: TeamMember[];
   invitations: TeamInvitation[];
   currentUserId: string;
-  currentUserRole: "owner" | "admin" | "member";
+  currentUserRole: "owner" | "admin" | "editor" | "reader";
   canManage: boolean;
 };
 
@@ -343,15 +351,17 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  verifyLoginCode: (payload: { challengeId: string; code: string }) =>
+  verifyLoginCode: (payload: { challengeId: string; code: string; invitationCode?: string }) =>
     api<{ session: AuthSession }>("/api/auth/login/verify", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  completeOnboarding: (teamName: string, emails: string[]) =>
+  invitation: (invitationCode: string) =>
+    api<{ invitation: InvitationForLogin }>(`/api/auth/invitation?code=${encodeURIComponent(invitationCode)}`),
+  completeOnboarding: (teamName: string, name: string, emails: string[]) =>
     api<{ session: AuthSession; invitations: Array<{ email: string; invitationCode: string }> }>("/api/auth/onboarding", {
       method: "POST",
-      body: JSON.stringify({ teamName, emails }),
+      body: JSON.stringify({ teamName, name, emails }),
     }),
   logout: () =>
     api<void>("/api/auth/logout", {
@@ -366,12 +376,17 @@ export const teamApi = {
       method: "PATCH",
       body: JSON.stringify({ teamName }),
     }),
-  invite: (email: string) =>
+  invite: (email: string, role: "admin" | "editor" | "reader" = "editor") =>
     api<{ invitation: TeamInvitation }>("/api/team/invitations", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, role }),
     }),
-  updateMemberRole: (userId: string, role: "owner" | "admin" | "member") =>
+  acceptInvitation: (invitationCode: string) =>
+    api<{ session: AuthSession }>("/api/team/invitations/accept", {
+      method: "POST",
+      body: JSON.stringify({ invitationCode }),
+    }),
+  updateMemberRole: (userId: string, role: "owner" | "admin" | "editor" | "reader") =>
     api<{ member: TeamMember }>(`/api/team/members/${encodeURIComponent(userId)}`, {
       method: "PATCH",
       body: JSON.stringify({ role }),
@@ -430,10 +445,19 @@ export const taskApi = {
 
 export const projectApi = {
   list: () => api<ProjectListResponse>("/api/projects"),
+  create: (payload: { id?: string; name: string; isFavorite?: boolean }) =>
+    api<Project>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   update: (id: string, payload: { name?: string; isFavorite?: boolean }) =>
     api<Project>(`/api/projects/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+    }),
+  remove: (id: string) =>
+    api<void>(`/api/projects/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     }),
 };
 
