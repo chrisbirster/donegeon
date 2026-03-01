@@ -38,7 +38,6 @@ func (r *Repository) Load(ctx context.Context, boardID string) (*State, error) {
 	principal := sessionctx.PrincipalFromContext(ctx)
 	args := map[string]any{
 		"board_id":     boardID,
-		"user_id":      principal.UserID,
 		"workspace_id": principal.WorkspaceID,
 	}
 
@@ -81,7 +80,6 @@ func (r *Repository) Save(ctx context.Context, boardID string, state *State) err
 	principal := sessionctx.PrincipalFromContext(ctx)
 	args := map[string]any{
 		"board_id":     boardID,
-		"user_id":      principal.UserID,
 		"workspace_id": principal.WorkspaceID,
 		"state_json":   string(b),
 		"updated_at":   time.Now().UTC().Format(time.RFC3339),

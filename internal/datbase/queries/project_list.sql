@@ -20,15 +20,46 @@ project_rows AS (
         p.is_favorite,
         p.workspace_id,
         p.created_at,
-        p.updated_at
+        p.updated_at,
+        CASE
+            WHEN INSTR(p.id, '::') > 0 THEN SUBSTR(p.id, INSTR(p.id, '::') + 2)
+            ELSE p.id
+        END AS project_slug
     FROM projects p
-    WHERE p.user_id = :user_id
-      AND (
-          p.workspace_id = :workspace_id
-          OR p.workspace_id IS NULL
-          OR p.workspace_id = ''
-      )
+    WHERE (
+        p.workspace_id = :workspace_id
+        OR p.workspace_id IS NULL
+        OR p.workspace_id = ''
+    )
       AND (:include_archived = 1 OR p.is_archived = 0)
+),
+visible_project_rows AS (
+    SELECT
+        pr.id,
+        pr.name,
+        pr.is_inbox_project,
+        pr.is_archived,
+        pr.is_favorite,
+        pr.workspace_id,
+        pr.created_at,
+        pr.updated_at
+    FROM project_rows pr
+    WHERE (
+        LOWER(pr.project_slug) <> 'board'
+        AND LOWER(pr.project_slug) NOT LIKE 'board-%'
+    )
+       OR EXISTS (
+        SELECT 1
+        FROM board_memberships bm
+        WHERE bm.workspace_id = :workspace_id
+          AND bm.user_id = :user_id
+          AND LOWER(bm.board_id) = LOWER(
+              CASE
+                  WHEN LOWER(pr.project_slug) = 'board' THEN 'default'
+                  ELSE pr.project_slug
+              END
+          )
+    )
 ),
 orphan_rows AS (
     SELECT
@@ -42,16 +73,14 @@ orphan_rows AS (
         0 AS is_favorite,
         :workspace_id AS workspace_id,
         MIN(t.created_at) AS created_at,
-        MAX(t.updated_at) AS updated_at
+        MAX(t.updated_at) AS updated_at,
+        CASE
+            WHEN INSTR(t.project_id, '::') > 0 THEN SUBSTR(t.project_id, INSTR(t.project_id, '::') + 2)
+            ELSE t.project_id
+        END AS project_slug
     FROM tasks t
-    LEFT JOIN projects p
+    LEFT JOIN visible_project_rows p
       ON p.id = t.project_id
-     AND p.user_id = :user_id
-     AND (
-          p.workspace_id = :workspace_id
-          OR p.workspace_id IS NULL
-          OR p.workspace_id = ''
-     )
     WHERE t.project_id IS NOT NULL
       AND t.project_id <> ''
       AND t.user_id = :user_id
@@ -59,10 +88,38 @@ orphan_rows AS (
       AND p.id IS NULL
     GROUP BY t.project_id
 ),
+visible_orphan_rows AS (
+    SELECT
+        o.id,
+        o.name,
+        o.is_inbox_project,
+        o.is_archived,
+        o.is_favorite,
+        o.workspace_id,
+        o.created_at,
+        o.updated_at
+    FROM orphan_rows o
+    WHERE (
+        LOWER(o.project_slug) <> 'board'
+        AND LOWER(o.project_slug) NOT LIKE 'board-%'
+    )
+       OR EXISTS (
+        SELECT 1
+        FROM board_memberships bm
+        WHERE bm.workspace_id = :workspace_id
+          AND bm.user_id = :user_id
+          AND LOWER(bm.board_id) = LOWER(
+              CASE
+                  WHEN LOWER(o.project_slug) = 'board' THEN 'default'
+                  ELSE o.project_slug
+              END
+          )
+    )
+),
 combined AS (
-    SELECT * FROM project_rows
+    SELECT * FROM visible_project_rows
     UNION ALL
-    SELECT * FROM orphan_rows
+    SELECT * FROM visible_orphan_rows
 )
 SELECT
     c.id,

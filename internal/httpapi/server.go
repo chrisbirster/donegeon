@@ -29,6 +29,7 @@ import (
 	rruleparser "donegeon/internal/rrule"
 	"donegeon/internal/sessionctx"
 	"donegeon/internal/task"
+	"donegeon/internal/tenant"
 	"donegeon/internal/todoistcompat"
 )
 
@@ -780,6 +781,18 @@ func (a *API) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if boardID, isBoardProject, boardErr := boardIDFromProjectID(created.ID); boardErr != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, boardErr.Error()), "projectId"))
+		return
+	} else if isBoardProject && a.accounts != nil {
+		principal := sessionctx.PrincipalFromContext(r.Context())
+		if err := a.accounts.UpsertBoardMembership(r.Context(), principal.WorkspaceID, boardID, principal.UserID); err != nil {
+			a.logError(r, "create_project_board_membership_failed", err)
+			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to grant board access"))
+			return
+		}
+	}
+
 	writeJSON(w, http.StatusCreated, created)
 }
 
@@ -789,7 +802,13 @@ func (a *API) handleGetBoardState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, err := a.boards.GetState(r.Context(), boardIDFromRequest(r))
+	boardID, err := a.requireBoardAccess(r.Context(), boardIDFromRequest(r), false)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	state, err := a.boards.GetState(r.Context(), boardID)
 	if err != nil {
 		a.logError(r, "get_board_state_failed", err)
 		writeAPIError(w, err)
@@ -815,7 +834,13 @@ func (a *API) handleBoardCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := a.boards.Command(r.Context(), boardIDFromRequest(r), req)
+	boardID, err := a.requireBoardAccess(r.Context(), boardIDFromRequest(r), true)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	result, err := a.boards.Command(r.Context(), boardID, req)
 	if err != nil {
 		a.logError(r, "board_command_failed", err)
 		var conflict *board.VersionConflictError
@@ -845,6 +870,15 @@ func (a *API) handlePatchProject(w http.ResponseWriter, r *http.Request) {
 	if id == "" {
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project id is required"), "projectId"))
 		return
+	}
+	if boardID, isBoardProject, boardErr := boardIDFromProjectID(id); boardErr != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, boardErr.Error()), "projectId"))
+		return
+	} else if isBoardProject {
+		if _, err := a.requireBoardAccess(r.Context(), boardID, true); err != nil {
+			writeAPIError(w, err)
+			return
+		}
 	}
 
 	var req struct {
@@ -880,11 +914,28 @@ func (a *API) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project id is required"), "projectId"))
 		return
 	}
+	boardID, isBoardProject, boardErr := boardIDFromProjectID(id)
+	if boardErr != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, boardErr.Error()), "projectId"))
+		return
+	}
+	if isBoardProject {
+		if _, err := a.requireBoardAccess(r.Context(), boardID, true); err != nil {
+			writeAPIError(w, err)
+			return
+		}
+	}
 
 	if err := a.projects.Delete(r.Context(), id); err != nil {
 		a.logError(r, "delete_project_failed", err)
 		writeAPIError(w, err)
 		return
+	}
+	if isBoardProject && a.accounts != nil {
+		principal := sessionctx.PrincipalFromContext(r.Context())
+		if err := a.accounts.DeleteBoardMembershipsForBoard(r.Context(), principal.WorkspaceID, boardID); err != nil {
+			a.logError(r, "delete_project_board_membership_cleanup_failed", err)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -1638,6 +1689,59 @@ func parseBoolOrDefault(raw string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func (a *API) requireBoardAccess(ctx context.Context, boardID string, write bool) (string, error) {
+	if a.accounts == nil {
+		return "", apperrors.New(apperrors.CodeInternal, "account service unavailable")
+	}
+	normalized, err := board.NormalizeBoardID(boardID)
+	if err != nil {
+		return "", err
+	}
+	normalized = strings.ToLower(strings.TrimSpace(normalized))
+	if normalized == "" {
+		normalized = board.DefaultBoardID
+	}
+
+	principal := sessionctx.PrincipalFromContext(ctx)
+	var allowed bool
+	if write {
+		allowed, err = a.accounts.CanWriteBoard(ctx, principal.UserID, principal.WorkspaceID, normalized)
+	} else {
+		allowed, err = a.accounts.HasBoardAccess(ctx, principal.UserID, principal.WorkspaceID, normalized)
+	}
+	if err != nil {
+		return "", err
+	}
+	if !allowed {
+		msg := "no access to this board"
+		if write {
+			msg = "no write access to this board"
+		}
+		return "", apperrors.WithField(apperrors.New(apperrors.CodeForbidden, msg), "board")
+	}
+	return normalized, nil
+}
+
+func boardIDFromProjectID(projectID string) (string, bool, error) {
+	slug := tenant.ProjectSlug(projectID)
+	if !tenant.IsBoardProject(slug) {
+		return "", false, nil
+	}
+	boardID := slug
+	if strings.EqualFold(slug, "board") {
+		boardID = board.DefaultBoardID
+	}
+	normalized, err := board.NormalizeBoardID(boardID)
+	if err != nil {
+		return "", true, err
+	}
+	normalized = strings.ToLower(strings.TrimSpace(normalized))
+	if normalized == "" {
+		normalized = board.DefaultBoardID
+	}
+	return normalized, true, nil
 }
 
 func boardIDFromRequest(r *http.Request) string {

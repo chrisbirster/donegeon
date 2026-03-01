@@ -86,6 +86,7 @@ const (
 	TeamRoleAdmin  = "admin"
 	TeamRoleEditor = "editor"
 	TeamRoleReader = "reader"
+	defaultBoardID = "default"
 	// TeamRoleMember is kept for backward compatibility with older data/clients.
 	TeamRoleMember = "member"
 )
@@ -889,6 +890,9 @@ ON CONFLICT(id) DO UPDATE SET
 `, projectStorageID(workspaceID, "board"), boardName, userID, workspaceID, now, now); err != nil {
 		return err
 	}
+	if err := s.UpsertBoardMembership(ctx, workspaceID, defaultBoardID, userID); err != nil {
+		return err
+	}
 	if _, err := s.db.ExecContext(ctx, `
 INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
 VALUES (?, ?, 1, 0, 0, ?, ?, ?, ?)
@@ -910,6 +914,9 @@ ON CONFLICT(id) DO UPDATE SET
 	name = excluded.name,
 	updated_at = excluded.updated_at
 `, projectStorageID(workspaceID, "board"), boardName, userID, workspaceID, now, now); err != nil {
+		return err
+	}
+	if err := upsertBoardMembershipTx(ctx, tx, workspaceID, defaultBoardID, userID, now); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -941,7 +948,30 @@ ON CONFLICT(id) DO UPDATE SET
 `, projectStorageID(workspaceID, slug), boardName, userID, workspaceID, now, now); err != nil {
 		return err
 	}
+	if err := upsertBoardMembershipTx(ctx, tx, workspaceID, slug, userID, now); err != nil {
+		return err
+	}
 	return nil
+}
+
+func upsertBoardMembershipTx(ctx context.Context, tx *sqlx.Tx, workspaceID string, boardID string, userID string, now string) error {
+	workspaceID = strings.TrimSpace(workspaceID)
+	userID = strings.TrimSpace(userID)
+	boardID = normalizeBoardID(boardID)
+	now = strings.TrimSpace(now)
+	if now == "" {
+		now = nowRFC3339()
+	}
+	if workspaceID == "" || userID == "" || boardID == "" {
+		return fmt.Errorf("board membership context is required")
+	}
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO board_memberships (board_id, workspace_id, user_id, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(board_id, workspace_id, user_id) DO UPDATE SET
+	updated_at = excluded.updated_at
+`, boardID, workspaceID, userID, now, now)
+	return err
 }
 
 func (s *Service) userByID(ctx context.Context, id string) (User, error) {
@@ -968,6 +998,94 @@ LIMIT 1
 
 func (s *Service) GetWorkspace(ctx context.Context, id string) (Team, error) {
 	return s.workspaceByID(ctx, id)
+}
+
+func (s *Service) UpsertBoardMembership(ctx context.Context, workspaceID string, boardID string, userID string) error {
+	workspaceID = strings.TrimSpace(workspaceID)
+	userID = strings.TrimSpace(userID)
+	boardID = normalizeBoardID(boardID)
+	if workspaceID == "" || userID == "" || boardID == "" {
+		return fmt.Errorf("board membership context is required")
+	}
+
+	now := nowRFC3339()
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO board_memberships (board_id, workspace_id, user_id, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(board_id, workspace_id, user_id) DO UPDATE SET
+	updated_at = excluded.updated_at
+`, boardID, workspaceID, userID, now, now)
+	return err
+}
+
+func (s *Service) UpsertBoardMembershipsForWorkspace(ctx context.Context, workspaceID string, boardID string) error {
+	workspaceID = strings.TrimSpace(workspaceID)
+	boardID = normalizeBoardID(boardID)
+	if workspaceID == "" || boardID == "" {
+		return fmt.Errorf("board membership context is required")
+	}
+
+	now := nowRFC3339()
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO board_memberships (board_id, workspace_id, user_id, created_at, updated_at)
+SELECT ?, workspace_id, user_id, ?, ?
+FROM workspace_users
+WHERE workspace_id = ?
+ON CONFLICT(board_id, workspace_id, user_id) DO UPDATE SET
+	updated_at = excluded.updated_at
+`, boardID, now, now, workspaceID)
+	return err
+}
+
+func (s *Service) HasBoardAccess(ctx context.Context, userID string, workspaceID string, boardID string) (bool, error) {
+	userID = strings.TrimSpace(userID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	boardID = normalizeBoardID(boardID)
+	if userID == "" || workspaceID == "" || boardID == "" {
+		return false, fmt.Errorf("board access context is required")
+	}
+
+	var count int
+	if err := s.db.GetContext(ctx, &count, `
+SELECT COUNT(1)
+FROM board_memberships
+WHERE board_id = ?
+	AND workspace_id = ?
+	AND user_id = ?
+`, boardID, workspaceID, userID); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (s *Service) CanWriteBoard(ctx context.Context, userID string, workspaceID string, boardID string) (bool, error) {
+	allowed, err := s.HasBoardAccess(ctx, userID, workspaceID, boardID)
+	if err != nil || !allowed {
+		return false, err
+	}
+
+	role, err := workspaceUserRole(ctx, s.db, strings.TrimSpace(workspaceID), strings.TrimSpace(userID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return canWriteTeamRole(role), nil
+}
+
+func (s *Service) DeleteBoardMembershipsForBoard(ctx context.Context, workspaceID string, boardID string) error {
+	workspaceID = strings.TrimSpace(workspaceID)
+	boardID = normalizeBoardID(boardID)
+	if workspaceID == "" || boardID == "" {
+		return fmt.Errorf("board membership context is required")
+	}
+	_, err := s.db.ExecContext(ctx, `
+DELETE FROM board_memberships
+WHERE workspace_id = ?
+	AND board_id = ?
+`, workspaceID, boardID)
+	return err
 }
 
 func (s *Service) workspaceByID(ctx context.Context, id string) (Team, error) {
@@ -1055,6 +1173,10 @@ func canManageTeam(role string) bool {
 	return role == TeamRoleOwner || role == TeamRoleAdmin
 }
 
+func canWriteTeamRole(role string) bool {
+	return normalizeTeamRole(role) != TeamRoleReader
+}
+
 func isAssignableInviteRole(role string) bool {
 	role = normalizeTeamRole(role)
 	return role == TeamRoleAdmin || role == TeamRoleEditor || role == TeamRoleReader
@@ -1121,4 +1243,12 @@ func projectStorageID(workspaceID, slug string) string {
 		return strings.TrimSpace(slug)
 	}
 	return tenant.CanonicalProjectID(workspaceID, slug)
+}
+
+func normalizeBoardID(raw string) string {
+	boardID := strings.ToLower(strings.TrimSpace(raw))
+	if boardID == "" || strings.EqualFold(boardID, "board") || strings.EqualFold(boardID, defaultBoardID) {
+		return defaultBoardID
+	}
+	return boardID
 }

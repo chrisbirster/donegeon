@@ -22,6 +22,5 @@ INSERT INTO projects (
 ON CONFLICT(id) DO UPDATE SET
     name = COALESCE(:name, projects.name),
     is_favorite = COALESCE(:is_favorite, projects.is_favorite),
-    user_id = COALESCE(:user_id, projects.user_id),
     workspace_id = COALESCE(:workspace_id, projects.workspace_id),
     updated_at = :updated_at;
