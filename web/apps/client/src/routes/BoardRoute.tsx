@@ -6,9 +6,11 @@ import {
   boardApi,
   parseApi,
   projectApi,
+  teamApi,
   taskApi,
   type BoardCard,
   type BoardCommandPayload,
+  type BoardMember,
   type BoardPoint,
   type BoardQuestObjective,
   type BoardQuestReward,
@@ -17,6 +19,8 @@ import {
   type Project,
   type QuickAddParsed,
   type Task,
+  type TeamMember,
+  type TeamSettings,
 } from "../server/api";
 import AppShell from "../components/AppShell";
 
@@ -885,6 +889,11 @@ export default function BoardRoute() {
   const [questClaimingID, setQuestClaimingID] = createSignal<string | null>(null);
   const [newBoardName, setNewBoardName] = createSignal("");
   const [boardCrudBusy, setBoardCrudBusy] = createSignal(false);
+  const [teamSettings, setTeamSettings] = createSignal<TeamSettings | null>(null);
+  const [boardMembers, setBoardMembers] = createSignal<BoardMember[]>([]);
+  const [boardMembersLoading, setBoardMembersLoading] = createSignal(false);
+  const [boardMembersBusy, setBoardMembersBusy] = createSignal(false);
+  const [pendingBoardMemberID, setPendingBoardMemberID] = createSignal("");
 
   let boardRef: HTMLDivElement | undefined;
   let composerParseTimer: number | undefined;
@@ -896,6 +905,15 @@ export default function BoardRoute() {
   const activeBoardChoice = createMemo(
     () => boardChoices().find((choice) => choice.boardID === activeBoardID()) ?? null,
   );
+  const canManageBoardMembers = createMemo(() => teamSettings()?.canManage ?? false);
+  const currentUserID = createMemo(() => teamSettings()?.currentUserId ?? "");
+  const boardMemberIDs = createMemo(() => new Set(boardMembers().map((member) => member.userId)));
+  const addableBoardMembers = createMemo(() => {
+    const settings = teamSettings();
+    if (!settings) return [] as TeamMember[];
+    const existing = boardMemberIDs();
+    return settings.members.filter((member) => !existing.has(member.userId));
+  });
 
   const stacks = createMemo(() => Object.values(state()?.stacks ?? {}).sort((a, b) => a.z - b.z));
   const deckPriorityOrderByDefID = createMemo<Record<string, number>>(() => {
@@ -1340,6 +1358,18 @@ export default function BoardRoute() {
   const detailScheduleWarning = createMemo(() =>
     scheduleValidationWarning(detailStoredDue(), detailStoredDeadline()),
   );
+
+  createEffect(() => {
+    const candidates = addableBoardMembers();
+    const selected = pendingBoardMemberID();
+    if (candidates.length === 0) {
+      if (selected) setPendingBoardMemberID("");
+      return;
+    }
+    if (!selected || !candidates.some((member) => member.userId === selected)) {
+      setPendingBoardMemberID(candidates[0].userId);
+    }
+  });
 
   function stackPosition(stack: BoardStack): BoardPoint {
     if (isDeckLikeStack(stack)) {
@@ -1919,6 +1949,62 @@ export default function BoardRoute() {
     }
   }
 
+  async function loadTeamSettings() {
+    try {
+      const response = await teamApi.getSettings();
+      setTeamSettings(response.settings);
+    } catch {
+      // Ignore transient team settings errors on board view.
+    }
+  }
+
+  async function loadBoardMembers(boardID = activeBoardID()) {
+    setBoardMembersLoading(true);
+    try {
+      const response = await boardApi.listMembers(boardID);
+      setBoardMembers(response.members);
+    } catch (err) {
+      setBoardMembers([]);
+      setError((err as Error).message);
+    } finally {
+      setBoardMembersLoading(false);
+    }
+  }
+
+  async function addPendingBoardMember() {
+    const userID = pendingBoardMemberID().trim();
+    if (!userID) {
+      return;
+    }
+    setBoardMembersBusy(true);
+    try {
+      await boardApi.addMember(userID, activeBoardID());
+      await loadBoardMembers(activeBoardID());
+      setError("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBoardMembersBusy(false);
+    }
+  }
+
+  async function removeBoardMember(userID: string) {
+    const targetID = userID.trim();
+    if (!targetID || targetID === currentUserID()) {
+      return;
+    }
+    setBoardMembersBusy(true);
+    try {
+      await boardApi.removeMember(targetID, activeBoardID());
+      await loadBoardMembers(activeBoardID());
+      setError("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBoardMembersBusy(false);
+    }
+  }
+
   function switchBoard(nextBoardID: string) {
     const normalized = normalizeBoardID(nextBoardID);
     if (normalized === activeBoardID()) return;
@@ -2088,6 +2174,7 @@ export default function BoardRoute() {
 
   async function refreshBoard() {
     await loadProjects();
+    await loadBoardMembers(activeBoardID());
     await loadBoard({ syncTasks: true });
   }
 
@@ -2606,6 +2693,7 @@ export default function BoardRoute() {
 
   onMount(() => {
     void loadProjects();
+    void loadTeamSettings();
 
     try {
       const raw = window.localStorage.getItem(DECK_ROW_PREFS_KEY);
@@ -2985,6 +3073,8 @@ export default function BoardRoute() {
     setDeckHubDragDefID(null);
     setComposerParsed(null);
     setComposerText("");
+    setBoardMembers([]);
+    void loadBoardMembers(boardID);
 
     // Load from IndexedDB cache first for instant render, then sync from server.
     void (async () => {
@@ -3060,6 +3150,78 @@ export default function BoardRoute() {
                 </button>
               </div>
             </div>
+          </section>
+
+          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Board Access</p>
+              <span class="text-[11px] text-[#9cb3d8]">{boardMembers().length} member(s)</span>
+            </div>
+
+            <Show when={!boardMembersLoading()} fallback={<p class="mt-2 text-xs text-[#9cb2d6]">Loading board members...</p>}>
+              <div class="mt-2 space-y-1.5">
+                <For each={boardMembers()}>
+                  {(member) => (
+                    <div class="rounded-md border border-[#304767] bg-[#101f35] px-2 py-1.5 text-xs text-[#dce8ff]">
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                          <p class="truncate font-semibold">{member.name || member.email}</p>
+                          <p class="truncate text-[11px] text-[#9cb2d6]">{member.email}</p>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                          <span class="rounded border border-[#3f567c] px-1 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#cddaf2]">
+                            {member.role}
+                          </span>
+                          <Show when={canManageBoardMembers() && member.userId !== currentUserID()}>
+                            <button
+                              type="button"
+                              class="rounded border border-[#6f3c3c] bg-[#2a1416] px-1.5 py-0.5 text-[10px] text-[#ffb3ad] disabled:opacity-50"
+                              onClick={() => void removeBoardMember(member.userId)}
+                              disabled={busy() || boardMembersBusy()}
+                            >
+                              Remove
+                            </button>
+                          </Show>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
+            <Show when={canManageBoardMembers()}>
+              <div class="mt-2 flex gap-2">
+                <select
+                  value={pendingBoardMemberID()}
+                  onInput={(event) => setPendingBoardMemberID(event.currentTarget.value)}
+                  class="min-w-0 flex-1 rounded-md border border-[#3a4d6d] bg-[#0d182b] px-2 py-1.5 text-xs text-[#dce8ff] outline-none focus:border-[var(--accent)]"
+                  disabled={busy() || boardMembersBusy() || addableBoardMembers().length === 0}
+                >
+                  <For each={addableBoardMembers()}>
+                    {(member) => (
+                      <option value={member.userId}>
+                        {member.name || member.email}
+                      </option>
+                    )}
+                  </For>
+                </select>
+                <button
+                  type="button"
+                  class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                  onClick={() => void addPendingBoardMember()}
+                  disabled={busy() || boardMembersBusy() || !pendingBoardMemberID() || addableBoardMembers().length === 0}
+                >
+                  Add
+                </button>
+              </div>
+              <Show when={addableBoardMembers().length === 0}>
+                <p class="mt-2 text-[11px] text-[#9cb2d6]">All team members already have access.</p>
+              </Show>
+            </Show>
+            <Show when={!canManageBoardMembers()}>
+              <p class="mt-2 text-[11px] text-[#9cb2d6]">Only owners and admins can change board access.</p>
+            </Show>
           </section>
 
           <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
@@ -3354,6 +3516,78 @@ export default function BoardRoute() {
                 </button>
               </div>
             </div>
+          </section>
+
+          <section class="border-b border-[#252c39] px-4 py-3">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Board Access</p>
+              <span class="text-[11px] text-[#8ea0ba]">{boardMembers().length} member(s)</span>
+            </div>
+
+            <Show when={!boardMembersLoading()} fallback={<p class="mt-2 text-xs text-[#8ea0ba]">Loading board members...</p>}>
+              <div class="mt-2 space-y-1.5">
+                <For each={boardMembers()}>
+                  {(member) => (
+                    <div class="rounded-md border border-[#304767] bg-[#111e30] px-2.5 py-2">
+                      <div class="flex items-start justify-between gap-2 text-xs">
+                        <div class="min-w-0">
+                          <p class="truncate font-semibold text-[#dce9ff]">{member.name || member.email}</p>
+                          <p class="truncate text-[11px] text-[#97a9c7]">{member.email}</p>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                          <span class="rounded border border-[#395278] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#9fb3d8]">
+                            {member.role}
+                          </span>
+                          <Show when={canManageBoardMembers() && member.userId !== currentUserID()}>
+                            <button
+                              type="button"
+                              class="rounded border border-[#6f3c3c] bg-[#2a1416] px-1.5 py-0.5 text-[10px] text-[#ffb3ad] disabled:opacity-50"
+                              onClick={() => void removeBoardMember(member.userId)}
+                              disabled={busy() || boardMembersBusy()}
+                            >
+                              Remove
+                            </button>
+                          </Show>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
+            <Show when={canManageBoardMembers()}>
+              <div class="mt-2 flex gap-2">
+                <select
+                  value={pendingBoardMemberID()}
+                  onInput={(event) => setPendingBoardMemberID(event.currentTarget.value)}
+                  class="min-w-0 flex-1 rounded-md border border-[#3a4d6d] bg-[#0f1728] px-2 py-1.5 text-xs text-[#dce8ff] outline-none focus:border-[var(--accent)]"
+                  disabled={busy() || boardMembersBusy() || addableBoardMembers().length === 0}
+                >
+                  <For each={addableBoardMembers()}>
+                    {(member) => (
+                      <option value={member.userId}>
+                        {member.name || member.email}
+                      </option>
+                    )}
+                  </For>
+                </select>
+                <button
+                  type="button"
+                  class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                  onClick={() => void addPendingBoardMember()}
+                  disabled={busy() || boardMembersBusy() || !pendingBoardMemberID() || addableBoardMembers().length === 0}
+                >
+                  Add
+                </button>
+              </div>
+              <Show when={addableBoardMembers().length === 0}>
+                <p class="mt-2 text-[11px] text-[#8ea0ba]">All team members already have access.</p>
+              </Show>
+            </Show>
+            <Show when={!canManageBoardMembers()}>
+              <p class="mt-2 text-[11px] text-[#8ea0ba]">Only owners and admins can change board access.</p>
+            </Show>
           </section>
 
           <div class="border-b border-[#252c39] px-4 py-3">

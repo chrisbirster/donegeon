@@ -218,6 +218,8 @@ export type TeamSettings = {
   canManage: boolean;
 };
 
+export type BoardMember = TeamMember;
+
 export type AuthSession = {
   user: AuthUser;
   team?: AuthTeam;
@@ -485,4 +487,25 @@ export const boardApi = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  listMembers: (board?: string) =>
+    api<{ members: BoardMember[] }>(
+      board ? `/api/board/members?board=${encodeURIComponent(board)}` : "/api/board/members",
+    ),
+  addMember: (userId: string, board?: string) =>
+    api<{ member: BoardMember }>(
+      board ? `/api/board/members?board=${encodeURIComponent(board)}` : "/api/board/members",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      },
+    ),
+  removeMember: (userId: string, board?: string) =>
+    api<void>(
+      board
+        ? `/api/board/members/${encodeURIComponent(userId)}?board=${encodeURIComponent(board)}`
+        : `/api/board/members/${encodeURIComponent(userId)}`,
+      {
+        method: "DELETE",
+      },
+    ),
 };

@@ -112,6 +112,9 @@ func New(
 	mux.HandleFunc("POST /api/projects", api.handleCreateProject)
 	mux.HandleFunc("GET /api/board/state", api.handleGetBoardState)
 	mux.HandleFunc("POST /api/board/cmd", api.handleBoardCommand)
+	mux.HandleFunc("GET /api/board/members", api.handleListBoardMembers)
+	mux.HandleFunc("POST /api/board/members", api.handleCreateBoardMember)
+	mux.HandleFunc("DELETE /api/board/members/{userId}", api.handleDeleteBoardMember)
 	mux.HandleFunc("PATCH /api/projects/{id}", api.handlePatchProject)
 	mux.HandleFunc("DELETE /api/projects/{id}", api.handleDeleteProject)
 	mux.HandleFunc("POST /api/tasks", api.handleCreateTask)
@@ -858,6 +861,99 @@ func (a *API) handleBoardCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *API) handleListBoardMembers(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	boardID, err := a.requireBoardAccess(r.Context(), boardIDFromRequest(r), false)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	members, err := a.accounts.ListBoardMembers(r.Context(), principal.UserID, principal.WorkspaceID, boardID)
+	if err != nil {
+		writeAPIError(w, asBoardMemberAppError(err, "board"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"members": members})
+}
+
+func (a *API) handleCreateBoardMember(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		UserID string `json:"userId"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	boardID, err := a.requireBoardAccess(r.Context(), boardIDFromRequest(r), true)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	member, err := a.accounts.AddBoardMember(
+		r.Context(),
+		principal.UserID,
+		principal.WorkspaceID,
+		boardID,
+		strings.TrimSpace(req.UserID),
+	)
+	if err != nil {
+		writeAPIError(w, asBoardMemberAppError(err, "userId"))
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{"member": member})
+}
+
+func (a *API) handleDeleteBoardMember(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	targetUserID := strings.TrimSpace(r.PathValue("userId"))
+	if targetUserID == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "user id is required"), "userId"))
+		return
+	}
+
+	boardID, err := a.requireBoardAccess(r.Context(), boardIDFromRequest(r), true)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	if err := a.accounts.RemoveBoardMember(r.Context(), principal.UserID, principal.WorkspaceID, boardID, targetUserID); err != nil {
+		writeAPIError(w, asBoardMemberAppError(err, "userId"))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) handlePatchProject(w http.ResponseWriter, r *http.Request) {
@@ -1777,6 +1873,28 @@ func asAppError(err error, target **apperrors.AppError) bool {
 		return true
 	}
 	return false
+}
+
+func asBoardMemberAppError(err error, field string) error {
+	if err == nil {
+		return nil
+	}
+	message := strings.TrimSpace(err.Error())
+	code := apperrors.CodeValidationError
+	lower := strings.ToLower(message)
+	switch {
+	case strings.Contains(lower, "only team owners or admins"),
+		strings.Contains(lower, "not a member of this team"),
+		strings.Contains(lower, "no access to this board"),
+		strings.Contains(lower, "cannot remove yourself"):
+		code = apperrors.CodeForbidden
+	}
+
+	appErr := apperrors.New(code, message)
+	if strings.TrimSpace(field) != "" {
+		return apperrors.WithField(appErr, field)
+	}
+	return appErr
 }
 
 type loggingResponseWriter struct {

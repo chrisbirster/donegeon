@@ -1057,6 +1057,163 @@ ON CONFLICT(board_id, workspace_id, user_id) DO UPDATE SET
 	return err
 }
 
+func (s *Service) ListBoardMembers(ctx context.Context, actorUserID string, workspaceID string, boardID string) ([]TeamMember, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	boardID = normalizeBoardID(boardID)
+	if actorUserID == "" || workspaceID == "" || boardID == "" {
+		return nil, fmt.Errorf("board membership context is required")
+	}
+
+	if _, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("not a member of this team")
+		}
+		return nil, err
+	}
+
+	allowed, err := s.HasBoardAccess(ctx, actorUserID, workspaceID, boardID)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, fmt.Errorf("no access to this board")
+	}
+
+	members := []TeamMember{}
+	if err := s.db.SelectContext(ctx, &members, `
+SELECT wu.workspace_id, wu.user_id, wu.email, wu.name, wu.role, wu.created_at
+FROM board_memberships bm
+JOIN workspace_users wu
+	ON wu.workspace_id = bm.workspace_id
+	AND wu.user_id = bm.user_id
+WHERE bm.workspace_id = ?
+	AND bm.board_id = ?
+ORDER BY
+	CASE wu.role
+		WHEN 'owner' THEN 0
+		WHEN 'admin' THEN 1
+		WHEN 'editor' THEN 2
+		WHEN 'member' THEN 2
+		WHEN 'reader' THEN 3
+		ELSE 4
+	END,
+	LOWER(wu.name) ASC,
+	LOWER(wu.email) ASC
+`, workspaceID, boardID); err != nil {
+		return nil, err
+	}
+	for i := range members {
+		members[i].Role = normalizeTeamRole(members[i].Role)
+	}
+	return members, nil
+}
+
+func (s *Service) AddBoardMember(ctx context.Context, actorUserID string, workspaceID string, boardID string, targetUserID string) (TeamMember, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	boardID = normalizeBoardID(boardID)
+	targetUserID = strings.TrimSpace(targetUserID)
+	if actorUserID == "" || workspaceID == "" || boardID == "" {
+		return TeamMember{}, fmt.Errorf("board membership context is required")
+	}
+	if targetUserID == "" {
+		return TeamMember{}, fmt.Errorf("target user is required")
+	}
+
+	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamMember{}, fmt.Errorf("not a member of this team")
+		}
+		return TeamMember{}, err
+	}
+	if !canManageTeam(actorRole) {
+		return TeamMember{}, fmt.Errorf("only team owners or admins can manage board members")
+	}
+
+	allowed, err := s.HasBoardAccess(ctx, actorUserID, workspaceID, boardID)
+	if err != nil {
+		return TeamMember{}, err
+	}
+	if !allowed {
+		return TeamMember{}, fmt.Errorf("no access to this board")
+	}
+
+	targetMember, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamMember{}, fmt.Errorf("target member not found")
+		}
+		return TeamMember{}, err
+	}
+
+	if err := s.UpsertBoardMembership(ctx, workspaceID, boardID, targetUserID); err != nil {
+		return TeamMember{}, err
+	}
+	return targetMember, nil
+}
+
+func (s *Service) RemoveBoardMember(ctx context.Context, actorUserID string, workspaceID string, boardID string, targetUserID string) error {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	boardID = normalizeBoardID(boardID)
+	targetUserID = strings.TrimSpace(targetUserID)
+	if actorUserID == "" || workspaceID == "" || boardID == "" {
+		return fmt.Errorf("board membership context is required")
+	}
+	if targetUserID == "" {
+		return fmt.Errorf("target user is required")
+	}
+	if targetUserID == actorUserID {
+		return fmt.Errorf("cannot remove yourself from this board")
+	}
+
+	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("not a member of this team")
+		}
+		return err
+	}
+	if !canManageTeam(actorRole) {
+		return fmt.Errorf("only team owners or admins can manage board members")
+	}
+
+	allowed, err := s.HasBoardAccess(ctx, actorUserID, workspaceID, boardID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return fmt.Errorf("no access to this board")
+	}
+
+	if _, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID); err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("target member not found")
+		}
+		return err
+	}
+
+	result, err := s.db.ExecContext(ctx, `
+DELETE FROM board_memberships
+WHERE workspace_id = ?
+	AND board_id = ?
+	AND user_id = ?
+`, workspaceID, boardID, targetUserID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("board member not found")
+	}
+	return nil
+}
+
 func (s *Service) HasBoardAccess(ctx context.Context, userID string, workspaceID string, boardID string) (bool, error) {
 	userID = strings.TrimSpace(userID)
 	workspaceID = strings.TrimSpace(workspaceID)
