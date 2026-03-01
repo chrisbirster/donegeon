@@ -675,7 +675,27 @@ SET
 		ELSE updated_at
 	END
 WHERE id = ?
-`, workspaceID, workspaceID, workspaceID, now, targetUserID); err != nil {
+	`, workspaceID, workspaceID, workspaceID, now, targetUserID); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM board_memberships
+WHERE workspace_id = ?
+	AND user_id = ?
+`, workspaceID, targetUserID); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+UPDATE auth_sessions
+SET
+	revoked_at = COALESCE(revoked_at, ?),
+	updated_at = ?
+WHERE user_id = ?
+	AND workspace_id = ?
+	AND revoked_at IS NULL
+`, now, now, targetUserID, workspaceID); err != nil {
 		return err
 	}
 
@@ -1065,6 +1085,23 @@ func (s *Service) CanWriteBoard(ctx context.Context, userID string, workspaceID 
 	}
 
 	role, err := workspaceUserRole(ctx, s.db, strings.TrimSpace(workspaceID), strings.TrimSpace(userID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return canWriteTeamRole(role), nil
+}
+
+func (s *Service) CanWriteWorkspace(ctx context.Context, userID string, workspaceID string) (bool, error) {
+	userID = strings.TrimSpace(userID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	if userID == "" || workspaceID == "" {
+		return false, fmt.Errorf("workspace access context is required")
+	}
+
+	role, err := workspaceUserRole(ctx, s.db, workspaceID, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil

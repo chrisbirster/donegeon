@@ -1153,7 +1153,19 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 			}
 			scope := ScopeRead
 			if isWriteRequest(r.Method) {
-				scope = ScopeWrite
+				if strings.HasPrefix(r.URL.Path, "/api/auth/") || a.accounts == nil {
+					scope = ScopeWrite
+				} else {
+					canWrite, err := a.accounts.CanWriteWorkspace(r.Context(), principal.UserID, principal.WorkspaceID)
+					if err != nil {
+						a.logError(r, "workspace_write_access_check_failed", err)
+						writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to evaluate workspace permissions"))
+						return
+					}
+					if canWrite {
+						scope = ScopeWrite
+					}
+				}
 			}
 			ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
 			ctx = sessionctx.WithPrincipal(ctx, principal)
