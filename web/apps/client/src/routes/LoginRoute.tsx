@@ -3,11 +3,23 @@ import { createMemo, createSignal, onMount } from "solid-js";
 
 import { authApi, teamApi } from "../server/api";
 
+function normalizePreferredPlan(raw: string): string {
+  const value = raw.trim().toLowerCase();
+  if (value === "pro_trial" || value === "pro" || value === "enterprise" || value === "personal") {
+    return value;
+  }
+  if (value === "free") {
+    return "personal";
+  }
+  return "personal";
+}
+
 export default function LoginRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const [email, setEmail] = createSignal("");
   const [code, setCode] = createSignal("");
+  const [debugCode, setDebugCode] = createSignal("");
   const [challengeId, setChallengeId] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
   const [resolvingInvite, setResolvingInvite] = createSignal(false);
@@ -18,6 +30,11 @@ export default function LoginRoute() {
     const params = new URLSearchParams(location.search);
     return (params.get("invite") || "").trim();
   });
+  const preferredPlan = createMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return normalizePreferredPlan(params.get("plan") || "personal");
+  });
+  const onboardingHref = createMemo(() => `/onboarding?plan=${encodeURIComponent(preferredPlan())}`);
 
   onMount(async () => {
     const code = inviteCode();
@@ -41,7 +58,7 @@ export default function LoginRoute() {
         try {
           const accepted = await teamApi.acceptInvitation(code);
           if (accepted.session.user.showOnboarding) {
-            navigate("/onboarding", { replace: true });
+            navigate(onboardingHref(), { replace: true });
             return;
           }
           navigate("/task/inbox", { replace: true });
@@ -52,7 +69,7 @@ export default function LoginRoute() {
         }
       }
       if (currentSession.user.showOnboarding) {
-        navigate("/onboarding", { replace: true });
+        navigate(onboardingHref(), { replace: true });
         return;
       }
       navigate("/task/inbox", { replace: true });
@@ -70,6 +87,7 @@ export default function LoginRoute() {
         email: email().trim(),
       });
       setChallengeId(res.challengeId);
+      setDebugCode((res.debugCode || "").trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -91,7 +109,7 @@ export default function LoginRoute() {
         invitationCode: inviteCode() || undefined,
       });
       if (session.user.showOnboarding) {
-        navigate("/onboarding", { replace: true });
+        navigate(onboardingHref(), { replace: true });
         return;
       }
       navigate("/task/inbox", { replace: true });
@@ -161,6 +179,11 @@ export default function LoginRoute() {
               placeholder="000000"
               maxlength="6"
             />
+            {debugCode() ? (
+              <p class="mt-2 rounded-md border border-[#405e88] bg-[#13253f] px-2 py-1 text-xs text-[#cfe3ff]">
+                Dev OTP: <span class="font-semibold text-[#f2f7ff]">{debugCode()}</span>
+              </p>
+            ) : null}
 
             <button
               type="submit"

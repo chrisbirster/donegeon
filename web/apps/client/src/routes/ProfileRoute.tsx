@@ -323,6 +323,7 @@ export default function ProfileRoute() {
             value={activeBoardID()}
             onInput={(event) => switchBoard(event.currentTarget.value)}
             class="rounded-md border border-[#394b66] bg-[#131b2b] px-2 py-1 text-xs text-[#dbe7ff] outline-none focus:border-[var(--accent)]"
+            data-testid="profile-board-selector-desktop"
           >
             <For each={boardChoices()}>
               {(choice) => (
@@ -382,6 +383,7 @@ export default function ProfileRoute() {
                   value={activeBoardID()}
                   onInput={(event) => switchBoard(event.currentTarget.value)}
                   class="mt-2 w-full rounded-md border border-[#3a4d6f] bg-[#0c1524] px-2 py-1.5 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
+                  data-testid="profile-board-selector-mobile"
                 >
                   <For each={boardChoices()}>
                     {(choice) => (

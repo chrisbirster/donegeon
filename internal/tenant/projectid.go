@@ -29,7 +29,8 @@ func ProjectSlug(raw string) string {
 }
 
 func IsBoardProject(raw string) bool {
-	return strings.EqualFold(ProjectSlug(raw), "board")
+	slug := strings.ToLower(strings.TrimSpace(ProjectSlug(raw)))
+	return slug == "board" || strings.HasPrefix(slug, "board-")
 }
 
 func IsInboxProject(raw string) bool {

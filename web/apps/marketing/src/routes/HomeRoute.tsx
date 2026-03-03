@@ -2,6 +2,12 @@ import { createSignal, onMount, Show } from "solid-js";
 
 const APP_URL = "https://app.donegeon.com";
 
+const PLAN_LINKS = {
+  personal: `${APP_URL}/login?plan=personal`,
+  proTrial: `${APP_URL}/login?plan=pro_trial`,
+  enterprise: "mailto:sales@donegeon.com?subject=Donegeon%20Enterprise",
+};
+
 type AuthUser = {
   name: string;
   email: string;
@@ -79,15 +85,15 @@ export default function HomeRoute() {
             <div class="mt-8 flex flex-wrap gap-3">
               <a
                 class="rounded-lg bg-[#ff6a4a] px-5 py-2.5 text-sm font-semibold text-[#1a0d08] transition hover:bg-[#ff845f]"
-                href={APP_URL}
+                href={PLAN_LINKS.personal}
               >
-                Open App
+                Start Free
               </a>
               <a
                 class="rounded-lg border border-[#36527a] bg-[#0f2037]/80 px-5 py-2.5 text-sm font-semibold text-[#d7e5ff] transition hover:border-[#4f77b0]"
-                href="mailto:hello@donegeon.com"
+                href={PLAN_LINKS.proTrial}
               >
-                Contact Team
+                Start Pro Trial
               </a>
             </div>
           </div>
@@ -101,6 +107,59 @@ export default function HomeRoute() {
             </ul>
           </aside>
         </div>
+
+        <section class="grid gap-4 md:grid-cols-3">
+          <article class="rounded-2xl border border-[#304b70] bg-[#0d192b]/85 p-5">
+            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#9ec6ff]">Personal</p>
+            <h2 class="mt-2 text-2xl font-bold text-[#f2f7ff]">$0</h2>
+            <p class="mt-1 text-sm text-[#a9bcda]">Core task + board workflows for solo use.</p>
+            <ul class="mt-3 space-y-1 text-sm text-[#d7e5ff]">
+              <li>Quick add parsing</li>
+              <li>Recurring + deadline support</li>
+              <li>Single workspace</li>
+            </ul>
+            <a
+              class="mt-4 inline-flex rounded-lg bg-[#ff6a4a] px-4 py-2 text-xs font-semibold text-[#1a0d08] transition hover:bg-[#ff845f]"
+              href={PLAN_LINKS.personal}
+            >
+              Choose Personal
+            </a>
+          </article>
+
+          <article class="rounded-2xl border border-[#5577a8] bg-[#11223b]/90 p-5 shadow-[0_18px_36px_rgba(6,14,29,0.45)]">
+            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#cde0ff]">Pro</p>
+            <h2 class="mt-2 text-2xl font-bold text-[#f2f7ff]">$12<span class="text-sm text-[#9fb2d1]">/user/mo</span></h2>
+            <p class="mt-1 text-sm text-[#a9bcda]">Team collaboration and advanced board operations.</p>
+            <ul class="mt-3 space-y-1 text-sm text-[#d7e5ff]">
+              <li>Team roles and board sharing</li>
+              <li>Quest + reward progression at team scale</li>
+              <li>14-day trial before billing</li>
+            </ul>
+            <a
+              class="mt-4 inline-flex rounded-lg bg-[#5ad08b] px-4 py-2 text-xs font-semibold text-[#0d1e14] transition hover:bg-[#74e7a4]"
+              href={PLAN_LINKS.proTrial}
+            >
+              Start Pro Trial
+            </a>
+          </article>
+
+          <article class="rounded-2xl border border-[#435678] bg-[#0e1727]/85 p-5">
+            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#b5c8e8]">Enterprise</p>
+            <h2 class="mt-2 text-2xl font-bold text-[#f2f7ff]">Custom</h2>
+            <p class="mt-1 text-sm text-[#a9bcda]">Security, controls, and support for larger orgs.</p>
+            <ul class="mt-3 space-y-1 text-sm text-[#d7e5ff]">
+              <li>Procurement + invoicing</li>
+              <li>Custom access policies</li>
+              <li>Priority onboarding support</li>
+            </ul>
+            <a
+              class="mt-4 inline-flex rounded-lg border border-[#4d668c] bg-[#15243b] px-4 py-2 text-xs font-semibold text-[#d6e6ff] transition hover:border-[#6f88b2]"
+              href={PLAN_LINKS.enterprise}
+            >
+              Talk to Sales
+            </a>
+          </article>
+        </section>
       </section>
     </main>
   );

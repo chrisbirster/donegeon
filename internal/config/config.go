@@ -10,34 +10,39 @@ import (
 )
 
 type Config struct {
-	HTTPPort            string
-	DBBackend           string
-	DBPath              string
-	DBURL               string
-	DBAuthToken         string
-	BoardConfigPath     string
-	QuestConfigPath     string
-	RequireAuth         bool
-	WriteToken          string
-	ReadOnlyToken       string
-	RequestTimeout      time.Duration
-	ShutdownTimeout     time.Duration
-	LogLevel            slog.Level
-	CookieSigningKey    string
-	CookieSecure        bool
-	CookieSameSite      string
-	CookieDomain        string
-	AuthSessionTTL      time.Duration
-	AuthCodeTTL         time.Duration
-	AuthCodeLength      int
-	AuthMaxCodeAttempts int
-	AuthCodePepper      string
-	AuthDebugCode       bool
-	AppBaseURL          string
-	EmailSendURL        string
-	EmailSendAuthHeader string
-	EmailSendAuthValue  string
-	CorsAllowedOrigins  []string
+	HTTPPort                 string
+	DBBackend                string
+	DBPath                   string
+	DBURL                    string
+	DBAuthToken              string
+	BoardConfigPath          string
+	QuestConfigPath          string
+	RequireAuth              bool
+	WriteToken               string
+	ReadOnlyToken            string
+	RequestTimeout           time.Duration
+	ShutdownTimeout          time.Duration
+	LogLevel                 slog.Level
+	CookieSigningKey         string
+	CookieSecure             bool
+	CookieSameSite           string
+	CookieDomain             string
+	AuthSessionTTL           time.Duration
+	AuthCodeTTL              time.Duration
+	AuthCodeLength           int
+	AuthMaxCodeAttempts      int
+	AuthCodePepper           string
+	AuthDebugCode            bool
+	AppBaseURL               string
+	EmailSendURL             string
+	EmailSendAuthHeader      string
+	EmailSendAuthValue       string
+	StripeSecretKey          string
+	StripeWebhookSecret      string
+	StripeProPriceID         string
+	StripeCheckoutSuccessURL string
+	StripeCheckoutCancelURL  string
+	CorsAllowedOrigins       []string
 }
 
 func Load() (Config, error) {
@@ -75,7 +80,18 @@ func Load() (Config, error) {
 		EmailSendURL:        envOr("DONEGEON_EMAIL_SEND_URL", ""),
 		EmailSendAuthHeader: envOr("DONEGEON_EMAIL_SEND_AUTH_HEADER", "Authorization"),
 		EmailSendAuthValue:  envOr("DONEGEON_EMAIL_SEND_AUTH_VALUE", ""),
-		CorsAllowedOrigins:  parseCorsOrigins(envOr("DONEGEON_CORS_ALLOWED_ORIGINS", "")),
+		StripeSecretKey:     envOr("DONEGEON_STRIPE_SECRET_KEY", ""),
+		StripeWebhookSecret: envOr("DONEGEON_STRIPE_WEBHOOK_SECRET", ""),
+		StripeProPriceID:    envOr("DONEGEON_STRIPE_PRICE_PRO", ""),
+		StripeCheckoutSuccessURL: envOr(
+			"DONEGEON_STRIPE_CHECKOUT_SUCCESS_URL",
+			"https://app.donegeon.com/team/settings?billing=success",
+		),
+		StripeCheckoutCancelURL: envOr(
+			"DONEGEON_STRIPE_CHECKOUT_CANCEL_URL",
+			"https://app.donegeon.com/team/settings?billing=canceled",
+		),
+		CorsAllowedOrigins: parseCorsOrigins(envOr("DONEGEON_CORS_ALLOWED_ORIGINS", "")),
 	}
 
 	requireAuth, err := envBoolOr("DONEGEON_REQUIRE_AUTH", true)

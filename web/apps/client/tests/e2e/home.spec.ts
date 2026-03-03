@@ -2,13 +2,22 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { addQuickTask, resetTasks, taskRowByContent } from "./support/api";
 
-async function setTaskDueByDetail(content: string, dueText: string, page: Page) {
+function toDatetimeLocalOffset(daysFromNow: number, hour = 9, minute = 0): string {
+  const target = new Date();
+  target.setDate(target.getDate() + daysFromNow);
+  target.setHours(hour, minute, 0, 0);
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+}
+
+async function setTaskDueByDetail(content: string, dueDaysFromNow: number, page: Page) {
   const row = taskRowByContent(page, content);
   await expect(row).toBeVisible();
   await row.hover();
   await row.getByTestId("open-task-details").click();
   await expect(page.getByTestId("task-detail-modal")).toBeVisible();
-  await page.getByTestId("task-detail-due").fill(dueText);
+  await page.getByTestId("task-detail-due").fill(toDatetimeLocalOffset(dueDaysFromNow, 9, 0));
   await page.getByTestId("task-detail-save").click();
   await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
 }
@@ -33,11 +42,11 @@ test.describe("Home task flows", () => {
     await page.getByTestId("task-detail-title").fill("Ship release candidate final");
     await page.getByTestId("task-detail-description").fill("Run release checklist and smoke tests.");
     await page.getByTestId("task-detail-priority").selectOption("1");
-    await page.getByTestId("task-detail-due").fill("in 2 days");
-    await page.getByTestId("task-detail-deadline").fill("next week");
+    await page.getByTestId("task-detail-due").fill(toDatetimeLocalOffset(2, 10, 0));
+    await page.getByTestId("task-detail-deadline").fill(toDatetimeLocalOffset(7, 10, 0));
     await page.getByTestId("task-detail-recurrence").fill("FREQ=WEEKLY;INTERVAL=1;BYDAY=MO");
     await page.getByTestId("task-detail-parse-rrule").click();
-    await expect(page.getByText("FREQ=WEEKLY")).toBeVisible();
+    await expect(page.getByText("RRULE is valid.")).toBeVisible();
     await page.getByTestId("task-detail-recurrence").fill("");
     await page.getByTestId("task-detail-save").click();
 
@@ -63,8 +72,8 @@ test.describe("Home task flows", () => {
     await addQuickTask(page, "Alpha project task #alpha");
     await expect(taskRowByContent(page, "Alpha project task")).toHaveCount(0);
 
-    await setTaskDueByDetail("Today inbox task", "today", page);
-    await setTaskDueByDetail("Later inbox task", "in 3 days", page);
+    await setTaskDueByDetail("Today inbox task", 0, page);
+    await setTaskDueByDetail("Later inbox task", 3, page);
 
     await page.getByRole("button", { name: /Today/ }).click();
     await expect(taskRowByContent(page, "Today inbox task")).toBeVisible();

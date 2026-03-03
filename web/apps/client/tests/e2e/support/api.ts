@@ -9,6 +9,17 @@ type BoardStateResponse = {
   stacks: Record<string, { id: string }>;
 };
 
+type TeamInvitationResponse = {
+  invitation: {
+    invitationCode: string;
+  };
+};
+
+type LoginCodeRequestResponse = {
+  challengeId: string;
+  debugCode?: string;
+};
+
 export async function resetTasks(request: APIRequestContext) {
   const response = await request.get("/api/tasks");
   expect(response.ok()).toBeTruthy();
@@ -47,6 +58,37 @@ export async function resetBoard(request: APIRequestContext) {
   }
 
   throw new Error("failed to clear board stacks within 200 iterations");
+}
+
+export async function inviteTeamMemberAndAccept(
+  request: APIRequestContext,
+  email: string,
+  role: "admin" | "editor" | "reader" = "editor",
+) {
+  const inviteResponse = await request.post("/api/team/invitations", {
+    data: { email, role },
+  });
+  expect(inviteResponse.ok()).toBeTruthy();
+  const inviteData = (await inviteResponse.json()) as TeamInvitationResponse;
+  const invitationCode = inviteData.invitation?.invitationCode;
+  expect(invitationCode).toBeTruthy();
+
+  const loginCodeResponse = await request.post("/api/auth/login/request", {
+    data: { email, name: email },
+  });
+  expect(loginCodeResponse.ok()).toBeTruthy();
+  const loginCodeData = (await loginCodeResponse.json()) as LoginCodeRequestResponse;
+  expect(loginCodeData.challengeId).toBeTruthy();
+  expect(loginCodeData.debugCode).toBeTruthy();
+
+  const verifyResponse = await request.post("/api/auth/login/verify", {
+    data: {
+      challengeId: loginCodeData.challengeId,
+      code: loginCodeData.debugCode,
+      invitationCode,
+    },
+  });
+  expect(verifyResponse.ok()).toBeTruthy();
 }
 
 export async function addQuickTask(page: Page, value: string) {

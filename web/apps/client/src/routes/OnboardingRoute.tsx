@@ -1,4 +1,4 @@
-import { useNavigate } from "@solidjs/router";
+import { useLocation, useNavigate } from "@solidjs/router";
 import { createSignal, onMount } from "solid-js";
 
 import { authApi } from "../server/api";
@@ -10,15 +10,26 @@ function parseInviteEmails(raw: string): string[] {
     .filter((value) => value.length > 0);
 }
 
+function normalizePlan(raw: string): "personal" | "pro_trial" | "enterprise" {
+  const value = raw.trim().toLowerCase();
+  if (value === "pro_trial" || value === "pro") return "pro_trial";
+  if (value === "enterprise") return "enterprise";
+  return "personal";
+}
+
 export default function OnboardingRoute() {
+  const location = useLocation();
   const navigate = useNavigate();
   const [name, setName] = createSignal("");
   const [teamName, setTeamName] = createSignal("");
+  const [plan, setPlan] = createSignal<"personal" | "pro_trial" | "enterprise">("personal");
   const [inviteInput, setInviteInput] = createSignal("");
   const [saving, setSaving] = createSignal(false);
   const [error, setError] = createSignal("");
 
   onMount(async () => {
+    const params = new URLSearchParams(location.search);
+    setPlan(normalizePlan(params.get("plan") || "personal"));
     try {
       const { session } = await authApi.me();
       if (!session.user.showOnboarding) {
@@ -36,7 +47,12 @@ export default function OnboardingRoute() {
     setError("");
     setSaving(true);
     try {
-      await authApi.completeOnboarding(teamName().trim(), name().trim(), parseInviteEmails(inviteInput()));
+      await authApi.completeOnboarding(
+        teamName().trim(),
+        name().trim(),
+        parseInviteEmails(inviteInput()),
+        plan(),
+      );
       navigate("/task/inbox", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Onboarding failed");
@@ -73,6 +89,51 @@ export default function OnboardingRoute() {
           class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
           placeholder="My Team"
         />
+
+        <fieldset class="mt-5">
+          <legend class="text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Plan</legend>
+          <div class="mt-2 space-y-2">
+            <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-[#2f4465] bg-[#0d1523] px-3 py-2 text-sm text-[#dbe8ff]">
+              <input
+                type="radio"
+                name="plan"
+                value="personal"
+                checked={plan() === "personal"}
+                onChange={() => setPlan("personal")}
+              />
+              <span>
+                <span class="block font-semibold">Personal (Free)</span>
+                <span class="block text-xs text-[#95a9cc]">Single-player workflow and core task + board features.</span>
+              </span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-[#2f4465] bg-[#0d1523] px-3 py-2 text-sm text-[#dbe8ff]">
+              <input
+                type="radio"
+                name="plan"
+                value="pro_trial"
+                checked={plan() === "pro_trial"}
+                onChange={() => setPlan("pro_trial")}
+              />
+              <span>
+                <span class="block font-semibold">Pro Trial (14 days)</span>
+                <span class="block text-xs text-[#95a9cc]">Unlock pro team features now and decide later.</span>
+              </span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-[#2f4465] bg-[#0d1523] px-3 py-2 text-sm text-[#dbe8ff]">
+              <input
+                type="radio"
+                name="plan"
+                value="enterprise"
+                checked={plan() === "enterprise"}
+                onChange={() => setPlan("enterprise")}
+              />
+              <span>
+                <span class="block font-semibold">Enterprise</span>
+                <span class="block text-xs text-[#95a9cc]">Advanced controls and SSO-ready onboarding path.</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
 
         <label class="mt-4 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Invite emails (optional)</label>
         <textarea

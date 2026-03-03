@@ -153,7 +153,7 @@ func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, 
 	if in.Recurrence != nil {
 		effectiveRecurrence = in.Recurrence
 	}
-	if effectiveRecurrence != nil && in.DueText == nil && current.DueText == nil {
+	if effectiveRecurrence != nil && in.DueText == nil && !in.ClearDueText && current.DueText == nil {
 		if nextDue, ok := nextOccurrenceDueText(*effectiveRecurrence, timezoneFromContext(ctx), s.nowFn(), true); ok {
 			in.DueText = strPtr(nextDue)
 			in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())

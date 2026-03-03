@@ -3,6 +3,9 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,6 +106,9 @@ func New(
 	mux.HandleFunc("DELETE /api/team/invitations/{code}", api.handleDeleteTeamInvitation)
 	mux.HandleFunc("PATCH /api/team/members/{userId}", api.handlePatchTeamMember)
 	mux.HandleFunc("DELETE /api/team/members/{userId}", api.handleDeleteTeamMember)
+	mux.HandleFunc("GET /api/billing/status", api.handleBillingStatus)
+	mux.HandleFunc("POST /api/billing/checkout", api.handleCreateBillingCheckout)
+	mux.HandleFunc("POST /api/billing/webhook", api.handleBillingWebhook)
 	mux.HandleFunc("POST /api/rrule/parse", api.handleParseRRule)
 	mux.HandleFunc("POST /api/quick-add/parse", api.handleParseQuickAdd)
 	mux.HandleFunc("POST /api/tasks/quick-add", api.handleQuickAddTask)
@@ -318,6 +324,7 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 		TeamName string   `json:"teamName"`
 		Name     string   `json:"name"`
 		Emails   []string `json:"emails"`
+		Plan     string   `json:"plan"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
@@ -331,6 +338,7 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 		strings.TrimSpace(req.TeamName),
 		strings.TrimSpace(req.Name),
 		req.Emails,
+		strings.TrimSpace(req.Plan),
 	)
 	if err != nil {
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "teamName"))
@@ -590,6 +598,182 @@ func (a *API) handleDeleteTeamMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (a *API) handleBillingStatus(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+	if workspaceID == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "workspace is required"), "workspaceId"))
+		return
+	}
+
+	team, err := a.accounts.GetWorkspace(r.Context(), workspaceID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"team": team})
+}
+
+func (a *API) handleCreateBillingCheckout(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		Plan string `json:"plan"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+	plan := normalizeBillingPlan(req.Plan)
+	if plan == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "plan must be one of personal, pro_trial, pro, enterprise"), "plan"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+	if workspaceID == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "workspace is required"), "workspaceId"))
+		return
+	}
+
+	if plan == account.PlanProTrial {
+		team, err := a.accounts.BeginProTrial(r.Context(), workspaceID)
+		if err != nil {
+			writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"mode": "trial_started",
+			"team": team,
+		})
+		return
+	}
+	if plan == account.PlanEnterprise {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"mode":       "contact_sales",
+			"contactUrl": "mailto:sales@donegeon.com",
+		})
+		return
+	}
+	if plan == account.PlanPersonal {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "use team settings to downgrade after subscription cancellation"), "plan"))
+		return
+	}
+
+	if strings.TrimSpace(a.cfg.StripeSecretKey) == "" || strings.TrimSpace(a.cfg.StripeProPriceID) == "" {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "stripe checkout is not configured"))
+		return
+	}
+
+	team, err := a.accounts.GetWorkspace(r.Context(), workspaceID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+		return
+	}
+
+	email := strings.TrimSpace(principal.Email)
+	if email == "" {
+		session, sessionErr := a.accounts.GetSession(r.Context(), principal.UserID)
+		if sessionErr == nil {
+			email = strings.TrimSpace(session.User.Email)
+		}
+	}
+	checkoutURL, err := a.createStripeCheckoutSession(r.Context(), stripeCheckoutInput{
+		WorkspaceID:      workspaceID,
+		WorkspaceName:    team.Name,
+		Plan:             plan,
+		CustomerEmail:    email,
+		ExistingCustomer: strings.TrimSpace(ptrString(team.StripeCustomerID)),
+	})
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, err.Error()))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"mode":        "stripe_checkout",
+		"checkoutUrl": checkoutURL,
+	})
+}
+
+func (a *API) handleBillingWebhook(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+	if strings.TrimSpace(a.cfg.StripeWebhookSecret) == "" {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "stripe webhook secret is not configured"))
+		return
+	}
+
+	payload, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid webhook payload"))
+		return
+	}
+	if !verifyStripeSignature(r.Header.Get("Stripe-Signature"), a.cfg.StripeWebhookSecret, payload) {
+		writeAPIError(w, apperrors.New(apperrors.CodeUnauthorized, "invalid stripe signature"))
+		return
+	}
+
+	var event struct {
+		Type string `json:"type"`
+		Data struct {
+			Object map[string]any `json:"object"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(payload, &event); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid stripe event json"))
+		return
+	}
+
+	switch strings.TrimSpace(event.Type) {
+	case "checkout.session.completed":
+		obj := event.Data.Object
+		metadata := stripeObjectMap(obj, "metadata")
+		workspaceID := stripeObjectString(obj, "client_reference_id")
+		if workspaceID == "" {
+			workspaceID = stripeMapString(metadata, "workspace_id")
+		}
+		subscriptionID := stripeObjectString(obj, "subscription")
+		customerID := stripeObjectString(obj, "customer")
+		email := stripeObjectString(obj, "customer_email")
+		if email == "" {
+			email = stripeMapString(stripeObjectMap(obj, "customer_details"), "email")
+		}
+		if workspaceID == "" || subscriptionID == "" {
+			writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "missing workspace or subscription in checkout event"))
+			return
+		}
+		if _, err := a.accounts.ActivateProFromStripe(r.Context(), workspaceID, customerID, subscriptionID, a.cfg.StripeProPriceID, email); err != nil {
+			a.logError(r, "stripe_checkout_complete_update_failed", err)
+			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to update workspace plan"))
+			return
+		}
+	case "customer.subscription.deleted":
+		subscriptionID := stripeObjectString(event.Data.Object, "id")
+		if subscriptionID != "" {
+			if err := a.accounts.DowngradePersonalByStripeSubscription(r.Context(), subscriptionID); err != nil {
+				a.logError(r, "stripe_subscription_deleted_update_failed", err)
+			}
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"received": true})
+}
+
 func (a *API) handleParseQuickAdd(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Text string `json:"text"`
@@ -773,6 +957,19 @@ func (a *API) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "project id is required"), "projectId"))
 		return
 	}
+	boardID, isBoardProject, boardErr := boardIDFromProjectID(projectID)
+	if boardErr != nil {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, boardErr.Error()), "projectId"))
+		return
+	}
+	if isBoardProject && a.accounts != nil {
+		principal := sessionctx.PrincipalFromContext(r.Context())
+		if err := a.accounts.UpsertBoardMembership(r.Context(), principal.WorkspaceID, boardID, principal.UserID); err != nil {
+			a.logError(r, "create_project_board_membership_failed", err)
+			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to grant board access"))
+			return
+		}
+	}
 
 	created, err := a.projects.Upsert(r.Context(), projectID, project.UpsertInput{
 		Name:       cleanPtr(&name),
@@ -782,18 +979,6 @@ func (a *API) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		a.logError(r, "create_project_failed", err)
 		writeAPIError(w, err)
 		return
-	}
-
-	if boardID, isBoardProject, boardErr := boardIDFromProjectID(created.ID); boardErr != nil {
-		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, boardErr.Error()), "projectId"))
-		return
-	} else if isBoardProject && a.accounts != nil {
-		principal := sessionctx.PrincipalFromContext(r.Context())
-		if err := a.accounts.UpsertBoardMembership(r.Context(), principal.WorkspaceID, boardID, principal.UserID); err != nil {
-			a.logError(r, "create_project_board_membership_failed", err)
-			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to grant board access"))
-			return
-		}
 	}
 
 	writeJSON(w, http.StatusCreated, created)
@@ -1132,16 +1317,18 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 	input := task.UpdateInput{
-		Content:       cleanPtr(req.Content),
-		Description:   cleanPtr(req.Description),
-		ProjectID:     cleanPtr(req.ProjectID),
-		SectionID:     cleanPtr(req.SectionID),
-		SortOrder:     req.SortOrder,
-		Recurrence:    cleanPtr(req.Recurrence),
-		Priority:      req.Priority,
-		DueText:       cleanPtr(req.DueText),
-		DueDeadline:   cleanPtr(req.DueDeadline),
-		ScheduleInput: cleanPtr(req.ScheduleInput),
+		Content:          cleanPtr(req.Content),
+		Description:      cleanPtr(req.Description),
+		ProjectID:        cleanPtr(req.ProjectID),
+		SectionID:        cleanPtr(req.SectionID),
+		SortOrder:        req.SortOrder,
+		Recurrence:       cleanPtr(req.Recurrence),
+		Priority:         req.Priority,
+		DueText:          cleanPtr(req.DueText),
+		ClearDueText:     req.DueText != nil && strings.TrimSpace(*req.DueText) == "",
+		DueDeadline:      cleanPtr(req.DueDeadline),
+		ClearDueDeadline: req.DueDeadline != nil && strings.TrimSpace(*req.DueDeadline) == "",
+		ScheduleInput:    cleanPtr(req.ScheduleInput),
 	}
 	if req.Labels != nil {
 		labels := cleanStringSlice(req.Labels)
@@ -1230,7 +1417,8 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 			r.URL.Path == "/api/auth/login/request" ||
 			r.URL.Path == "/api/auth/login/verify" ||
 			r.URL.Path == "/api/auth/invitation" ||
-			r.URL.Path == "/api/auth/logout" {
+			r.URL.Path == "/api/auth/logout" ||
+			r.URL.Path == "/api/billing/webhook" {
 			scope := ScopeWrite
 			if !isWriteRequest(r.Method) {
 				scope = ScopeRead
@@ -1748,6 +1936,204 @@ func cleanStringSlice(values []string) []string {
 		cleaned = append(cleaned, trimmed)
 	}
 	return cleaned
+}
+
+type stripeCheckoutInput struct {
+	WorkspaceID      string
+	WorkspaceName    string
+	Plan             string
+	CustomerEmail    string
+	ExistingCustomer string
+}
+
+func (a *API) createStripeCheckoutSession(ctx context.Context, in stripeCheckoutInput) (string, error) {
+	secret := strings.TrimSpace(a.cfg.StripeSecretKey)
+	if secret == "" {
+		return "", fmt.Errorf("stripe secret key is not configured")
+	}
+	priceID := strings.TrimSpace(a.cfg.StripeProPriceID)
+	if priceID == "" {
+		return "", fmt.Errorf("stripe pro price id is not configured")
+	}
+	successURL := strings.TrimSpace(a.cfg.StripeCheckoutSuccessURL)
+	cancelURL := strings.TrimSpace(a.cfg.StripeCheckoutCancelURL)
+	if successURL == "" || cancelURL == "" {
+		return "", fmt.Errorf("stripe checkout urls are not configured")
+	}
+
+	form := url.Values{}
+	form.Set("mode", "subscription")
+	form.Set("success_url", successURL)
+	form.Set("cancel_url", cancelURL)
+	form.Set("client_reference_id", strings.TrimSpace(in.WorkspaceID))
+	form.Set("allow_promotion_codes", "true")
+	form.Set("line_items[0][price]", priceID)
+	form.Set("line_items[0][quantity]", "1")
+	form.Set("metadata[workspace_id]", strings.TrimSpace(in.WorkspaceID))
+	form.Set("metadata[workspace_name]", strings.TrimSpace(in.WorkspaceName))
+	form.Set("metadata[plan_target]", normalizeBillingPlan(in.Plan))
+	form.Set("subscription_data[metadata][workspace_id]", strings.TrimSpace(in.WorkspaceID))
+	form.Set("subscription_data[metadata][plan_target]", normalizeBillingPlan(in.Plan))
+	if customer := strings.TrimSpace(in.ExistingCustomer); customer != "" {
+		form.Set("customer", customer)
+	} else if email := strings.TrimSpace(in.CustomerEmail); email != "" {
+		form.Set("customer_email", email)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.stripe.com/v1/checkout/sessions", strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.SetBasicAuth(secret, "")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: a.cfg.RequestTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	var payload struct {
+		URL   string `json:"url"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &payload)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if payload.Error != nil && strings.TrimSpace(payload.Error.Message) != "" {
+			return "", fmt.Errorf("stripe checkout failed: %s", strings.TrimSpace(payload.Error.Message))
+		}
+		return "", fmt.Errorf("stripe checkout failed with status %d", resp.StatusCode)
+	}
+
+	checkoutURL := strings.TrimSpace(payload.URL)
+	if checkoutURL == "" {
+		return "", fmt.Errorf("stripe did not return checkout url")
+	}
+	return checkoutURL, nil
+}
+
+func normalizeBillingPlan(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "free", account.PlanPersonal:
+		return account.PlanPersonal
+	case account.PlanProTrial:
+		return account.PlanProTrial
+	case account.PlanPro:
+		return account.PlanPro
+	case account.PlanEnterprise:
+		return account.PlanEnterprise
+	default:
+		return ""
+	}
+}
+
+func ptrString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func stripeObjectMap(object map[string]any, key string) map[string]any {
+	if object == nil {
+		return nil
+	}
+	raw, ok := object[key]
+	if !ok {
+		return nil
+	}
+	next, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	return next
+}
+
+func stripeObjectString(object map[string]any, key string) string {
+	if object == nil {
+		return ""
+	}
+	return stripeValueString(object[key])
+}
+
+func stripeMapString(object map[string]any, key string) string {
+	if object == nil {
+		return ""
+	}
+	return stripeValueString(object[key])
+}
+
+func stripeValueString(raw any) string {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value)
+	case json.Number:
+		return strings.TrimSpace(value.String())
+	default:
+		return ""
+	}
+}
+
+func verifyStripeSignature(header string, secret string, payload []byte) bool {
+	header = strings.TrimSpace(header)
+	secret = strings.TrimSpace(secret)
+	if header == "" || secret == "" || len(payload) == 0 {
+		return false
+	}
+
+	var timestamp string
+	signatures := make([]string, 0, 2)
+	for _, part := range strings.Split(header, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		pieces := strings.SplitN(part, "=", 2)
+		if len(pieces) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(pieces[0])
+		value := strings.TrimSpace(pieces[1])
+		if key == "t" {
+			timestamp = value
+			continue
+		}
+		if key == "v1" {
+			signatures = append(signatures, value)
+		}
+	}
+	if timestamp == "" || len(signatures) == 0 {
+		return false
+	}
+
+	unixTime, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false
+	}
+	now := time.Now().Unix()
+	if unixTime < now-300 || unixTime > now+300 {
+		return false
+	}
+
+	signedPayload := timestamp + "." + string(payload)
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(signedPayload))
+	expected := hex.EncodeToString(mac.Sum(nil))
+
+	for _, signature := range signatures {
+		if hmac.Equal([]byte(expected), []byte(signature)) {
+			return true
+		}
+	}
+	return false
 }
 
 func projectIDFromName(name string) string {

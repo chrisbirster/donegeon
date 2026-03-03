@@ -180,6 +180,9 @@ export type AuthTeam = {
   id: string;
   name: string;
   plan: string;
+  trialEndsAt?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   isArchived: boolean;
 };
 
@@ -219,6 +222,13 @@ export type TeamSettings = {
 };
 
 export type BoardMember = TeamMember;
+
+export type BillingCheckoutResponse = {
+  mode: "trial_started" | "stripe_checkout" | "contact_sales";
+  checkoutUrl?: string;
+  contactUrl?: string;
+  team?: AuthTeam;
+};
 
 export type AuthSession = {
   user: AuthUser;
@@ -360,10 +370,10 @@ export const authApi = {
     }),
   invitation: (invitationCode: string) =>
     api<{ invitation: InvitationForLogin }>(`/api/auth/invitation?code=${encodeURIComponent(invitationCode)}`),
-  completeOnboarding: (teamName: string, name: string, emails: string[]) =>
+  completeOnboarding: (teamName: string, name: string, emails: string[], plan?: string) =>
     api<{ session: AuthSession; invitations: Array<{ email: string; invitationCode: string }> }>("/api/auth/onboarding", {
       method: "POST",
-      body: JSON.stringify({ teamName, name, emails }),
+      body: JSON.stringify({ teamName, name, emails, plan }),
     }),
   logout: () =>
     api<void>("/api/auth/logout", {
@@ -400,6 +410,15 @@ export const teamApi = {
   cancelInvitation: (invitationCode: string) =>
     api<void>(`/api/team/invitations/${encodeURIComponent(invitationCode)}`, {
       method: "DELETE",
+    }),
+};
+
+export const billingApi = {
+  status: () => api<{ team: AuthTeam }>("/api/billing/status"),
+  checkout: (plan: "personal" | "pro_trial" | "pro" | "enterprise") =>
+    api<BillingCheckoutResponse>("/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan }),
     }),
 };
 

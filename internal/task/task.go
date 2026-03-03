@@ -35,17 +35,19 @@ type CreateInput struct {
 }
 
 type UpdateInput struct {
-	Content       *string
-	Description   *string
-	ProjectID     *string
-	SectionID     *string
-	SortOrder     *int64
-	Recurrence    *string
-	Priority      *int
-	DueText       *string
-	DueDeadline   *string
-	ScheduleInput *string
-	Labels        *[]string
+	Content          *string
+	Description      *string
+	ProjectID        *string
+	SectionID        *string
+	SortOrder        *int64
+	Recurrence       *string
+	Priority         *int
+	DueText          *string
+	ClearDueText     bool
+	DueDeadline      *string
+	ClearDueDeadline bool
+	ScheduleInput    *string
+	Labels           *[]string
 }
 
 type ListParams struct {

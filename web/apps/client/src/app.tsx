@@ -52,6 +52,7 @@ export default function App() {
       <Route path="/board" component={() => <ProtectedRoute component={BoardRoute} />} />
       <Route path="/builder" component={() => <ProtectedRoute component={BuilderRoute} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={ProfileRoute} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={TeamSettingsRoute} />} />
       <Route path="/team/settings" component={() => <ProtectedRoute component={TeamSettingsRoute} />} />
     </>
   );

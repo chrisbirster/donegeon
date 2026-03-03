@@ -81,6 +81,25 @@ Deploy/restart Fly:
 fly deploy
 ```
 
+## Stripe billing env (app backend)
+
+Set these Fly secrets for Stripe checkout + webhook handling:
+
+```bash
+fly secrets set \
+  DONEGEON_STRIPE_SECRET_KEY="sk_live_..." \
+  DONEGEON_STRIPE_WEBHOOK_SECRET="whsec_..." \
+  DONEGEON_STRIPE_PRICE_PRO="price_..." \
+  DONEGEON_STRIPE_CHECKOUT_SUCCESS_URL="https://app.donegeon.com/team/settings?billing=success" \
+  DONEGEON_STRIPE_CHECKOUT_CANCEL_URL="https://app.donegeon.com/team/settings?billing=canceled"
+```
+
+Then redeploy app:
+
+```bash
+fly deploy
+```
+
 ## Remove
 
 ```bash

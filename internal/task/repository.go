@@ -193,20 +193,22 @@ func (r *Repository) Update(ctx context.Context, id string, in UpdateInput) (Tas
 
 	principal := sessionctx.PrincipalFromContext(ctx)
 	args := map[string]any{
-		"id":              id,
-		"content":         nullableString(in.Content),
-		"description":     nullableString(in.Description),
-		"project_id":      nullableString(in.ProjectID),
-		"section_id":      nullableString(in.SectionID),
-		"sort_order":      nullableInt64(in.SortOrder),
-		"recurrence_rule": nullableString(in.Recurrence),
-		"priority":        nullableInt(in.Priority),
-		"due_text":        nullableString(in.DueText),
-		"due_deadline":    nullableString(in.DueDeadline),
-		"schedule_input":  nullableString(in.ScheduleInput),
-		"user_id":         principal.UserID,
-		"workspace_id":    principal.WorkspaceID,
-		"updated_at":      time.Now().UTC().Format(time.RFC3339),
+		"id":                 id,
+		"content":            nullableString(in.Content),
+		"description":        nullableString(in.Description),
+		"project_id":         nullableString(in.ProjectID),
+		"section_id":         nullableString(in.SectionID),
+		"sort_order":         nullableInt64(in.SortOrder),
+		"recurrence_rule":    nullableString(in.Recurrence),
+		"priority":           nullableInt(in.Priority),
+		"due_text":           nullableString(in.DueText),
+		"clear_due_text":     boolToInt(in.ClearDueText),
+		"due_deadline":       nullableString(in.DueDeadline),
+		"clear_due_deadline": boolToInt(in.ClearDueDeadline),
+		"schedule_input":     nullableString(in.ScheduleInput),
+		"user_id":            principal.UserID,
+		"workspace_id":       principal.WorkspaceID,
+		"updated_at":         time.Now().UTC().Format(time.RFC3339),
 	}
 
 	res, err := r.db.NamedExecContext(ctx, query, args)
@@ -314,6 +316,13 @@ func nullableInt64(value *int64) any {
 		return nil
 	}
 	return *value
+}
+
+func boolToInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func (r *Repository) attachLabels(ctx context.Context, tasks []Task) error {

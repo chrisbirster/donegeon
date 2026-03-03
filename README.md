@@ -29,6 +29,8 @@ task dev
 
 - backend with hot reload via `air` + `.air.toml`
 - frontend via `bun run dev` in `/web`
+- loads root `.env` for backend env vars
+- defaults `DONEGEON_AUTH_DEBUG_CODE=true` in local dev so OTP is visible in Login UI
 
 If needed:
 
@@ -65,6 +67,30 @@ Vite runs on `http://localhost:5173` and proxies `/api` to `http://localhost:420
 ```bash
 cd web
 bun run build
+```
+
+## Taskfile quick commands
+
+```bash
+# Full local dev (API + app)
+task dev
+
+# Marketing site only
+task dev:marketing
+
+# Build marketing app
+task build:marketing
+
+# Deploy app backend (Fly)
+task deploy:app
+
+# Deploy SST infra (email API + marketing on Cloudflare)
+task deploy:infra
+task deploy:infra:dev
+
+# Marketing deploy aliases
+task deploy:marketing
+task deploy:marketing:dev
 ```
 
 ## Tests

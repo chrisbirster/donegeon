@@ -13,15 +13,23 @@ tasks:
       - dev:frontend
 
   dev:backend:
-    desc: Run Go API with hot reload (air)
+    desc: Run Go API with hot reload (air). Loads .env and enables OTP debug code by default.
     preconditions:
       - sh: command -v air >/dev/null 2>&1
         msg: air is required. Install it with `task install:air`.
     cmds:
-      - air -c .air.toml
+      - |
+        set -a
+        [ -f .env ] && . ./.env
+        set +a
+        : "${DONEGEON_AUTH_DEBUG_CODE:=true}"
+        : "${DONEGEON_REQUIRE_AUTH:=true}"
+        export DONEGEON_AUTH_DEBUG_CODE DONEGEON_REQUIRE_AUTH
+        echo "starting backend (DONEGEON_AUTH_DEBUG_CODE=${DONEGEON_AUTH_DEBUG_CODE})"
+        air -c .air.toml
 
   dev:frontend:
-    desc: Run web dev server (bun + turbo + vite)
+    desc: Run web dev server (bun + turbo + vite). Waits for API health.
     dir: web
     preconditions:
       - sh: command -v bun >/dev/null 2>&1
@@ -35,6 +43,15 @@ tasks:
           sleep 0.2
         done
         bun run dev
+
+  dev:marketing:
+    desc: Run marketing app only (Vite SPA)
+    dir: web/apps/marketing
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+    cmds:
+      - bun run dev
 
   install:
     desc: Install all local development dependencies
@@ -70,8 +87,42 @@ tasks:
     cmds:
       - bun run build
 
+  build:marketing:
+    desc: Build only marketing SPA (web/apps/marketing/dist)
+    dir: web
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+    cmds:
+      - bun run build --filter=@donegeon/marketing
+
+  deploy:app:
+    desc: Deploy app.donegeon.com backend to Fly
+    preconditions:
+      - sh: command -v flyctl >/dev/null 2>&1
+        msg: flyctl is required. Install Fly CLI first.
+    cmds:
+      - flyctl deploy
+
+  deploy:app:secrets:
+    desc: Set app secrets from .env on Fly (best-effort; skips blank lines/comments)
+    preconditions:
+      - sh: command -v flyctl >/dev/null 2>&1
+        msg: flyctl is required. Install Fly CLI first.
+      - sh: test -f .env
+        msg: .env not found at repo root.
+    cmds:
+      - |
+        while IFS='=' read -r key value; do
+          [ -z "$key" ] && continue
+          case "$key" in \#*) continue ;; esac
+          [ -z "$value" ] && continue
+          flyctl secrets set "$key=$value" >/dev/null || true
+        done < .env
+        echo "done: attempted to sync non-empty .env keys to Fly secrets"
+
   deploy:infra:
-    desc: Deploy SST infra (loads infra/.env automatically)
+    desc: Deploy SST infra to production (email API + marketing site)
     dir: infra
     dotenv:
       - .env
@@ -85,7 +136,7 @@ tasks:
       - bunx sst deploy --stage production
 
   deploy:infra:dev:
-    desc: Deploy SST infra to dev stage (loads infra/.env)
+    desc: Deploy SST infra to dev stage (email API + marketing site)
     dir: infra
     dotenv:
       - .env
@@ -108,3 +159,13 @@ tasks:
         msg: bun is required. Install bun first.
     cmds:
       - bunx sst remove --stage production
+
+  deploy:marketing:
+    desc: Deploy marketing site via SST (production)
+    cmds:
+      - task: deploy:infra
+
+  deploy:marketing:dev:
+    desc: Deploy marketing site via SST (dev stage)
+    cmds:
+      - task: deploy:infra:dev

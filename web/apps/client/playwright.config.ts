@@ -10,9 +10,19 @@ const repoRoot = path.resolve(__dirname, "../../..");
 const apiPort = Number(process.env.PW_API_PORT || "42169");
 const webPort = Number(process.env.PW_WEB_PORT || "4173");
 const dbPath = path.resolve(repoRoot, "tmp", "playwright-e2e.db");
+const dbDir = path.dirname(dbPath);
+const outputDir = process.env.PW_OUTPUT_DIR || "test-results";
+
+function parseScreenshotMode(value: string | undefined): "off" | "on" | "only-on-failure" {
+  if (value === "off" || value === "on" || value === "only-on-failure") return value;
+  return "only-on-failure";
+}
+
+const screenshotMode = parseScreenshotMode(process.env.PW_SCREENSHOT_MODE);
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  outputDir,
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 2 : 0,
@@ -28,12 +38,12 @@ export default defineConfig({
       height: 900,
     },
     trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    screenshot: screenshotMode,
     video: "retain-on-failure",
   },
   webServer: [
     {
-      command: `sh -c "rm -f '${dbPath}' && DONEGEON_HTTP_PORT=${apiPort} DONEGEON_DB_PATH='${dbPath}' DONEGEON_REQUIRE_AUTH=false go run ."`,
+      command: `sh -c "mkdir -p '${dbDir}' && rm -f '${dbPath}' && DONEGEON_HTTP_PORT=${apiPort} DONEGEON_DB_PATH='${dbPath}' DONEGEON_REQUIRE_AUTH=false DONEGEON_AUTH_DEBUG_CODE=true go run ."`,
       cwd: repoRoot,
       port: apiPort,
       timeout: 120_000,

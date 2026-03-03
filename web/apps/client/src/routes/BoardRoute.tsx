@@ -3754,6 +3754,7 @@ export default function BoardRoute() {
                         onPointerMove={onMinimapPointerMove}
                         onPointerUp={onMinimapPointerUp}
                         title="Drag or click to recenter board"
+                        data-testid="board-minimap-mobile"
                       >
                         <div class="pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]" />
 
@@ -3773,6 +3774,7 @@ export default function BoardRoute() {
 
                         <div
                           class="pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]"
+                          data-testid="board-minimap-mobile-viewport"
                           style={{
                             left: `${model().viewportRect.x}px`,
                             top: `${model().viewportRect.y}px`,
@@ -3800,6 +3802,7 @@ export default function BoardRoute() {
                       onPointerMove={onMinimapPointerMove}
                       onPointerUp={onMinimapPointerUp}
                       title="Drag or click to recenter board"
+                      data-testid="board-minimap-desktop"
                     >
                       <div class="pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]" />
 
@@ -3819,6 +3822,7 @@ export default function BoardRoute() {
 
                       <div
                         class="pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]"
+                        data-testid="board-minimap-desktop-viewport"
                         style={{
                           left: `${model().viewportRect.x}px`,
                           top: `${model().viewportRect.y}px`,
@@ -3868,6 +3872,7 @@ export default function BoardRoute() {
                     </div>
                     <div
                       class="space-y-1 rounded-lg border border-[#365073] bg-[#101f35]/85 p-2"
+                      data-testid="board-deck-hub-row-dropzone"
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => handleDeckHubDropToRow(event)}
                     >
@@ -3875,6 +3880,8 @@ export default function BoardRoute() {
                         {(defID, index) => (
                           <div
                             draggable
+                            data-testid="board-deck-hub-row-item"
+                            data-def-id={defID}
                             class={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
                               deckHubDragDefID() === defID
                                 ? "border-[#8db4ff] bg-[#243a63] text-[#eff5ff]"
@@ -3888,6 +3895,7 @@ export default function BoardRoute() {
                             <span class="truncate pr-2">{deckDisplayName(defID)}</span>
                             <button
                               type="button"
+                              data-testid="board-deck-hub-hide"
                               class="rounded border border-[#55729b] px-1.5 py-0.5 text-[10px] text-[#d2e2ff] hover:border-[var(--accent)]"
                               onClick={() => moveDeckToReserve(defID)}
                             >
@@ -3912,6 +3920,7 @@ export default function BoardRoute() {
                     </div>
                     <div
                       class="space-y-1 rounded-lg border border-[#304867] bg-[#0f1a2b]/85 p-2"
+                      data-testid="board-deck-hub-reserve-dropzone"
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => handleDeckHubDropToReserve(event)}
                     >
@@ -3919,6 +3928,8 @@ export default function BoardRoute() {
                         {(defID, index) => (
                           <div
                             draggable
+                            data-testid="board-deck-hub-reserve-item"
+                            data-def-id={defID}
                             class={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
                               deckHubDragDefID() === defID
                                 ? "border-[#8db4ff] bg-[#243a63] text-[#eff5ff]"
@@ -3932,6 +3943,7 @@ export default function BoardRoute() {
                             <span class="truncate pr-2">{deckDisplayName(defID)}</span>
                             <button
                               type="button"
+                              data-testid="board-deck-hub-show"
                               class="rounded border border-[#4f6c95] px-1.5 py-0.5 text-[10px] text-[#d2e2ff] hover:border-[var(--accent)]"
                               onClick={() => moveDeckToRow(defID)}
                             >
@@ -3958,18 +3970,22 @@ export default function BoardRoute() {
             class="relative h-full w-full touch-none overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.22),transparent_45%),linear-gradient(180deg,#090b12,#05070d)]"
             onPointerDown={onBoardPointerDown}
             data-testid="board-canvas"
+            data-pan-x={String(boardPan().x)}
+            data-pan-y={String(boardPan().y)}
           >
             <div
               class="pointer-events-none absolute inset-0 opacity-65 [background-size:22px_22px] [background-image:radial-gradient(circle_at_1px_1px,rgba(207,218,241,0.2)_1px,transparent_1.3px),radial-gradient(circle_at_1px_1px,rgba(207,218,241,0.1)_1px,transparent_1.3px)]"
               style={{
                 "background-position": `${boardPan().x}px ${boardPan().y}px, ${boardPan().x + 11}px ${boardPan().y + 11}px`,
               }}
+              data-testid="board-grid-overlay"
             />
             <div class="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[170px] bg-gradient-to-t from-[#05070d] via-[#05070ddd] to-transparent" />
 
             <Show when={!loading()} fallback={<p class="p-4 text-sm text-[#a2adbf]">Loading board...</p>}>
               <div
                 class="absolute inset-0"
+                data-testid="board-world-layer"
                 style={{
                   transform: `translate(${boardPan().x}px, ${boardPan().y}px)`,
                 }}

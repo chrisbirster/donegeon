@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 
 import AppShell from "../components/AppShell";
-import { teamApi, type TeamInvitation, type TeamMember, type TeamSettings } from "../server/api";
+import { billingApi, teamApi, type TeamInvitation, type TeamMember, type TeamSettings } from "../server/api";
 
 function parseInviteEmails(raw: string): string[] {
   return raw
@@ -46,6 +46,14 @@ function roleBadgeClass(role: string): string {
   }
 }
 
+function planLabel(plan: string): string {
+  const value = plan.trim().toLowerCase();
+  if (value === "pro_trial") return "Pro Trial";
+  if (value === "pro") return "Pro";
+  if (value === "enterprise") return "Enterprise";
+  return "Personal";
+}
+
 export default function TeamSettingsRoute() {
   const [settings, setSettings] = createSignal<TeamSettings | null>(null);
   const [loading, setLoading] = createSignal(true);
@@ -61,12 +69,40 @@ export default function TeamSettingsRoute() {
   const [roleSavingByUserID, setRoleSavingByUserID] = createSignal<Record<string, boolean>>({});
   const [removingUserID, setRemovingUserID] = createSignal<string | null>(null);
   const [cancelingInviteCode, setCancelingInviteCode] = createSignal<string | null>(null);
+  const [billingLoading, setBillingLoading] = createSignal(false);
 
   const [actionError, setActionError] = createSignal("");
   const [actionNotice, setActionNotice] = createSignal("");
 
   const canManage = createMemo(() => settings()?.canManage ?? false);
   const canManageRoles = createMemo(() => settings()?.currentUserRole === "owner");
+  const currentRole = createMemo(() => settings()?.currentUserRole ?? "reader");
+  const currentPlan = createMemo(() => planLabel(settings()?.team.plan || "personal"));
+
+  const roleSummary = createMemo(() => {
+    const role = currentRole();
+    if (role === "owner") {
+      return "Owner access: full control over team profile, billing, roles, and invitations.";
+    }
+    if (role === "admin") {
+      return "Admin access: manage team profile, billing, and invitations. Role changes stay owner-only.";
+    }
+    if (role === "editor") {
+      return "Editor access: collaborate on invited team boards and modify board/task content.";
+    }
+    return "Reader access: view invited team boards with limited editing controls.";
+  });
+
+  const planSummary = createMemo(() => {
+    const plan = settings()?.team.plan?.trim().toLowerCase() || "personal";
+    if (plan === "enterprise") {
+      return "Enterprise workspace: advanced security and admin controls enabled.";
+    }
+    if (plan === "pro" || plan === "pro_trial") {
+      return "Pro workspace: advanced team gameplay and operational tools enabled.";
+    }
+    return "Free baseline: personal board flow by default; team capabilities come from invited workspace role.";
+  });
 
   async function loadSettings() {
     setLoading(true);
@@ -234,6 +270,33 @@ export default function TeamSettingsRoute() {
     }
   }
 
+  async function startBilling(plan: "pro_trial" | "pro" | "enterprise") {
+    setBillingLoading(true);
+    setActionError("");
+    setActionNotice("");
+    try {
+      const response = await billingApi.checkout(plan);
+      if (response.mode === "contact_sales" && response.contactUrl) {
+        window.location.href = response.contactUrl;
+        return;
+      }
+      if (response.mode === "stripe_checkout" && response.checkoutUrl) {
+        window.location.href = response.checkoutUrl;
+        return;
+      }
+      if (response.mode === "trial_started" && response.team) {
+        setSettings((current) => (current ? { ...current, team: response.team! } : current));
+        setActionNotice("Pro trial activated. Your team now has pro access for 14 days.");
+      } else {
+        await loadSettings();
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to start billing flow");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
   return (
     <AppShell
       activeView="team"
@@ -263,15 +326,57 @@ export default function TeamSettingsRoute() {
     >
       <section class="h-full overflow-y-auto px-4 py-4 md:px-6 md:py-6">
         <div class="mx-auto flex w-full max-w-5xl flex-col gap-4">
-          <header class="rounded-2xl border border-[#2a3750] bg-[#0f1728] px-5 py-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Team Settings</p>
+          <header class="rounded-2xl border border-[#2a3750] bg-[#0f1728] px-5 py-4 text-center">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Donegeon Command Settings</p>
             <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">
-              {settings()?.team.name || "Team"}
+              {settings()?.team.name || "Team"} Command Ledger
             </h1>
             <p class="mt-1 text-sm text-[#9fb0cc]">
-              Manage team name, member roles, and invitations for your board workspace.
+              Every account starts on Free. Team powers unlock by board membership and role.
             </p>
+            <div class="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
+              <a href="#plan" class="rounded-md border border-[#3b4f73] bg-[#16263f] px-2 py-1 text-[#d6e5ff]">Plan & Billing</a>
+              <a href="#team-profile" class="rounded-md border border-[#3b4f73] bg-[#16263f] px-2 py-1 text-[#d6e5ff]">Team Profile</a>
+              <a href="#team-members" class="rounded-md border border-[#3b4f73] bg-[#16263f] px-2 py-1 text-[#d6e5ff]">Members & Invites</a>
+            </div>
           </header>
+
+          <Show when={!loading() && settings()}>
+            <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+              <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Access & Entitlements</h2>
+                <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
+                  {currentPlan()} / {formatRoleLabel(currentRole())}
+                </span>
+              </div>
+
+              <div class="mt-3 grid gap-3 md:grid-cols-3">
+                <article class="rounded-xl border border-[#334b70] bg-[#132238] p-3">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#b9d6ff]">Personal Board</p>
+                  <p class="mt-1 text-sm font-medium text-[#edf4ff]">Free by default</p>
+                  <p class="mt-2 text-xs text-[#9fb0cc]">
+                    Every user starts on Free for their personal Donegeon board after login.
+                  </p>
+                </article>
+
+                <article class="rounded-xl border border-[#47658f] bg-[#152742] p-3">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#cddfff]">Active Team Workspace</p>
+                  <p class="mt-1 text-sm font-medium text-[#edf4ff]">{settings()!.team.name}</p>
+                  <p class="mt-2 text-xs text-[#aebfd8]">{roleSummary()}</p>
+                </article>
+
+                <article class="rounded-xl border border-[#49607f] bg-[#142133] p-3">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#d3e1f8]">Plan Scope</p>
+                  <p class="mt-1 text-sm font-medium text-[#edf4ff]">{currentPlan()}</p>
+                  <p class="mt-2 text-xs text-[#aebfd8]">{planSummary()}</p>
+                </article>
+              </div>
+
+              <div class="mt-3 rounded-lg border border-[#2f4568] bg-[#101c2e] px-3 py-2 text-xs text-[#bcd0ef]">
+                Team board access is role-based per workspace. Billing and team-admin actions are limited to owner/admin accounts.
+              </div>
+            </section>
+          </Show>
 
           <Show when={loading()}>
             <p class="rounded-xl border border-[#2d3c57] bg-[#0f1728] px-4 py-3 text-sm text-[#b8c8e4]">Loading team settings...</p>
@@ -291,7 +396,83 @@ export default function TeamSettingsRoute() {
 
           <Show when={!loading() && settings()}>
             <>
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+              <section id="plan" class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+                <div class="flex items-center justify-between gap-3">
+                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Billing</h2>
+                  <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
+                    {planLabel(settings()!.team.plan)}
+                  </span>
+                </div>
+                <p class="mt-2 text-xs text-[#9fb0cc]">
+                  Personal boards default to Free. This page controls plan upgrades for the active team workspace.
+                </p>
+                <Show when={settings()!.team.trialEndsAt}>
+                  {(trialEndsAt) => (
+                    <p class="mt-2 text-xs text-[#9fb0cc]">
+                      Trial ends on {formatDate(trialEndsAt())}
+                    </p>
+                  )}
+                </Show>
+                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                  <article class="rounded-xl border border-[#334b70] bg-[#132238] p-3">
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#b9d6ff]">Free</p>
+                    <p class="mt-1 text-xl font-semibold text-[#edf4ff]">$0</p>
+                    <p class="mt-2 text-xs text-[#9fb0cc]">Core personal workflow and board basics.</p>
+                    <button
+                      type="button"
+                      class="mt-3 w-full rounded-lg border border-[#3f5a83] bg-[#1a2b46] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] opacity-80"
+                      disabled
+                    >
+                      Current baseline
+                    </button>
+                  </article>
+
+                  <article class="rounded-xl border border-[#546fa1] bg-[#172947] p-3">
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#d7e5ff]">Pro</p>
+                    <p class="mt-1 text-xl font-semibold text-[#edf4ff]">$12/user/mo</p>
+                    <p class="mt-2 text-xs text-[#b3c4df]">Team velocity tools, shared board ops, advanced progression.</p>
+                    <div class="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                        disabled={billingLoading() || !canManage()}
+                        onClick={() => void startBilling("pro_trial")}
+                      >
+                        14-day trial
+                      </button>
+                      <button
+                        type="button"
+                        class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                        disabled={billingLoading() || !canManage()}
+                        onClick={() => void startBilling("pro")}
+                      >
+                        Upgrade
+                      </button>
+                    </div>
+                  </article>
+
+                  <article class="rounded-xl border border-[#49607f] bg-[#142133] p-3">
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#d3e1f8]">Enterprise</p>
+                    <p class="mt-1 text-xl font-semibold text-[#edf4ff]">Custom</p>
+                    <p class="mt-2 text-xs text-[#aebfd8]">Admin controls, compliance, and guided onboarding.</p>
+                    <button
+                      type="button"
+                      class="mt-3 w-full rounded-lg border border-[#566f93] bg-[#1b2d47] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] transition hover:border-[#6f88a8] disabled:opacity-60"
+                      disabled={billingLoading() || !canManage()}
+                      onClick={() => void startBilling("enterprise")}
+                    >
+                      Talk to Sales
+                    </button>
+                  </article>
+                </div>
+                <Show when={!canManage()}>
+                  <p class="mt-3 text-xs text-[#9fb0cc]">
+                    You can use team features on boards you were invited to. Only owners/admins can change team billing.
+                  </p>
+                </Show>
+              </section>
+
+              <section id="team-profile" class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Team Profile</h2>
                   <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
@@ -318,7 +499,7 @@ export default function TeamSettingsRoute() {
                 </form>
               </section>
 
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+              <section id="team-members" class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
                 <div class="flex items-center justify-between">
                   <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Team Members</h2>
                   <span class="text-xs text-[#9cb0d1]">{settings()!.members.length} member(s)</span>

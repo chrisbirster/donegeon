@@ -25,12 +25,15 @@ type User struct {
 }
 
 type Team struct {
-	ID         string `db:"id" json:"id"`
-	Name       string `db:"name" json:"name"`
-	Plan       string `db:"plan" json:"plan"`
-	IsArchived bool   `db:"is_archived" json:"isArchived"`
-	CreatedAt  string `db:"created_at" json:"createdAt"`
-	UpdatedAt  string `db:"updated_at" json:"updatedAt"`
+	ID                   string  `db:"id" json:"id"`
+	Name                 string  `db:"name" json:"name"`
+	Plan                 string  `db:"plan" json:"plan"`
+	TrialEndsAt          *string `db:"trial_ends_at" json:"trialEndsAt,omitempty"`
+	StripeCustomerID     *string `db:"stripe_customer_id" json:"stripeCustomerId,omitempty"`
+	StripeSubscriptionID *string `db:"stripe_subscription_id" json:"stripeSubscriptionId,omitempty"`
+	IsArchived           bool    `db:"is_archived" json:"isArchived"`
+	CreatedAt            string  `db:"created_at" json:"createdAt"`
+	UpdatedAt            string  `db:"updated_at" json:"updatedAt"`
 }
 
 type TeamInvite struct {
@@ -89,6 +92,11 @@ const (
 	defaultBoardID = "default"
 	// TeamRoleMember is kept for backward compatibility with older data/clients.
 	TeamRoleMember = "member"
+
+	PlanPersonal   = "personal"
+	PlanProTrial   = "pro_trial"
+	PlanPro        = "pro"
+	PlanEnterprise = "enterprise"
 )
 
 type Service struct {
@@ -202,11 +210,12 @@ func (s *Service) GetSession(ctx context.Context, userID string) (Session, error
 	}, nil
 }
 
-func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamName string, displayName string, inviteEmails []string) (Session, []TeamInvite, error) {
+func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamName string, displayName string, inviteEmails []string, plan string) (Session, []TeamInvite, error) {
 	trimmedTeamName := strings.TrimSpace(teamName)
 	if trimmedTeamName == "" {
 		return Session{}, nil, fmt.Errorf("team name is required")
 	}
+	requestedPlan := normalizeWorkspacePlan(plan)
 
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -248,19 +257,39 @@ WHERE id = ?
 	workspaceID := ""
 	if user.CurrentWorkspace != nil && strings.TrimSpace(*user.CurrentWorkspace) != "" {
 		workspaceID = strings.TrimSpace(*user.CurrentWorkspace)
-		if _, err := tx.ExecContext(ctx, `
+		if requestedPlan == "" {
+			if _, err := tx.ExecContext(ctx, `
 UPDATE workspaces
 SET name = ?, updated_at = ?
 WHERE id = ?
 `, trimmedTeamName, now, workspaceID); err != nil {
-			return Session{}, nil, err
+				return Session{}, nil, err
+			}
+		} else {
+			trialEndsAt := billingTrialEndsAt(now, requestedPlan)
+			if _, err := tx.ExecContext(ctx, `
+UPDATE workspaces
+SET
+	name = ?,
+	plan = ?,
+	trial_ends_at = ?,
+	updated_at = ?
+WHERE id = ?
+`, trimmedTeamName, requestedPlan, nullableString(trialEndsAt), now, workspaceID); err != nil {
+				return Session{}, nil, err
+			}
 		}
 	} else {
 		workspaceID = "W_" + uuid.NewString()
+		selectedPlan := requestedPlan
+		if selectedPlan == "" {
+			selectedPlan = PlanPersonal
+		}
+		trialEndsAt := billingTrialEndsAt(now, selectedPlan)
 		if _, err := tx.ExecContext(ctx, `
-INSERT INTO workspaces (id, name, plan, is_archived, created_at, updated_at)
-VALUES (?, ?, 'free', 0, ?, ?)
-`, workspaceID, trimmedTeamName, now, now); err != nil {
+INSERT INTO workspaces (id, name, plan, trial_ends_at, is_archived, created_at, updated_at)
+VALUES (?, ?, ?, ?, 0, ?, ?)
+`, workspaceID, trimmedTeamName, selectedPlan, nullableString(trialEndsAt), now, now); err != nil {
 			return Session{}, nil, err
 		}
 	}
@@ -742,6 +771,101 @@ WHERE invitation_code = ?
 	}
 	if rows == 0 {
 		return fmt.Errorf("invitation not found")
+	}
+	return nil
+}
+
+func (s *Service) BeginProTrial(ctx context.Context, workspaceID string) (Team, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return Team{}, fmt.Errorf("workspace id is required")
+	}
+
+	now := time.Now().UTC()
+	nowRFC3339 := now.Format(time.RFC3339)
+	trialEndsAt := now.Add(14 * 24 * time.Hour).Format(time.RFC3339)
+	result, err := s.db.ExecContext(ctx, `
+UPDATE workspaces
+SET
+	plan = ?,
+	trial_ends_at = ?,
+	updated_at = ?
+WHERE id = ?
+`, PlanProTrial, trialEndsAt, nowRFC3339, workspaceID)
+	if err != nil {
+		return Team{}, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return Team{}, err
+	}
+	if rows == 0 {
+		return Team{}, fmt.Errorf("team not found")
+	}
+	return s.workspaceByID(ctx, workspaceID)
+}
+
+func (s *Service) ActivateProFromStripe(ctx context.Context, workspaceID string, customerID string, subscriptionID string, priceID string, billingEmail string) (Team, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return Team{}, fmt.Errorf("workspace id is required")
+	}
+
+	now := nowRFC3339()
+	result, err := s.db.ExecContext(ctx, `
+UPDATE workspaces
+SET
+	plan = ?,
+	trial_ends_at = NULL,
+	stripe_customer_id = ?,
+	stripe_subscription_id = ?,
+	stripe_price_id = ?,
+	billing_email = CASE
+		WHEN TRIM(COALESCE(?, '')) <> '' THEN ?
+		ELSE billing_email
+	END,
+	updated_at = ?
+WHERE id = ?
+`, PlanPro, strings.TrimSpace(customerID), strings.TrimSpace(subscriptionID), strings.TrimSpace(priceID), strings.TrimSpace(billingEmail), strings.TrimSpace(billingEmail), now, workspaceID)
+	if err != nil {
+		return Team{}, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return Team{}, err
+	}
+	if rows == 0 {
+		return Team{}, fmt.Errorf("team not found")
+	}
+	return s.workspaceByID(ctx, workspaceID)
+}
+
+func (s *Service) DowngradePersonalByStripeSubscription(ctx context.Context, subscriptionID string) error {
+	subscriptionID = strings.TrimSpace(subscriptionID)
+	if subscriptionID == "" {
+		return fmt.Errorf("subscription id is required")
+	}
+
+	now := nowRFC3339()
+	result, err := s.db.ExecContext(ctx, `
+UPDATE workspaces
+SET
+	plan = ?,
+	trial_ends_at = NULL,
+	stripe_subscription_id = NULL,
+	stripe_price_id = NULL,
+	updated_at = ?
+WHERE stripe_subscription_id = ?
+`, PlanPersonal, now, subscriptionID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("subscription not found")
 	}
 	return nil
 }
@@ -1285,23 +1409,81 @@ WHERE workspace_id = ?
 func (s *Service) workspaceByID(ctx context.Context, id string) (Team, error) {
 	var row Team
 	err := s.db.GetContext(ctx, &row, `
-SELECT id, name, plan, is_archived, created_at, updated_at
+SELECT
+	id,
+	name,
+	plan,
+	trial_ends_at,
+	stripe_customer_id,
+	stripe_subscription_id,
+	is_archived,
+	created_at,
+	updated_at
 FROM workspaces
 WHERE id = ?
 LIMIT 1
 `, id)
+	row.Plan = normalizeWorkspacePlan(row.Plan)
 	return row, err
 }
 
 func workspaceByIDTx(ctx context.Context, tx *sqlx.Tx, id string) (Team, error) {
 	var row Team
 	err := tx.GetContext(ctx, &row, `
-SELECT id, name, plan, is_archived, created_at, updated_at
+SELECT
+	id,
+	name,
+	plan,
+	trial_ends_at,
+	stripe_customer_id,
+	stripe_subscription_id,
+	is_archived,
+	created_at,
+	updated_at
 FROM workspaces
 WHERE id = ?
 LIMIT 1
 `, id)
+	row.Plan = normalizeWorkspacePlan(row.Plan)
 	return row, err
+}
+
+func normalizeWorkspacePlan(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "free", PlanPersonal:
+		return PlanPersonal
+	case PlanProTrial:
+		return PlanProTrial
+	case PlanPro:
+		return PlanPro
+	case PlanEnterprise:
+		return PlanEnterprise
+	default:
+		return ""
+	}
+}
+
+func nullableString(raw string) any {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil
+	}
+	return value
+}
+
+func billingTrialEndsAt(nowRFC3339 string, plan string) string {
+	if normalizeWorkspacePlan(plan) != PlanProTrial {
+		return ""
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, nowRFC3339)
+	if err != nil {
+		parsed, err = time.Parse(time.RFC3339, nowRFC3339)
+		if err != nil {
+			parsed = time.Now().UTC()
+		}
+	}
+	return parsed.Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339)
 }
 
 func workspaceUserRole(ctx context.Context, db sqlx.QueryerContext, workspaceID string, userID string) (string, error) {

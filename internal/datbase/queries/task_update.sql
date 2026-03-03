@@ -7,8 +7,14 @@ SET
     sort_order = COALESCE(:sort_order, sort_order),
     recurrence_rule = COALESCE(:recurrence_rule, recurrence_rule),
     priority = COALESCE(:priority, priority),
-    due_text = COALESCE(:due_text, due_text),
-    due_deadline = COALESCE(:due_deadline, due_deadline),
+    due_text = CASE
+        WHEN :clear_due_text = 1 THEN NULL
+        ELSE COALESCE(:due_text, due_text)
+    END,
+    due_deadline = CASE
+        WHEN :clear_due_deadline = 1 THEN NULL
+        ELSE COALESCE(:due_deadline, due_deadline)
+    END,
     schedule_input = COALESCE(:schedule_input, schedule_input),
     updated_at = :updated_at
 WHERE id = :id
