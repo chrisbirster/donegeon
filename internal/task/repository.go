@@ -340,15 +340,11 @@ func (r *Repository) attachLabels(ctx context.Context, tasks []Task) error {
 		return nil
 	}
 
-	query, args, err := sqlx.In(`
-SELECT
-    tl.task_id,
-    l.name
-FROM task_labels tl
-JOIN labels l ON l.id = tl.label_id
-WHERE tl.task_id IN (?)
-ORDER BY tl.created_at ASC, LOWER(l.name) ASC
-`, ids)
+	queryTemplate, err := r.query("task_labels_by_task_ids.sql")
+	if err != nil {
+		return err
+	}
+	query, args, err := sqlx.In(queryTemplate, ids)
 	if err != nil {
 		return err
 	}
@@ -388,17 +384,15 @@ func (r *Repository) taskLabels(ctx context.Context, taskID string) ([]string, e
 		return []string{}, nil
 	}
 
+	query, err := r.query("task_labels_by_task_id.sql")
+	if err != nil {
+		return nil, err
+	}
+
 	rows := make([]struct {
 		Name string `db:"name"`
 	}, 0, 4)
-	if err := r.db.SelectContext(ctx, &rows, `
-SELECT
-    l.name
-FROM task_labels tl
-JOIN labels l ON l.id = tl.label_id
-WHERE tl.task_id = ?
-ORDER BY tl.created_at ASC, LOWER(l.name) ASC
-`, taskID); err != nil {
+	if err := r.db.SelectContext(ctx, &rows, query, taskID); err != nil {
 		return nil, err
 	}
 
@@ -418,6 +412,15 @@ func (r *Repository) replaceTaskLabels(ctx context.Context, taskID string, label
 	principal := sessionctx.PrincipalFromContext(ctx)
 	normalized := normalizeLabels(labels)
 
+	deleteQuery, err := r.query("task_labels_delete_by_task_id.sql")
+	if err != nil {
+		return err
+	}
+	linkQuery, err := r.query("task_label_link_insert_ignore.sql")
+	if err != nil {
+		return err
+	}
+
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
@@ -426,20 +429,17 @@ func (r *Repository) replaceTaskLabels(ctx context.Context, taskID string, label
 		_ = tx.Rollback()
 	}()
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM task_labels WHERE task_id = ?", taskID); err != nil {
+	if _, err := tx.ExecContext(ctx, deleteQuery, taskID); err != nil {
 		return err
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	for _, label := range normalized {
-		labelID, err := findOrCreateLabel(ctx, tx, principal, label, now)
+		labelID, err := r.findOrCreateLabel(ctx, tx, principal, label, now)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `
-INSERT OR IGNORE INTO task_labels (task_id, label_id, created_at)
-VALUES (?, ?, ?)
-`, taskID, labelID, now); err != nil {
+		if _, err := tx.ExecContext(ctx, linkQuery, taskID, labelID, now); err != nil {
 			return err
 		}
 	}
@@ -447,25 +447,23 @@ VALUES (?, ?, ?)
 	return tx.Commit()
 }
 
-func findOrCreateLabel(ctx context.Context, tx *sqlx.Tx, principal sessionctx.Principal, label string, now string) (string, error) {
+func (r *Repository) findOrCreateLabel(ctx context.Context, tx *sqlx.Tx, principal sessionctx.Principal, label string, now string) (string, error) {
+	findQuery, err := r.query("label_find_by_name_user_workspace.sql")
+	if err != nil {
+		return "", err
+	}
+	insertQuery, err := r.query("label_insert.sql")
+	if err != nil {
+		return "", err
+	}
+
 	var labelID string
-	if err := tx.GetContext(ctx, &labelID, `
-SELECT id
-FROM labels
-WHERE LOWER(name) = LOWER(?)
-  AND user_id = ?
-  AND workspace_id = ?
-ORDER BY created_at ASC
-LIMIT 1
-`, label, principal.UserID, principal.WorkspaceID); err != nil {
+	if err := tx.GetContext(ctx, &labelID, findQuery, label, principal.UserID, principal.WorkspaceID); err != nil {
 		if err != sql.ErrNoRows {
 			return "", err
 		}
 		labelID = uuid.NewString()
-		if _, err := tx.ExecContext(ctx, `
-INSERT INTO labels (id, name, color, user_id, workspace_id, created_at, updated_at)
-VALUES (?, ?, NULL, ?, ?, ?, ?)
-`, labelID, label, principal.UserID, principal.WorkspaceID, now, now); err != nil {
+		if _, err := tx.ExecContext(ctx, insertQuery, labelID, label, principal.UserID, principal.WorkspaceID, now, now); err != nil {
 			return "", err
 		}
 	}

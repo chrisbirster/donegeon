@@ -32,4 +32,10 @@ infra/.env.*
 # editor
 .DS_Store
 
+# env
+.env
+.env.*
+!.env.example
+!.env.production.example
+
 legacy

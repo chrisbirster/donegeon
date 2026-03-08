@@ -2,15 +2,15 @@ import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 
 import AppShell from "../components/AppShell";
+import { useApi } from "../context/ApiContext";
 import {
-  authApi,
-  boardApi,
-  projectApi,
   type AuthSession,
   type BoardQuestHistoryEntry,
   type BoardQuestObjective,
   type BoardQuestRuntime,
   type BoardStateResponse,
+  type CalendarConnection,
+  type CalendarProvider,
   type Project,
 } from "../server/api";
 
@@ -204,7 +204,29 @@ function questObjectiveProgressLabel(objective: BoardQuestObjective): string {
   return `${Math.min(current, target)}/${target}`;
 }
 
+const profileDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function formatOptionalDate(value: string | undefined): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "Not set";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return profileDateTimeFormatter.format(parsed);
+}
+
+function calendarProviderLabel(provider: string): string {
+  const normalized = provider.trim().toLowerCase();
+  if (normalized === "google") return "Google Calendar";
+  return provider;
+}
+
 export default function ProfileRoute() {
+  const api = useApi();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -214,6 +236,13 @@ export default function ProfileRoute() {
   const [loading, setLoading] = createSignal(true);
   const [boardLoading, setBoardLoading] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [calendarConnections, setCalendarConnections] = createSignal<CalendarConnection[]>([]);
+  const [calendarLoading, setCalendarLoading] = createSignal(false);
+  const [calendarConnectBusy, setCalendarConnectBusy] = createSignal<CalendarProvider | null>(null);
+  const [calendarSyncBusyID, setCalendarSyncBusyID] = createSignal<string | null>(null);
+  const [calendarDisconnectBusyID, setCalendarDisconnectBusyID] = createSignal<string | null>(null);
+  const [calendarNotice, setCalendarNotice] = createSignal("");
+  const [calendarError, setCalendarError] = createSignal("");
 
   const activeBoardID = createMemo(() => boardIDFromSearch(location.search));
   const boardChoices = createMemo(() => boardChoicesFromProjects(projects(), activeBoardID()));
@@ -276,9 +305,14 @@ export default function ProfileRoute() {
     setLoading(true);
     setError("");
     try {
-      const [sessionRes, projectRes] = await Promise.all([authApi.me(), projectApi.list()]);
+      const [sessionRes, projectRes, calendarRes] = await Promise.all([
+        api.auth.me(),
+        api.projects.list(),
+        api.calendar.listConnections(),
+      ]);
       setSession(sessionRes.session);
       setProjects(projectRes.items);
+      setCalendarConnections(calendarRes.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load profile");
     } finally {
@@ -289,13 +323,79 @@ export default function ProfileRoute() {
   async function loadBoard(boardID: string) {
     setBoardLoading(true);
     try {
-      const response = await boardApi.getState(boardID);
+      const response = await api.board.getState(boardID);
       setBoardState(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load board quests");
       setBoardState(null);
     } finally {
       setBoardLoading(false);
+    }
+  }
+
+  async function reloadCalendarConnections() {
+    setCalendarLoading(true);
+    try {
+      const response = await api.calendar.listConnections();
+      setCalendarConnections(response.items);
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Failed to refresh calendar connections");
+    } finally {
+      setCalendarLoading(false);
+    }
+  }
+
+  async function startCalendarConnect(provider: CalendarProvider) {
+    setCalendarConnectBusy(provider);
+    setCalendarError("");
+    setCalendarNotice("");
+    try {
+      const response = await api.calendar.startConnect(provider);
+      window.location.href = response.authUrl;
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Failed to start calendar connection");
+    } finally {
+      setCalendarConnectBusy(null);
+    }
+  }
+
+  async function syncCalendar(connectionId?: string) {
+    const key = connectionId?.trim() || "__all__";
+    setCalendarSyncBusyID(key);
+    setCalendarError("");
+    setCalendarNotice("");
+    try {
+      const response = await api.calendar.sync(connectionId);
+      const totalPulled = response.results.reduce((sum, item) => sum + item.pulled, 0);
+      const withErrors = response.results.filter((item) => item.error && item.error.trim().length > 0);
+      if (withErrors.length > 0) {
+        setCalendarError(withErrors.map((item) => `${calendarProviderLabel(item.provider)}: ${item.error}`).join(" | "));
+      }
+      setCalendarNotice(
+        `Calendar sync complete: ${response.results.length} connection${response.results.length === 1 ? "" : "s"}, ${totalPulled} upcoming event${totalPulled === 1 ? "" : "s"} fetched.`,
+      );
+      await reloadCalendarConnections();
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Failed to sync calendars");
+    } finally {
+      setCalendarSyncBusyID(null);
+    }
+  }
+
+  async function disconnectCalendar(connectionId: string) {
+    const id = connectionId.trim();
+    if (!id) return;
+    setCalendarDisconnectBusyID(id);
+    setCalendarError("");
+    setCalendarNotice("");
+    try {
+      await api.calendar.disconnect(id);
+      setCalendarNotice("Calendar connection removed.");
+      await reloadCalendarConnections();
+    } catch (err) {
+      setCalendarError(err instanceof Error ? err.message : "Failed to disconnect calendar");
+    } finally {
+      setCalendarDisconnectBusyID(null);
     }
   }
 
@@ -306,6 +406,16 @@ export default function ProfileRoute() {
   }
 
   onMount(() => {
+    const params = new URLSearchParams(location.search);
+    const calendarStatus = (params.get("calendar") || "").trim().toLowerCase();
+    const calendarProvider = (params.get("provider") || "").trim().toLowerCase();
+    const calendarMessage = (params.get("message") || "").trim();
+    if (calendarStatus === "connected") {
+      const label = calendarProvider ? calendarProviderLabel(calendarProvider) : "Calendar";
+      setCalendarNotice(`${label} connected.`);
+    } else if (calendarStatus === "error") {
+      setCalendarError(calendarMessage || "Calendar connection failed. Try again.");
+    }
     void loadBase();
   });
 
@@ -394,6 +504,114 @@ export default function ProfileRoute() {
                     )}
                   </For>
                 </select>
+              </section>
+
+              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5" data-testid="profile-calendar-connections">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Connected Calendars</h2>
+                    <p class="mt-1 text-xs text-[#9eb4d8]">
+                      Connect Google Calendar and sync upcoming events.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="rounded-lg border border-[#3b4f73] bg-[#1a2b46] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                    onClick={() => void syncCalendar()}
+                    disabled={calendarSyncBusyID() !== null || calendarConnections().length === 0}
+                  >
+                    <Show when={calendarSyncBusyID() === "__all__"} fallback="Sync all">
+                      Syncing...
+                    </Show>
+                  </button>
+                </div>
+
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="rounded-lg border border-[#4a6286] bg-[#1b2f4f] px-3 py-1.5 text-xs font-semibold text-[#e0ebff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                    onClick={() => void startCalendarConnect("google")}
+                    disabled={calendarConnectBusy() !== null}
+                  >
+                    <Show when={calendarConnectBusy() === "google"} fallback="Connect Google">
+                      Connecting...
+                    </Show>
+                  </button>
+                </div>
+
+                <Show when={calendarLoading()}>
+                  <p class="mt-2 text-xs text-[#9db3d7]">Refreshing calendar connections...</p>
+                </Show>
+
+                <Show when={calendarNotice()}>
+                  <p class="mt-3 rounded-md border border-[#3b6547] bg-[#162b1d] px-3 py-2 text-xs text-[#bcf0c9]">{calendarNotice()}</p>
+                </Show>
+                <Show when={calendarError()}>
+                  <p class="mt-3 rounded-md border border-[#6f3f42] bg-[#2b1718] px-3 py-2 text-xs text-[#ffb7b4]">{calendarError()}</p>
+                </Show>
+
+                <Show
+                  when={calendarConnections().length > 0}
+                  fallback={
+                    <p class="mt-3 rounded-md border border-[#304767] bg-[#101f35] px-3 py-2 text-sm text-[#9cb2d6]">
+                      No calendar connections yet.
+                    </p>
+                  }
+                >
+                  <div class="mt-3 space-y-2">
+                    <For each={calendarConnections()}>
+                      {(connection) => (
+                        <article class="rounded-lg border border-[#304767] bg-[#101f35] px-3 py-3">
+                          <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p class="text-sm font-semibold text-[#e0ebff]">{calendarProviderLabel(connection.provider)}</p>
+                              <p class="text-xs text-[#a9bedf]">{connection.email || "Connected account"}</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                class="rounded-md border border-[#3e5f8a] bg-[#1a2c4a] px-2 py-1 text-[11px] font-semibold text-[#d8e7ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                                onClick={() => void syncCalendar(connection.id)}
+                                disabled={calendarSyncBusyID() !== null || calendarDisconnectBusyID() !== null}
+                              >
+                                <Show when={calendarSyncBusyID() === connection.id} fallback="Sync">
+                                  Syncing...
+                                </Show>
+                              </button>
+                              <button
+                                type="button"
+                                class="rounded-md border border-[#75464a] bg-[#2a1819] px-2 py-1 text-[11px] font-semibold text-[#ffc7c4] transition hover:border-[#ff7d66] disabled:opacity-60"
+                                onClick={() => void disconnectCalendar(connection.id)}
+                                disabled={calendarDisconnectBusyID() !== null || calendarSyncBusyID() !== null}
+                              >
+                                <Show when={calendarDisconnectBusyID() === connection.id} fallback="Disconnect">
+                                  Removing...
+                                </Show>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                            <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
+                              Expires: {formatOptionalDate(connection.expiresAt)}
+                            </span>
+                            <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
+                              Last sync: {formatOptionalDate(connection.lastSyncAt)}
+                            </span>
+                            <Show when={connection.hasRefreshToken}>
+                              <span class="rounded border border-[#3f6a4d] bg-[#17301f] px-2 py-0.5 text-[#bff5cb]">Refresh token set</span>
+                            </Show>
+                            <Show when={connection.scope}>
+                              <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
+                                Scope: {connection.scope}
+                              </span>
+                            </Show>
+                          </div>
+                        </article>
+                      )}
+                    </For>
+                  </div>
+                </Show>
               </section>
 
               <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">

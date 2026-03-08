@@ -7,7 +7,7 @@ Donegeon is a Go-first Todoist-like backend with an embedded SolidJS SPA fronten
 - Backend: Go `net/http` + `log/slog`
 - DB: SQLite via `sqlx` + `modernc.org/sqlite`
 - Migrations: `go-migrate` using embedded SQL migrations
-- Query templates: embedded from `internal/datbase/queries/*.sql`
+- Query templates: embedded from `internal/database/queries/*.sql`
 - Frontend: Bun + Turborepo + Vite + TypeScript + SolidJS + Solid Router + TailwindCSS v4
 - Frontend assets are built to `web/dist` and embedded via `web/dist/embed.go`
 
@@ -47,6 +47,7 @@ Environment variables:
 - `DONEGEON_REQUIRE_AUTH` (default `true`)
 - `DONEGEON_API_TOKEN` (default `TOKEN_VALID`)
 - `DONEGEON_READONLY_API_TOKEN` (default `TOKEN_READONLY`)
+- Production template: `.env.production.example` (includes Turso + Google Calendar OAuth settings)
 
 Example gameplay config:
 
@@ -75,6 +76,9 @@ bun run build
 # Full local dev (API + app)
 task dev
 
+# Full local dev forced to SQLite (uses .env.local.sqlite overrides)
+task dev:sqlite
+
 # Marketing site only
 task dev:marketing
 
@@ -84,6 +88,9 @@ task build:marketing
 # Deploy app backend (Fly)
 task deploy:app
 
+# Generate/refresh root .env from Turso + infra outputs
+task deploy:env
+
 # Deploy SST infra (email API + marketing on Cloudflare)
 task deploy:infra
 task deploy:infra:dev
@@ -91,6 +98,12 @@ task deploy:infra:dev
 # Marketing deploy aliases
 task deploy:marketing
 task deploy:marketing:dev
+
+# Full deploy flow (build + infra + env + Fly secrets + app)
+task deploy:all
+
+# Full deploy + wipe Turso first
+task deploy:all:wipe-db
 ```
 
 ## Tests

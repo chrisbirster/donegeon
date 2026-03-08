@@ -85,13 +85,11 @@ func (s *Service) BeginEmailLogin(
 	}
 	preferredName = strings.TrimSpace(preferredName)
 
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO auth_login_challenges (
-	id, email, name_hint, code_hash, code_length, expires_at, created_at, consumed_at,
-	attempt_count, last_attempt_at, requested_ip, requested_user_agent
-)
-VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL, ?, ?)
-`, challenge.ID, challenge.Email, nullableText(preferredName), hashAuthCode(code, codePepper), codeLength, challenge.ExpiresAt, now.Format(time.RFC3339), nullableText(ipAddress), nullableText(userAgent)); err != nil {
+	insertQuery, err := s.query("auth_login_challenge_insert.sql")
+	if err != nil {
+		return LoginChallenge{}, "", err
+	}
+	if _, err := s.db.ExecContext(ctx, insertQuery, challenge.ID, challenge.Email, nullableText(preferredName), hashAuthCode(code, codePepper), codeLength, challenge.ExpiresAt, now.Format(time.RFC3339), nullableText(ipAddress), nullableText(userAgent)); err != nil {
 		return LoginChallenge{}, "", err
 	}
 
@@ -140,14 +138,12 @@ func (s *Service) VerifyEmailLogin(
 		return Session{}, fmt.Errorf("too many attempts, request a new code")
 	}
 
+	attemptIncrementQuery, err := s.query("auth_login_challenge_attempt_increment.sql")
+	if err != nil {
+		return Session{}, err
+	}
 	if !verifyAuthCode(row.CodeHash, code, codePepper) {
-		if _, err := s.db.ExecContext(ctx, `
-UPDATE auth_login_challenges
-SET
-	attempt_count = attempt_count + 1,
-	last_attempt_at = ?
-WHERE id = ?
-`, now.Format(time.RFC3339), row.ID); err != nil {
+		if _, err := s.db.ExecContext(ctx, attemptIncrementQuery, now.Format(time.RFC3339), row.ID); err != nil {
 			return Session{}, err
 		}
 		return Session{}, fmt.Errorf("invalid or expired code")
@@ -161,17 +157,12 @@ WHERE id = ?
 		_ = tx.Rollback()
 	}()
 
+	consumeQuery, err := s.query("auth_login_challenge_consume.sql")
+	if err != nil {
+		return Session{}, err
+	}
 	consumeAt := now.Format(time.RFC3339)
-	result, err := tx.ExecContext(ctx, `
-UPDATE auth_login_challenges
-SET
-	consumed_at = ?,
-	attempt_count = attempt_count + 1,
-	last_attempt_at = ?
-WHERE id = ?
-	AND consumed_at IS NULL
-	AND expires_at >= ?
-`, consumeAt, consumeAt, row.ID, now.Format(time.RFC3339))
+	result, err := tx.ExecContext(ctx, consumeQuery, consumeAt, consumeAt, row.ID, now.Format(time.RFC3339))
 	if err != nil {
 		return Session{}, err
 	}
@@ -183,7 +174,11 @@ WHERE id = ?
 		return Session{}, fmt.Errorf("invalid or expired code")
 	}
 
-	user, err := userByEmailTx(ctx, tx, row.Email)
+	userByEmailQuery, err := s.query("auth_user_get_by_email.sql")
+	if err != nil {
+		return Session{}, err
+	}
+	user, err := s.userByEmailTx(ctx, tx, row.Email, userByEmailQuery)
 	if err != nil && err != sql.ErrNoRows {
 		return Session{}, err
 	}
@@ -202,20 +197,19 @@ WHERE id = ?
 			CreatedAt:      now.Format(time.RFC3339),
 			UpdatedAt:      now.Format(time.RFC3339),
 		}
-		if _, err := tx.ExecContext(ctx, `
-INSERT INTO users (id, email, name, show_onboarding, current_workspace_id, created_at, updated_at)
-VALUES (?, ?, ?, 1, NULL, ?, ?)
-`, user.ID, user.Email, user.Name, user.CreatedAt, user.UpdatedAt); err != nil {
+		userInsertQuery, err := s.query("auth_user_insert.sql")
+		if err != nil {
+			return Session{}, err
+		}
+		if _, err := tx.ExecContext(ctx, userInsertQuery, user.ID, user.Email, user.Name, user.CreatedAt, user.UpdatedAt); err != nil {
 			return Session{}, err
 		}
 	} else if nameHint != "" && user.Name != nameHint {
-		if _, err := tx.ExecContext(ctx, `
-UPDATE users
-SET
-	name = ?,
-	updated_at = ?
-WHERE id = ?
-`, nameHint, now.Format(time.RFC3339), user.ID); err != nil {
+		userUpdateNameQuery, err := s.query("auth_user_update_name.sql")
+		if err != nil {
+			return Session{}, err
+		}
+		if _, err := tx.ExecContext(ctx, userUpdateNameQuery, nameHint, now.Format(time.RFC3339), user.ID); err != nil {
 			return Session{}, err
 		}
 	}
@@ -258,12 +252,11 @@ func (s *Service) CreateAuthSession(
 		ExpiresAt: now.Add(ttl).Format(time.RFC3339),
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO auth_sessions (
-	id, user_id, workspace_id, email, created_at, updated_at, expires_at, revoked_at, last_seen_at, user_agent, ip_address
-)
-VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
-`, record.ID, record.Principal.UserID, record.Principal.WorkspaceID, record.Principal.Email, now.Format(time.RFC3339), now.Format(time.RFC3339), record.ExpiresAt, now.Format(time.RFC3339), nullableText(userAgent), nullableText(ipAddress)); err != nil {
+	insertSessionQuery, err := s.query("auth_session_insert.sql")
+	if err != nil {
+		return WebSession{}, err
+	}
+	if _, err := s.db.ExecContext(ctx, insertSessionQuery, record.ID, record.Principal.UserID, record.Principal.WorkspaceID, record.Principal.Email, now.Format(time.RFC3339), now.Format(time.RFC3339), record.ExpiresAt, now.Format(time.RFC3339), nullableText(userAgent), nullableText(ipAddress)); err != nil {
 		return WebSession{}, err
 	}
 
@@ -283,12 +276,11 @@ func (s *Service) AuthSessionPrincipal(ctx context.Context, sessionID string, se
 	}
 
 	var row authSessionRow
-	if err := s.db.GetContext(ctx, &row, `
-SELECT id, user_id, workspace_id, email, expires_at, revoked_at
-FROM auth_sessions
-WHERE id = ?
-LIMIT 1
-`, sessionID); err != nil {
+	getSessionQuery, err := s.query("auth_session_get.sql")
+	if err != nil {
+		return AuthSessionResult{}, err
+	}
+	if err := s.db.GetContext(ctx, &row, getSessionQuery, sessionID); err != nil {
 		if err == sql.ErrNoRows {
 			return AuthSessionResult{}, nil
 		}
@@ -310,27 +302,22 @@ LIMIT 1
 	// Sliding window: extend session when less than half the TTL remains.
 	extended := false
 	remaining := expiresAt.Sub(now)
+	touchExtendQuery, err := s.query("auth_session_touch_extend.sql")
+	if err != nil {
+		return AuthSessionResult{}, err
+	}
+	touchQuery, err := s.query("auth_session_touch.sql")
+	if err != nil {
+		return AuthSessionResult{}, err
+	}
 	if sessionTTL > 0 && remaining < sessionTTL/2 {
 		newExpiry := now.Add(sessionTTL)
-		if _, err := s.db.ExecContext(ctx, `
-UPDATE auth_sessions
-SET
-	last_seen_at = ?,
-	updated_at = ?,
-	expires_at = ?
-WHERE id = ?
-`, now.Format(time.RFC3339), now.Format(time.RFC3339), newExpiry.Format(time.RFC3339), row.ID); err != nil {
+		if _, err := s.db.ExecContext(ctx, touchExtendQuery, now.Format(time.RFC3339), now.Format(time.RFC3339), newExpiry.Format(time.RFC3339), row.ID); err != nil {
 			return AuthSessionResult{}, err
 		}
 		extended = true
 	} else {
-		if _, err := s.db.ExecContext(ctx, `
-UPDATE auth_sessions
-SET
-	last_seen_at = ?,
-	updated_at = ?
-WHERE id = ?
-`, now.Format(time.RFC3339), now.Format(time.RFC3339), row.ID); err != nil {
+		if _, err := s.db.ExecContext(ctx, touchQuery, now.Format(time.RFC3339), now.Format(time.RFC3339), row.ID); err != nil {
 			return AuthSessionResult{}, err
 		}
 	}
@@ -358,14 +345,12 @@ func (s *Service) RevokeAuthSession(ctx context.Context, sessionID string) error
 	if sessionID == "" {
 		return nil
 	}
+	revokeQuery, err := s.query("auth_session_revoke.sql")
+	if err != nil {
+		return err
+	}
 	now := nowRFC3339()
-	_, err := s.db.ExecContext(ctx, `
-UPDATE auth_sessions
-SET
-	revoked_at = COALESCE(revoked_at, ?),
-	updated_at = ?
-WHERE id = ?
-`, now, now, sessionID)
+	_, err = s.db.ExecContext(ctx, revokeQuery, now, now, sessionID)
 	return err
 }
 
@@ -379,38 +364,28 @@ func (s *Service) UpdateAuthSessionPrincipal(ctx context.Context, sessionID stri
 		principal.WorkspaceID = sessionctx.DefaultWorkspaceID
 	}
 
+	updatePrincipalQuery, err := s.query("auth_session_update_principal.sql")
+	if err != nil {
+		return err
+	}
 	now := nowRFC3339()
-	_, err := s.db.ExecContext(ctx, `
-UPDATE auth_sessions
-SET
-	workspace_id = ?,
-	email = ?,
-	updated_at = ?
-WHERE id = ?
-	AND revoked_at IS NULL
-`, principal.WorkspaceID, strings.TrimSpace(principal.Email), now, sessionID)
+	_, err = s.db.ExecContext(ctx, updatePrincipalQuery, principal.WorkspaceID, strings.TrimSpace(principal.Email), now, sessionID)
 	return err
 }
 
 func (s *Service) loginChallengeByID(ctx context.Context, challengeID string) (loginChallengeRow, error) {
+	query, err := s.query("auth_login_challenge_get_by_id.sql")
+	if err != nil {
+		return loginChallengeRow{}, err
+	}
 	var row loginChallengeRow
-	err := s.db.GetContext(ctx, &row, `
-SELECT id, email, name_hint, code_hash, code_length, expires_at, consumed_at, attempt_count
-FROM auth_login_challenges
-WHERE id = ?
-LIMIT 1
-`, challengeID)
+	err = s.db.GetContext(ctx, &row, query, challengeID)
 	return row, err
 }
 
-func userByEmailTx(ctx context.Context, tx *sqlx.Tx, email string) (User, error) {
+func (s *Service) userByEmailTx(ctx context.Context, tx *sqlx.Tx, email string, query string) (User, error) {
 	var row User
-	err := tx.GetContext(ctx, &row, `
-SELECT id, email, name, show_onboarding, current_workspace_id, created_at, updated_at
-FROM users
-WHERE LOWER(email) = LOWER(?)
-LIMIT 1
-`, email)
+	err := tx.GetContext(ctx, &row, query, email)
 	return row, err
 }
 

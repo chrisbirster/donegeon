@@ -1,7 +1,9 @@
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 
 import AppShell from "../components/AppShell";
-import { billingApi, teamApi, type TeamInvitation, type TeamMember, type TeamSettings } from "../server/api";
+import { useApi } from "../context/ApiContext";
+import { useToast } from "../context/ToastContext";
+import { type TeamInvitation, type TeamMember, type TeamSettings } from "../server/api";
 
 function parseInviteEmails(raw: string): string[] {
   return raw
@@ -55,6 +57,8 @@ function planLabel(plan: string): string {
 }
 
 export default function TeamSettingsRoute() {
+  const api = useApi();
+  const toast = useToast();
   const [settings, setSettings] = createSignal<TeamSettings | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal("");
@@ -73,6 +77,18 @@ export default function TeamSettingsRoute() {
 
   const [actionError, setActionError] = createSignal("");
   const [actionNotice, setActionNotice] = createSignal("");
+
+  createEffect(() => {
+    const message = actionError().trim();
+    if (!message) return;
+    toast.error(message);
+  });
+
+  createEffect(() => {
+    const message = actionNotice().trim();
+    if (!message) return;
+    toast.success(message);
+  });
 
   const canManage = createMemo(() => settings()?.canManage ?? false);
   const canManageRoles = createMemo(() => settings()?.currentUserRole === "owner");
@@ -108,7 +124,7 @@ export default function TeamSettingsRoute() {
     setLoading(true);
     setError("");
     try {
-      const response = await teamApi.getSettings();
+      const response = await api.team.getSettings();
       setSettings(response.settings);
       setTeamNameInput(response.settings.team.name);
     } catch (err) {
@@ -139,7 +155,7 @@ export default function TeamSettingsRoute() {
     setActionError("");
     setActionNotice("");
     try {
-      const response = await teamApi.updateSettings(nextName);
+      const response = await api.team.updateSettings(nextName);
       setSettings((current) => {
         if (!current) return current;
         return {
@@ -175,7 +191,7 @@ export default function TeamSettingsRoute() {
     try {
       for (const email of emails) {
         // Keep sequential so API validation messages are deterministic per address.
-        await teamApi.invite(email, inviteRole());
+        await api.team.invite(email, inviteRole());
       }
       setInviteInput("");
       setActionNotice(
@@ -202,7 +218,7 @@ export default function TeamSettingsRoute() {
     setActionNotice("");
 
     try {
-      const response = await teamApi.updateMemberRole(member.userId, role);
+      const response = await api.team.updateMemberRole(member.userId, role);
       setSettings((current) => {
         if (!current) return current;
         return {
@@ -231,7 +247,7 @@ export default function TeamSettingsRoute() {
     setActionError("");
     setActionNotice("");
     try {
-      await teamApi.removeMember(member.userId);
+      await api.team.removeMember(member.userId);
       setSettings((current) => {
         if (!current) return current;
         return {
@@ -254,7 +270,7 @@ export default function TeamSettingsRoute() {
     setActionError("");
     setActionNotice("");
     try {
-      await teamApi.cancelInvitation(invitation.invitationCode);
+      await api.team.cancelInvitation(invitation.invitationCode);
       setSettings((current) => {
         if (!current) return current;
         return {
@@ -275,7 +291,7 @@ export default function TeamSettingsRoute() {
     setActionError("");
     setActionNotice("");
     try {
-      const response = await billingApi.checkout(plan);
+      const response = await api.billing.checkout(plan);
       if (response.mode === "contact_sales" && response.contactUrl) {
         window.location.href = response.contactUrl;
         return;

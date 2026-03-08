@@ -1,61 +1,23 @@
 import { A } from "@solidjs/router";
-import { Show, createMemo, createSignal, onMount, type JSX } from "solid-js";
+import { Show, createSignal, type JSX } from "solid-js";
 
-import { authApi, type AuthSession } from "../server/api";
+import SidebarAccountCard from "./SidebarAccountCard";
 
 type ShellProps = {
-  activeView: "task" | "board" | "builder" | "profile" | "team";
+  activeView: "task" | "board" | "profile" | "team";
   headerRight?: JSX.Element;
   mobileSidebar?: JSX.Element;
+  accountPlacement?: "floating" | "sidebar";
   children: JSX.Element;
 };
 
 export default function AppShell(props: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
-  const [session, setSession] = createSignal<AuthSession | null>(null);
-  const [accountMenuOpen, setAccountMenuOpen] = createSignal(false);
-
-  const accountName = createMemo(() => {
-    const value = session()?.user.name?.trim();
-    if (value) return value;
-    return session()?.user.email?.trim() || "Donegeon User";
-  });
-  const accountPlan = createMemo(() => {
-    const raw = session()?.team?.plan?.trim().toLowerCase() || "personal";
-    if (raw === "pro_trial") return "Pro Trial";
-    if (raw === "pro") return "Pro";
-    if (raw === "enterprise") return "Enterprise";
-    return "Free";
-  });
-  const accountInitials = createMemo(() => {
-    const source = accountName().trim();
-    const parts = source.split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return source.slice(0, 2).toUpperCase();
-  });
+  const accountPlacement = () => props.accountPlacement || "floating";
 
   function closeMobileMenu() {
     setMobileMenuOpen(false);
   }
-
-  async function signOut() {
-    try {
-      await authApi.logout();
-    } finally {
-      window.location.href = "/login";
-    }
-  }
-
-  onMount(async () => {
-    try {
-      const response = await authApi.me();
-      setSession(response.session);
-    } catch {
-      setSession(null);
-    }
-  });
 
   return (
     <main class="h-screen overflow-hidden bg-[#0a0d12] text-[#eceff7]">
@@ -85,12 +47,6 @@ export default function AppShell(props: ShellProps) {
               class={`rounded px-2 py-1 transition ${props.activeView === "board" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
             >
               Board
-            </A>
-            <A
-              href="/builder"
-              class={`rounded px-2 py-1 transition ${props.activeView === "builder" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
-            >
-              Builder
             </A>
             <A
               href="/profile"
@@ -137,7 +93,7 @@ export default function AppShell(props: ShellProps) {
       </div>
 
       <nav class="fixed inset-x-0 bottom-0 z-50 border-t border-[#2f3848] bg-[#10151f]/98 px-2 pb-[max(env(safe-area-inset-bottom),0px)] pt-1 md:hidden">
-        <div class="grid grid-cols-3 gap-1">
+        <div class="grid grid-cols-2 gap-1">
           <A
             href="/task/inbox"
             class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${
@@ -159,17 +115,6 @@ export default function AppShell(props: ShellProps) {
           >
             <span class="text-sm">▦</span>
             <span>Board</span>
-          </A>
-          <A
-            href="/builder"
-            class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${
-              props.activeView === "builder"
-                ? "bg-[#1f2a3c] text-[#eef2fa]"
-                : "text-[#9ea9bb] hover:bg-[#1a202b] hover:text-[#eef2fa]"
-            }`}
-          >
-            <span class="text-sm">⌂</span>
-            <span>Builder</span>
           </A>
         </div>
       </nav>
@@ -193,63 +138,22 @@ export default function AppShell(props: ShellProps) {
                 Close
               </button>
             </div>
-            <div class="p-3">{props.mobileSidebar}</div>
+            <div class="p-3">
+              {props.mobileSidebar}
+              <Show when={accountPlacement() === "sidebar"}>
+                <div class="mt-3 border-t border-[#273247] pt-3">
+                  <SidebarAccountCard onNavigate={closeMobileMenu} />
+                </div>
+              </Show>
+            </div>
           </aside>
         </div>
       </Show>
 
-      <Show when={session()}>
+      <Show when={accountPlacement() === "floating"}>
         <div class="pointer-events-none fixed bottom-3 left-3 z-[55] hidden md:block">
           <div class="pointer-events-auto">
-            <button
-              type="button"
-              class="flex min-w-[180px] items-center gap-2 rounded-xl border border-[#32445f] bg-[#121a28]/95 px-2.5 py-2 text-left shadow-[0_16px_32px_rgba(0,0,0,0.45)] transition hover:border-[#4b648a]"
-              onClick={() => setAccountMenuOpen((open) => !open)}
-              data-testid="appshell-account-toggle"
-            >
-              <span class="flex h-8 w-8 items-center justify-center rounded-full border border-[#48608a] bg-[#1a2a43] text-xs font-semibold text-[#e3eeff]">
-                {accountInitials()}
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-semibold text-[#edf4ff]">{accountName()}</span>
-                <span class="mt-0.5 inline-flex rounded border border-[#455d82] bg-[#182b45] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d4e4ff]">
-                  {accountPlan()}
-                </span>
-              </span>
-              <span class="text-xs text-[#93a8c8]">{accountMenuOpen() ? "▲" : "▼"}</span>
-            </button>
-
-            <Show when={accountMenuOpen()}>
-              <div
-                class="mt-2 w-[220px] overflow-hidden rounded-xl border border-[#344a6b] bg-[#111b2b]/98 shadow-[0_20px_42px_rgba(0,0,0,0.5)]"
-                data-testid="appshell-account-menu"
-              >
-                <A
-                  href="/settings"
-                  class="block border-b border-[#273449] px-3 py-2 text-sm text-[#dce8ff] transition hover:bg-[#17263f]"
-                  onClick={() => setAccountMenuOpen(false)}
-                  data-testid="appshell-account-settings"
-                >
-                  Settings
-                </A>
-                <A
-                  href="/profile"
-                  class="block border-b border-[#273449] px-3 py-2 text-sm text-[#dce8ff] transition hover:bg-[#17263f]"
-                  onClick={() => setAccountMenuOpen(false)}
-                  data-testid="appshell-account-quest-log"
-                >
-                  Quest Log
-                </A>
-                <button
-                  type="button"
-                  class="block w-full px-3 py-2 text-left text-sm text-[#ffb5ad] transition hover:bg-[#2a1719]"
-                  onClick={() => void signOut()}
-                  data-testid="appshell-account-signout"
-                >
-                  Sign out
-                </button>
-              </div>
-            </Show>
+            <SidebarAccountCard class="w-[220px]" />
           </div>
         </div>
       </Show>

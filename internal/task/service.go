@@ -14,10 +14,11 @@ import (
 )
 
 type Service struct {
-	repo          *Repository
-	parser        *quickadd.Parser
-	nowFn         func() time.Time
-	ensureProject func(ctx context.Context, slug string) error
+	repo           *Repository
+	parser         *quickadd.Parser
+	nowFn          func() time.Time
+	ensureProject  func(ctx context.Context, slug string) error
+	resolveProject func(ctx context.Context, ref string) (*string, error)
 }
 
 func NewService(repo *Repository, parser *quickadd.Parser) *Service {
@@ -33,6 +34,13 @@ func NewService(repo *Repository, parser *quickadd.Parser) *Service {
 // callback should be idempotent (e.g. an upsert).
 func (s *Service) SetEnsureProject(fn func(ctx context.Context, slug string) error) {
 	s.ensureProject = fn
+}
+
+// SetResolveProject sets a callback used during quick-add to resolve a
+// user-entered project reference (for example a slug alias) to an existing
+// project id before task creation.
+func (s *Service) SetResolveProject(fn func(ctx context.Context, ref string) (*string, error)) {
+	s.resolveProject = fn
 }
 
 func (s *Service) List(ctx context.Context, params ListParams) (ListResult, error) {
@@ -108,6 +116,15 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 
 func (s *Service) CreateFromQuickAdd(ctx context.Context, text string) (Task, quickadd.Parsed, error) {
 	parsed := s.ParseQuickAdd(ctx, text)
+	if parsed.Project != nil && s.resolveProject != nil {
+		resolved, err := s.resolveProject(ctx, strings.TrimSpace(*parsed.Project))
+		if err != nil {
+			return Task{}, quickadd.Parsed{}, err
+		}
+		if resolved != nil && strings.TrimSpace(*resolved) != "" {
+			parsed.Project = strPtr(strings.TrimSpace(*resolved))
+		}
+	}
 	scheduleInput := strings.TrimSpace(text)
 
 	var scheduleInputPtr *string

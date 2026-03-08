@@ -42,6 +42,10 @@ type Config struct {
 	StripeProPriceID         string
 	StripeCheckoutSuccessURL string
 	StripeCheckoutCancelURL  string
+	GoogleCalendarClientID   string
+	GoogleCalendarSecret     string
+	CalendarOAuthStateTTL    time.Duration
+	CalendarProviderTimeout  time.Duration
 	CorsAllowedOrigins       []string
 }
 
@@ -91,7 +95,11 @@ func Load() (Config, error) {
 			"DONEGEON_STRIPE_CHECKOUT_CANCEL_URL",
 			"https://app.donegeon.com/team/settings?billing=canceled",
 		),
-		CorsAllowedOrigins: parseCorsOrigins(envOr("DONEGEON_CORS_ALLOWED_ORIGINS", "")),
+		GoogleCalendarClientID:  envOr("DONEGEON_GOOGLE_CALENDAR_CLIENT_ID", ""),
+		GoogleCalendarSecret:    envOr("DONEGEON_GOOGLE_CALENDAR_CLIENT_SECRET", ""),
+		CalendarOAuthStateTTL:   envDurationOr("DONEGEON_CALENDAR_OAUTH_STATE_TTL", 15*time.Minute),
+		CalendarProviderTimeout: envDurationOr("DONEGEON_CALENDAR_PROVIDER_TIMEOUT", 15*time.Second),
+		CorsAllowedOrigins:      parseCorsOrigins(envOr("DONEGEON_CORS_ALLOWED_ORIGINS", "")),
 	}
 
 	requireAuth, err := envBoolOr("DONEGEON_REQUIRE_AUTH", true)
@@ -163,6 +171,15 @@ func Load() (Config, error) {
 	}
 	if strings.TrimSpace(cfg.AppBaseURL) == "" {
 		return Config{}, fmt.Errorf("DONEGEON_APP_BASE_URL is required")
+	}
+	if (cfg.GoogleCalendarClientID == "") != (cfg.GoogleCalendarSecret == "") {
+		return Config{}, fmt.Errorf("both DONEGEON_GOOGLE_CALENDAR_CLIENT_ID and DONEGEON_GOOGLE_CALENDAR_CLIENT_SECRET must be set together")
+	}
+	if cfg.CalendarOAuthStateTTL < time.Minute {
+		return Config{}, fmt.Errorf("DONEGEON_CALENDAR_OAUTH_STATE_TTL must be at least 1m")
+	}
+	if cfg.CalendarProviderTimeout < time.Second {
+		return Config{}, fmt.Errorf("DONEGEON_CALENDAR_PROVIDER_TIMEOUT must be at least 1s")
 	}
 
 	return cfg, nil

@@ -20,7 +20,7 @@ import (
 
 	"donegeon/internal/account"
 	"donegeon/internal/config"
-	"donegeon/internal/datbase"
+	"donegeon/internal/database"
 	"donegeon/internal/project"
 	"donegeon/internal/quickadd"
 	"donegeon/internal/task"
@@ -167,11 +167,11 @@ func newParityEnv(t *testing.T) *parityEnv {
 	t.Helper()
 
 	dbPath := filepath.Join(t.TempDir(), "httpapi-parity.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -179,7 +179,7 @@ func newParityEnv(t *testing.T) *parityEnv {
 		_ = db.Close()
 	})
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -188,7 +188,7 @@ func newParityEnv(t *testing.T) *parityEnv {
 	taskSvc := task.NewService(task.NewRepository(db, queries), parser)
 	projectSvc := project.NewService(project.NewRepository(db, queries))
 	compatSvc := todoistcompat.NewService(db, taskSvc, projectSvc)
-	accountSvc := account.NewService(db)
+	accountSvc := account.NewService(db, queries)
 
 	cfg := config.Config{
 		RequireAuth:      true,
@@ -202,7 +202,7 @@ func newParityEnv(t *testing.T) *parityEnv {
 		"index.html": &fstest.MapFile{Data: []byte("<html><body>ok</body></html>")},
 	}
 
-	handler := New(logger, cfg, taskSvc, projectSvc, nil, parser, compatSvc, accountSvc, staticFS)
+	handler := New(logger, cfg, taskSvc, projectSvc, nil, nil, parser, compatSvc, accountSvc, staticFS)
 	server := httptest.NewServer(handler)
 
 	return &parityEnv{

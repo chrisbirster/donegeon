@@ -90,9 +90,6 @@ const (
 	TeamRoleEditor = "editor"
 	TeamRoleReader = "reader"
 	defaultBoardID = "default"
-	// TeamRoleMember is kept for backward compatibility with older data/clients.
-	TeamRoleMember = "member"
-
 	PlanPersonal   = "personal"
 	PlanProTrial   = "pro_trial"
 	PlanPro        = "pro"
@@ -100,46 +97,30 @@ const (
 )
 
 type Service struct {
-	db *sqlx.DB
+	db      *sqlx.DB
+	queries map[string]string
 }
 
-func NewService(db *sqlx.DB) *Service {
-	svc := &Service{db: db}
+func NewService(db *sqlx.DB, queries map[string]string) *Service {
+	svc := &Service{
+		db:      db,
+		queries: queries,
+	}
 	_ = svc.EnsureDefaults(context.Background())
 	return svc
 }
 
 func (s *Service) EnsureDefaults(ctx context.Context) error {
 	now := nowRFC3339()
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO workspaces (id, name, plan, is_archived, created_at, updated_at)
-VALUES (?, ?, 'free', 0, ?, ?)
-ON CONFLICT(id) DO NOTHING
-`, sessionctx.DefaultWorkspaceID, "Default Workspace", now, now); err != nil {
+	if _, err := s.exec(ctx, "account_workspace_default_upsert.sql", sessionctx.DefaultWorkspaceID, "Default Workspace", now, now); err != nil {
 		return err
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO users (id, email, name, show_onboarding, current_workspace_id, created_at, updated_at)
-VALUES (?, ?, ?, 0, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    email = excluded.email,
-    name = excluded.name,
-    show_onboarding = 0,
-    current_workspace_id = excluded.current_workspace_id,
-    updated_at = excluded.updated_at
-`, sessionctx.DefaultUserID, "owner@example.com", "Owner", sessionctx.DefaultWorkspaceID, now, now); err != nil {
+	if _, err := s.exec(ctx, "account_user_default_upsert.sql", sessionctx.DefaultUserID, "owner@example.com", "Owner", sessionctx.DefaultWorkspaceID, now, now); err != nil {
 		return err
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO workspace_users (workspace_id, user_id, email, name, role, created_at)
-VALUES (?, ?, ?, ?, 'owner', ?)
-ON CONFLICT(workspace_id, user_id) DO UPDATE SET
-    email = excluded.email,
-    name = excluded.name,
-    role = excluded.role
-`, sessionctx.DefaultWorkspaceID, sessionctx.DefaultUserID, "owner@example.com", "Owner", now); err != nil {
+	if _, err := s.exec(ctx, "account_workspace_user_owner_upsert.sql", sessionctx.DefaultWorkspaceID, sessionctx.DefaultUserID, "owner@example.com", "Owner", now); err != nil {
 		return err
 	}
 
@@ -171,14 +152,11 @@ func (s *Service) Login(ctx context.Context, email string, preferredName string)
 			CreatedAt:      now,
 			UpdatedAt:      now,
 		}
-		if _, err := s.db.ExecContext(ctx, `
-INSERT INTO users (id, email, name, show_onboarding, current_workspace_id, created_at, updated_at)
-VALUES (?, ?, ?, 1, NULL, ?, ?)
-`, user.ID, user.Email, user.Name, now, now); err != nil {
+		if _, err := s.exec(ctx, "auth_user_insert.sql", user.ID, user.Email, user.Name, now, now); err != nil {
 			return Session{}, err
 		}
 	} else if strings.TrimSpace(preferredName) != "" && user.Name != name {
-		if _, err := s.db.ExecContext(ctx, "UPDATE users SET name = ?, updated_at = ? WHERE id = ?", name, now, user.ID); err != nil {
+		if _, err := s.exec(ctx, "auth_user_update_name.sql", name, now, user.ID); err != nil {
 			return Session{}, err
 		}
 		user.Name = name
@@ -212,9 +190,6 @@ func (s *Service) GetSession(ctx context.Context, userID string) (Session, error
 
 func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamName string, displayName string, inviteEmails []string, plan string) (Session, []TeamInvite, error) {
 	trimmedTeamName := strings.TrimSpace(teamName)
-	if trimmedTeamName == "" {
-		return Session{}, nil, fmt.Errorf("team name is required")
-	}
 	requestedPlan := normalizeWorkspacePlan(plan)
 
 	tx, err := s.db.BeginTxx(ctx, nil)
@@ -226,12 +201,7 @@ func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamNam
 	}()
 
 	var user User
-	if err := tx.GetContext(ctx, &user, `
-SELECT id, email, name, show_onboarding, current_workspace_id, created_at, updated_at
-FROM users
-WHERE id = ?
-LIMIT 1
-`, strings.TrimSpace(userID)); err != nil {
+	if err := s.txGet(ctx, tx, &user, "account_user_get_by_id.sql", strings.TrimSpace(userID)); err != nil {
 		if err == sql.ErrNoRows {
 			return Session{}, nil, fmt.Errorf("user not found")
 		}
@@ -241,41 +211,24 @@ LIMIT 1
 	now := nowRFC3339()
 	displayName = strings.TrimSpace(displayName)
 	if displayName != "" && displayName != user.Name {
-		if _, err := tx.ExecContext(ctx, `
-UPDATE users
-SET
-	name = ?,
-	updated_at = ?
-WHERE id = ?
-`, displayName, now, user.ID); err != nil {
+		if _, err := s.txExec(ctx, tx, "auth_user_update_name.sql", displayName, now, user.ID); err != nil {
 			return Session{}, nil, err
 		}
 		user.Name = displayName
 		user.UpdatedAt = now
 	}
+	resolvedWorkspaceName := resolveWorkspaceName(trimmedTeamName, user.Name, user.Email)
 
 	workspaceID := ""
 	if user.CurrentWorkspace != nil && strings.TrimSpace(*user.CurrentWorkspace) != "" {
 		workspaceID = strings.TrimSpace(*user.CurrentWorkspace)
 		if requestedPlan == "" {
-			if _, err := tx.ExecContext(ctx, `
-UPDATE workspaces
-SET name = ?, updated_at = ?
-WHERE id = ?
-`, trimmedTeamName, now, workspaceID); err != nil {
+			if _, err := s.txExec(ctx, tx, "account_workspace_update_name.sql", resolvedWorkspaceName, now, workspaceID); err != nil {
 				return Session{}, nil, err
 			}
 		} else {
 			trialEndsAt := billingTrialEndsAt(now, requestedPlan)
-			if _, err := tx.ExecContext(ctx, `
-UPDATE workspaces
-SET
-	name = ?,
-	plan = ?,
-	trial_ends_at = ?,
-	updated_at = ?
-WHERE id = ?
-`, trimmedTeamName, requestedPlan, nullableString(trialEndsAt), now, workspaceID); err != nil {
+			if _, err := s.txExec(ctx, tx, "account_workspace_update_name_plan.sql", resolvedWorkspaceName, requestedPlan, nullableString(trialEndsAt), now, workspaceID); err != nil {
 				return Session{}, nil, err
 			}
 		}
@@ -286,32 +239,19 @@ WHERE id = ?
 			selectedPlan = PlanPersonal
 		}
 		trialEndsAt := billingTrialEndsAt(now, selectedPlan)
-		if _, err := tx.ExecContext(ctx, `
-INSERT INTO workspaces (id, name, plan, trial_ends_at, is_archived, created_at, updated_at)
-VALUES (?, ?, ?, ?, 0, ?, ?)
-`, workspaceID, trimmedTeamName, selectedPlan, nullableString(trialEndsAt), now, now); err != nil {
+		if _, err := s.txExec(ctx, tx, "account_workspace_insert.sql", workspaceID, resolvedWorkspaceName, selectedPlan, nullableString(trialEndsAt), now, now); err != nil {
 			return Session{}, nil, err
 		}
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO workspace_users (workspace_id, user_id, email, name, role, created_at)
-VALUES (?, ?, ?, ?, 'owner', ?)
-ON CONFLICT(workspace_id, user_id) DO UPDATE SET
-    email = excluded.email,
-    name = excluded.name,
-    role = excluded.role
-`, workspaceID, user.ID, user.Email, user.Name, now); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_workspace_user_owner_upsert.sql", workspaceID, user.ID, user.Email, user.Name, now); err != nil {
 		return Session{}, nil, err
 	}
 
 	invites := make([]TeamInvite, 0, len(inviteEmails))
 	for _, email := range normalizeInviteEmails(inviteEmails, user.Email) {
 		code := uuid.NewString()
-		if _, err := tx.ExecContext(ctx, `
-INSERT INTO workspace_invitations (invitation_code, workspace_id, email, role, status, created_at, updated_at)
-VALUES (?, ?, ?, ?, 'pending', ?, ?)
-`, code, workspaceID, email, TeamRoleEditor, now, now); err != nil {
+		if _, err := s.txExec(ctx, tx, "account_workspace_invitation_insert_pending.sql", code, workspaceID, email, TeamRoleEditor, now, now); err != nil {
 			return Session{}, nil, err
 		}
 		invites = append(invites, TeamInvite{
@@ -325,24 +265,13 @@ VALUES (?, ?, ?, ?, 'pending', ?, ?)
 		})
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-UPDATE users
-SET
-    show_onboarding = 0,
-    current_workspace_id = ?,
-    updated_at = ?
-WHERE id = ?
-`, workspaceID, now, user.ID); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_user_complete_onboarding_update.sql", workspaceID, now, user.ID); err != nil {
 		return Session{}, nil, err
 	}
 
-	if err := ensureDefaultProjectsTx(ctx, tx, user.ID, workspaceID, trimmedTeamName, now); err != nil {
+	if err := s.ensureDefaultProjectsTx(ctx, tx, user.ID, workspaceID, resolvedWorkspaceName, now); err != nil {
 		return Session{}, nil, err
 	}
-	if err := ensurePersonalBoardProjectTx(ctx, tx, user.ID, workspaceID, user.Name, now); err != nil {
-		return Session{}, nil, err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return Session{}, nil, err
 	}
@@ -361,7 +290,7 @@ func (s *Service) GetTeamSettings(ctx context.Context, actorUserID string, works
 		return TeamSettings{}, fmt.Errorf("team context is required")
 	}
 
-	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	role, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return TeamSettings{}, fmt.Errorf("not a member of this team")
@@ -378,22 +307,7 @@ func (s *Service) GetTeamSettings(ctx context.Context, actorUserID string, works
 	}
 
 	members := []TeamMember{}
-	if err := s.db.SelectContext(ctx, &members, `
-SELECT workspace_id, user_id, email, name, role, created_at
-FROM workspace_users
-WHERE workspace_id = ?
-	ORDER BY
-		CASE role
-			WHEN 'owner' THEN 0
-			WHEN 'admin' THEN 1
-			WHEN 'editor' THEN 2
-			WHEN 'member' THEN 2
-			WHEN 'reader' THEN 3
-			ELSE 4
-		END,
-		LOWER(name) ASC,
-		LOWER(email) ASC
-	`, workspaceID); err != nil {
+	if err := s.selectRows(ctx, &members, "account_team_members_list.sql", workspaceID); err != nil {
 		return TeamSettings{}, err
 	}
 	for i := range members {
@@ -401,13 +315,7 @@ WHERE workspace_id = ?
 	}
 
 	invitations := []TeamInvite{}
-	if err := s.db.SelectContext(ctx, &invitations, `
-SELECT invitation_code, workspace_id, email, role, status, created_at, updated_at
-FROM workspace_invitations
-WHERE workspace_id = ?
-	AND status = 'pending'
-ORDER BY created_at DESC
-	`, workspaceID); err != nil {
+	if err := s.selectRows(ctx, &invitations, "account_workspace_invitations_pending_list.sql", workspaceID); err != nil {
 		return TeamSettings{}, err
 	}
 	for i := range invitations {
@@ -435,7 +343,7 @@ func (s *Service) UpdateTeamName(ctx context.Context, actorUserID string, worksp
 		return Team{}, fmt.Errorf("team name is required")
 	}
 
-	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	role, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return Team{}, fmt.Errorf("not a member of this team")
@@ -455,17 +363,11 @@ func (s *Service) UpdateTeamName(ctx context.Context, actorUserID string, worksp
 		_ = tx.Rollback()
 	}()
 
-	if _, err := tx.ExecContext(ctx, `
-UPDATE workspaces
-SET
-	name = ?,
-	updated_at = ?
-WHERE id = ?
-`, teamName, now, workspaceID); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_workspace_update_name.sql", teamName, now, workspaceID); err != nil {
 		return Team{}, err
 	}
 
-	if err := ensureDefaultProjectsTx(ctx, tx, actorUserID, workspaceID, teamName, now); err != nil {
+	if err := s.ensureDefaultProjectsTx(ctx, tx, actorUserID, workspaceID, teamName, now); err != nil {
 		return Team{}, err
 	}
 
@@ -494,7 +396,7 @@ func (s *Service) InviteMember(ctx context.Context, actorUserID string, workspac
 		return TeamInvite{}, fmt.Errorf("invite role must be one of admin, editor, reader")
 	}
 
-	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	role, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return TeamInvite{}, fmt.Errorf("not a member of this team")
@@ -506,12 +408,7 @@ func (s *Service) InviteMember(ctx context.Context, actorUserID string, workspac
 	}
 
 	var memberCount int
-	if err := s.db.GetContext(ctx, &memberCount, `
-SELECT COUNT(1)
-FROM workspace_users
-WHERE workspace_id = ?
-	AND LOWER(email) = LOWER(?)
-`, workspaceID, email); err != nil {
+	if err := s.get(ctx, &memberCount, "account_workspace_member_count_by_email.sql", workspaceID, email); err != nil {
 		return TeamInvite{}, err
 	}
 	if memberCount > 0 {
@@ -519,27 +416,13 @@ WHERE workspace_id = ?
 	}
 
 	var existing TeamInvite
-	if err := s.db.GetContext(ctx, &existing, `
-SELECT invitation_code, workspace_id, email, role, status, created_at, updated_at
-FROM workspace_invitations
-WHERE workspace_id = ?
-	AND LOWER(email) = LOWER(?)
-	AND status = 'pending'
-ORDER BY created_at DESC
-LIMIT 1
-	`, workspaceID, email); err == nil {
+	if err := s.get(ctx, &existing, "account_workspace_invitation_pending_latest_by_email.sql", workspaceID, email); err == nil {
 		existing.Role = normalizeTeamRole(existing.Role)
 		if existing.Role == inviteRole {
 			return existing, nil
 		}
 		now := nowRFC3339()
-		if _, updateErr := s.db.ExecContext(ctx, `
-UPDATE workspace_invitations
-SET
-	role = ?,
-	updated_at = ?
-WHERE invitation_code = ?
-`, inviteRole, now, existing.InvitationCode); updateErr != nil {
+		if _, updateErr := s.exec(ctx, "account_workspace_invitation_update_role.sql", inviteRole, now, existing.InvitationCode); updateErr != nil {
 			return TeamInvite{}, updateErr
 		}
 		existing.Role = inviteRole
@@ -560,10 +443,7 @@ WHERE invitation_code = ?
 		UpdatedAt:      now,
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO workspace_invitations (invitation_code, workspace_id, email, role, status, created_at, updated_at)
-VALUES (?, ?, ?, ?, 'pending', ?, ?)
-`, invite.InvitationCode, invite.WorkspaceID, invite.Email, invite.Role, invite.CreatedAt, invite.UpdatedAt); err != nil {
+	if _, err := s.exec(ctx, "account_workspace_invitation_insert_pending.sql", invite.InvitationCode, invite.WorkspaceID, invite.Email, invite.Role, invite.CreatedAt, invite.UpdatedAt); err != nil {
 		return TeamInvite{}, err
 	}
 
@@ -586,7 +466,7 @@ func (s *Service) UpdateMemberRole(ctx context.Context, actorUserID string, work
 		return TeamMember{}, fmt.Errorf("role must be one of owner, admin, editor, reader")
 	}
 
-	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	actorRole, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return TeamMember{}, fmt.Errorf("not a member of this team")
@@ -597,7 +477,7 @@ func (s *Service) UpdateMemberRole(ctx context.Context, actorUserID string, work
 		return TeamMember{}, fmt.Errorf("only team owners can change roles")
 	}
 
-	targetMember, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+	targetMember, err := s.workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return TeamMember{}, fmt.Errorf("target member not found")
@@ -615,16 +495,11 @@ func (s *Service) UpdateMemberRole(ctx context.Context, actorUserID string, work
 		return TeamMember{}, fmt.Errorf("owner role transfer is not supported yet")
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
-UPDATE workspace_users
-SET role = ?
-WHERE workspace_id = ?
-	AND user_id = ?
-`, nextRole, workspaceID, targetUserID); err != nil {
+	if _, err := s.exec(ctx, "account_workspace_user_update_role.sql", nextRole, workspaceID, targetUserID); err != nil {
 		return TeamMember{}, err
 	}
 
-	return workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+	return s.workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
 }
 
 func (s *Service) RemoveMember(ctx context.Context, actorUserID string, workspaceID string, targetUserID string) error {
@@ -641,7 +516,7 @@ func (s *Service) RemoveMember(ctx context.Context, actorUserID string, workspac
 		return fmt.Errorf("owner cannot remove themselves")
 	}
 
-	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	actorRole, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("not a member of this team")
@@ -652,7 +527,7 @@ func (s *Service) RemoveMember(ctx context.Context, actorUserID string, workspac
 		return fmt.Errorf("only team owners can remove members")
 	}
 
-	targetMember, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+	targetMember, err := s.workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("target member not found")
@@ -672,11 +547,7 @@ func (s *Service) RemoveMember(ctx context.Context, actorUserID string, workspac
 		_ = tx.Rollback()
 	}()
 
-	result, err := tx.ExecContext(ctx, `
-DELETE FROM workspace_users
-WHERE workspace_id = ?
-	AND user_id = ?
-`, workspaceID, targetUserID)
+	result, err := s.txExec(ctx, tx, "account_workspace_user_delete.sql", workspaceID, targetUserID)
 	if err != nil {
 		return err
 	}
@@ -688,43 +559,15 @@ WHERE workspace_id = ?
 		return fmt.Errorf("target member not found")
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-UPDATE users
-SET
-	current_workspace_id = CASE
-		WHEN current_workspace_id = ? THEN NULL
-		ELSE current_workspace_id
-	END,
-	show_onboarding = CASE
-		WHEN current_workspace_id = ? THEN 1
-		ELSE show_onboarding
-	END,
-	updated_at = CASE
-		WHEN current_workspace_id = ? THEN ?
-		ELSE updated_at
-	END
-WHERE id = ?
-	`, workspaceID, workspaceID, workspaceID, now, targetUserID); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_user_clear_workspace_if_current.sql", workspaceID, workspaceID, workspaceID, now, targetUserID); err != nil {
 		return err
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-DELETE FROM board_memberships
-WHERE workspace_id = ?
-	AND user_id = ?
-`, workspaceID, targetUserID); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_board_memberships_delete_by_workspace_user.sql", workspaceID, targetUserID); err != nil {
 		return err
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-UPDATE auth_sessions
-SET
-	revoked_at = COALESCE(revoked_at, ?),
-	updated_at = ?
-WHERE user_id = ?
-	AND workspace_id = ?
-	AND revoked_at IS NULL
-`, now, now, targetUserID, workspaceID); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_auth_sessions_revoke_by_user_workspace.sql", now, now, targetUserID, workspaceID); err != nil {
 		return err
 	}
 
@@ -745,7 +588,7 @@ func (s *Service) CancelInvitation(ctx context.Context, actorUserID string, work
 		return fmt.Errorf("invitation code is required")
 	}
 
-	role, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	role, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("not a member of this team")
@@ -756,12 +599,7 @@ func (s *Service) CancelInvitation(ctx context.Context, actorUserID string, work
 		return fmt.Errorf("only team owners or admins can cancel invitations")
 	}
 
-	result, err := s.db.ExecContext(ctx, `
-DELETE FROM workspace_invitations
-WHERE invitation_code = ?
-	AND workspace_id = ?
-	AND status = 'pending'
-`, invitationCode, workspaceID)
+	result, err := s.exec(ctx, "account_workspace_invitation_delete_pending_by_code_workspace.sql", invitationCode, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -784,14 +622,7 @@ func (s *Service) BeginProTrial(ctx context.Context, workspaceID string) (Team, 
 	now := time.Now().UTC()
 	nowRFC3339 := now.Format(time.RFC3339)
 	trialEndsAt := now.Add(14 * 24 * time.Hour).Format(time.RFC3339)
-	result, err := s.db.ExecContext(ctx, `
-UPDATE workspaces
-SET
-	plan = ?,
-	trial_ends_at = ?,
-	updated_at = ?
-WHERE id = ?
-`, PlanProTrial, trialEndsAt, nowRFC3339, workspaceID)
+	result, err := s.exec(ctx, "account_workspace_begin_pro_trial.sql", PlanProTrial, trialEndsAt, nowRFC3339, workspaceID)
 	if err != nil {
 		return Team{}, err
 	}
@@ -812,21 +643,18 @@ func (s *Service) ActivateProFromStripe(ctx context.Context, workspaceID string,
 	}
 
 	now := nowRFC3339()
-	result, err := s.db.ExecContext(ctx, `
-UPDATE workspaces
-SET
-	plan = ?,
-	trial_ends_at = NULL,
-	stripe_customer_id = ?,
-	stripe_subscription_id = ?,
-	stripe_price_id = ?,
-	billing_email = CASE
-		WHEN TRIM(COALESCE(?, '')) <> '' THEN ?
-		ELSE billing_email
-	END,
-	updated_at = ?
-WHERE id = ?
-`, PlanPro, strings.TrimSpace(customerID), strings.TrimSpace(subscriptionID), strings.TrimSpace(priceID), strings.TrimSpace(billingEmail), strings.TrimSpace(billingEmail), now, workspaceID)
+	result, err := s.exec(
+		ctx,
+		"account_workspace_activate_pro_from_stripe.sql",
+		PlanPro,
+		strings.TrimSpace(customerID),
+		strings.TrimSpace(subscriptionID),
+		strings.TrimSpace(priceID),
+		strings.TrimSpace(billingEmail),
+		strings.TrimSpace(billingEmail),
+		now,
+		workspaceID,
+	)
 	if err != nil {
 		return Team{}, err
 	}
@@ -847,16 +675,7 @@ func (s *Service) DowngradePersonalByStripeSubscription(ctx context.Context, sub
 	}
 
 	now := nowRFC3339()
-	result, err := s.db.ExecContext(ctx, `
-UPDATE workspaces
-SET
-	plan = ?,
-	trial_ends_at = NULL,
-	stripe_subscription_id = NULL,
-	stripe_price_id = NULL,
-	updated_at = ?
-WHERE stripe_subscription_id = ?
-`, PlanPersonal, now, subscriptionID)
+	result, err := s.exec(ctx, "account_workspace_downgrade_by_subscription.sql", PlanPersonal, now, subscriptionID)
 	if err != nil {
 		return err
 	}
@@ -882,17 +701,7 @@ func (s *Service) InvitationForLogin(ctx context.Context, invitationCode string)
 		Status         string `db:"status"`
 		TeamName       string `db:"team_name"`
 	}
-	if err := s.db.GetContext(ctx, &row, `
-SELECT
-	i.invitation_code,
-	i.email,
-	i.status,
-	w.name AS team_name
-FROM workspace_invitations i
-JOIN workspaces w ON w.id = i.workspace_id
-WHERE i.invitation_code = ?
-LIMIT 1
-`, invitationCode); err != nil {
+	if err := s.get(ctx, &row, "account_invitation_for_login_get.sql", invitationCode); err != nil {
 		if err == sql.ErrNoRows {
 			return InvitationForLogin{}, fmt.Errorf("invitation not found")
 		}
@@ -931,12 +740,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, userID string, invitatio
 	}()
 
 	var user User
-	if err := tx.GetContext(ctx, &user, `
-SELECT id, email, name, show_onboarding, current_workspace_id, created_at, updated_at
-FROM users
-WHERE id = ?
-LIMIT 1
-`, userID); err != nil {
+	if err := s.txGet(ctx, tx, &user, "account_user_get_by_id.sql", userID); err != nil {
 		if err == sql.ErrNoRows {
 			return Session{}, fmt.Errorf("user not found")
 		}
@@ -944,12 +748,7 @@ LIMIT 1
 	}
 
 	var inv workspaceInvitation
-	if err := tx.GetContext(ctx, &inv, `
-SELECT invitation_code, workspace_id, email, role, status
-FROM workspace_invitations
-WHERE invitation_code = ?
-LIMIT 1
-`, invitationCode); err != nil {
+	if err := s.txGet(ctx, tx, &inv, "account_workspace_invitation_get_by_code.sql", invitationCode); err != nil {
 		if err == sql.ErrNoRows {
 			return Session{}, fmt.Errorf("invitation not found")
 		}
@@ -969,53 +768,30 @@ LIMIT 1
 	}
 
 	now := nowRFC3339()
-	if _, err := tx.ExecContext(ctx, `
-	INSERT INTO workspace_users (workspace_id, user_id, email, name, role, created_at)
-	VALUES (?, ?, ?, ?, ?, ?)
-	ON CONFLICT(workspace_id, user_id) DO UPDATE SET
-		email = excluded.email,
-		name = excluded.name
-	`, inv.WorkspaceID, user.ID, user.Email, user.Name, inviteRole, now); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_workspace_user_upsert_accept_invite.sql", inv.WorkspaceID, user.ID, user.Email, user.Name, inviteRole, now); err != nil {
 		return Session{}, err
 	}
 
 	if status == "pending" {
-		if _, err := tx.ExecContext(ctx, `
-UPDATE workspace_invitations
-SET
-	status = 'accepted',
-	updated_at = ?
-WHERE invitation_code = ?
-`, now, inv.InvitationCode); err != nil {
+		if _, err := s.txExec(ctx, tx, "account_workspace_invitation_mark_accepted.sql", now, inv.InvitationCode); err != nil {
 			return Session{}, err
 		}
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-UPDATE users
-SET
-	show_onboarding = 0,
-	current_workspace_id = ?,
-	updated_at = ?
-WHERE id = ?
-`, inv.WorkspaceID, now, user.ID); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_user_complete_onboarding_update.sql", inv.WorkspaceID, now, user.ID); err != nil {
 		return Session{}, err
 	}
 
-	workspace, err := workspaceByIDTx(ctx, tx, inv.WorkspaceID)
+	workspace, err := s.workspaceByIDTx(ctx, tx, inv.WorkspaceID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return Session{}, fmt.Errorf("team not found")
 		}
 		return Session{}, err
 	}
-	if err := ensureDefaultProjectsTx(ctx, tx, user.ID, inv.WorkspaceID, workspace.Name, now); err != nil {
+	if err := s.ensureDefaultProjectsTx(ctx, tx, user.ID, inv.WorkspaceID, workspace.Name, now); err != nil {
 		return Session{}, err
 	}
-	if err := ensurePersonalBoardProjectTx(ctx, tx, user.ID, inv.WorkspaceID, user.Name, now); err != nil {
-		return Session{}, err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return Session{}, err
 	}
@@ -1025,80 +801,33 @@ WHERE id = ?
 func (s *Service) ensureDefaultProjects(ctx context.Context, userID string, workspaceID string, teamName string) error {
 	now := nowRFC3339()
 	boardName := defaultBoardProjectName(teamName)
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
-VALUES (?, ?, 0, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	name = excluded.name,
-	updated_at = excluded.updated_at
-`, projectStorageID(workspaceID, "board"), boardName, userID, workspaceID, now, now); err != nil {
+	if _, err := s.exec(ctx, "account_project_upsert_by_id.sql", projectStorageID(workspaceID, "board"), boardName, 0, userID, workspaceID, now, now); err != nil {
 		return err
 	}
 	if err := s.UpsertBoardMembership(ctx, workspaceID, defaultBoardID, userID); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, `
-INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
-VALUES (?, ?, 1, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	name = excluded.name,
-	updated_at = excluded.updated_at
-`, projectStorageID(workspaceID, "inbox"), "inbox", userID, workspaceID, now, now); err != nil {
+	if _, err := s.exec(ctx, "account_project_upsert_by_id.sql", projectStorageID(workspaceID, "inbox"), "inbox", 1, userID, workspaceID, now, now); err != nil {
 		return err
 	}
 	return nil
 }
 
-func ensureDefaultProjectsTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, teamName string, now string) error {
+func (s *Service) ensureDefaultProjectsTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, teamName string, now string) error {
 	boardName := defaultBoardProjectName(teamName)
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
-VALUES (?, ?, 0, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	name = excluded.name,
-	updated_at = excluded.updated_at
-`, projectStorageID(workspaceID, "board"), boardName, userID, workspaceID, now, now); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_project_upsert_by_id.sql", projectStorageID(workspaceID, "board"), boardName, 0, userID, workspaceID, now, now); err != nil {
 		return err
 	}
-	if err := upsertBoardMembershipTx(ctx, tx, workspaceID, defaultBoardID, userID, now); err != nil {
+	if err := s.upsertBoardMembershipTx(ctx, tx, workspaceID, defaultBoardID, userID, now); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
-VALUES (?, ?, 1, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	name = excluded.name,
-	updated_at = excluded.updated_at
-`, projectStorageID(workspaceID, "inbox"), "inbox", userID, workspaceID, now, now); err != nil {
+	if _, err := s.txExec(ctx, tx, "account_project_upsert_by_id.sql", projectStorageID(workspaceID, "inbox"), "inbox", 1, userID, workspaceID, now, now); err != nil {
 		return err
 	}
 	return nil
 }
 
-func ensurePersonalBoardProjectTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, userName string, now string) error {
-	slug := "board-" + personalBoardSuffix(userID)
-	displayName := strings.TrimSpace(userName)
-	if displayName == "" {
-		displayName = "Personal"
-	}
-	boardName := fmt.Sprintf("%s's board", displayName)
-
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO projects (id, name, is_inbox_project, is_archived, is_favorite, user_id, workspace_id, created_at, updated_at)
-VALUES (?, ?, 0, 0, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	name = excluded.name,
-	updated_at = excluded.updated_at
-`, projectStorageID(workspaceID, slug), boardName, userID, workspaceID, now, now); err != nil {
-		return err
-	}
-	if err := upsertBoardMembershipTx(ctx, tx, workspaceID, slug, userID, now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func upsertBoardMembershipTx(ctx context.Context, tx *sqlx.Tx, workspaceID string, boardID string, userID string, now string) error {
+func (s *Service) upsertBoardMembershipTx(ctx context.Context, tx *sqlx.Tx, workspaceID string, boardID string, userID string, now string) error {
 	workspaceID = strings.TrimSpace(workspaceID)
 	userID = strings.TrimSpace(userID)
 	boardID = normalizeBoardID(boardID)
@@ -1109,34 +838,19 @@ func upsertBoardMembershipTx(ctx context.Context, tx *sqlx.Tx, workspaceID strin
 	if workspaceID == "" || userID == "" || boardID == "" {
 		return fmt.Errorf("board membership context is required")
 	}
-	_, err := tx.ExecContext(ctx, `
-INSERT INTO board_memberships (board_id, workspace_id, user_id, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
-ON CONFLICT(board_id, workspace_id, user_id) DO UPDATE SET
-	updated_at = excluded.updated_at
-`, boardID, workspaceID, userID, now, now)
+	_, err := s.txExec(ctx, tx, "account_board_membership_upsert.sql", boardID, workspaceID, userID, now, now)
 	return err
 }
 
 func (s *Service) userByID(ctx context.Context, id string) (User, error) {
 	var row User
-	err := s.db.GetContext(ctx, &row, `
-SELECT id, email, name, show_onboarding, current_workspace_id, created_at, updated_at
-FROM users
-WHERE id = ?
-LIMIT 1
-`, id)
+	err := s.get(ctx, &row, "account_user_get_by_id.sql", id)
 	return row, err
 }
 
 func (s *Service) userByEmail(ctx context.Context, email string) (User, error) {
 	var row User
-	err := s.db.GetContext(ctx, &row, `
-SELECT id, email, name, show_onboarding, current_workspace_id, created_at, updated_at
-FROM users
-WHERE LOWER(email) = LOWER(?)
-LIMIT 1
-`, email)
+	err := s.get(ctx, &row, "auth_user_get_by_email.sql", email)
 	return row, err
 }
 
@@ -1153,12 +867,7 @@ func (s *Service) UpsertBoardMembership(ctx context.Context, workspaceID string,
 	}
 
 	now := nowRFC3339()
-	_, err := s.db.ExecContext(ctx, `
-INSERT INTO board_memberships (board_id, workspace_id, user_id, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
-ON CONFLICT(board_id, workspace_id, user_id) DO UPDATE SET
-	updated_at = excluded.updated_at
-`, boardID, workspaceID, userID, now, now)
+	_, err := s.exec(ctx, "account_board_membership_upsert.sql", boardID, workspaceID, userID, now, now)
 	return err
 }
 
@@ -1170,14 +879,7 @@ func (s *Service) UpsertBoardMembershipsForWorkspace(ctx context.Context, worksp
 	}
 
 	now := nowRFC3339()
-	_, err := s.db.ExecContext(ctx, `
-INSERT INTO board_memberships (board_id, workspace_id, user_id, created_at, updated_at)
-SELECT ?, workspace_id, user_id, ?, ?
-FROM workspace_users
-WHERE workspace_id = ?
-ON CONFLICT(board_id, workspace_id, user_id) DO UPDATE SET
-	updated_at = excluded.updated_at
-`, boardID, now, now, workspaceID)
+	_, err := s.exec(ctx, "account_board_membership_upsert_from_workspace_users.sql", boardID, now, now, workspaceID)
 	return err
 }
 
@@ -1189,7 +891,7 @@ func (s *Service) ListBoardMembers(ctx context.Context, actorUserID string, work
 		return nil, fmt.Errorf("board membership context is required")
 	}
 
-	if _, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID); err != nil {
+	if _, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("not a member of this team")
 		}
@@ -1205,26 +907,7 @@ func (s *Service) ListBoardMembers(ctx context.Context, actorUserID string, work
 	}
 
 	members := []TeamMember{}
-	if err := s.db.SelectContext(ctx, &members, `
-SELECT wu.workspace_id, wu.user_id, wu.email, wu.name, wu.role, wu.created_at
-FROM board_memberships bm
-JOIN workspace_users wu
-	ON wu.workspace_id = bm.workspace_id
-	AND wu.user_id = bm.user_id
-WHERE bm.workspace_id = ?
-	AND bm.board_id = ?
-ORDER BY
-	CASE wu.role
-		WHEN 'owner' THEN 0
-		WHEN 'admin' THEN 1
-		WHEN 'editor' THEN 2
-		WHEN 'member' THEN 2
-		WHEN 'reader' THEN 3
-		ELSE 4
-	END,
-	LOWER(wu.name) ASC,
-	LOWER(wu.email) ASC
-`, workspaceID, boardID); err != nil {
+	if err := s.selectRows(ctx, &members, "account_board_members_list.sql", workspaceID, boardID); err != nil {
 		return nil, err
 	}
 	for i := range members {
@@ -1245,7 +928,7 @@ func (s *Service) AddBoardMember(ctx context.Context, actorUserID string, worksp
 		return TeamMember{}, fmt.Errorf("target user is required")
 	}
 
-	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	actorRole, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return TeamMember{}, fmt.Errorf("not a member of this team")
@@ -1264,7 +947,7 @@ func (s *Service) AddBoardMember(ctx context.Context, actorUserID string, worksp
 		return TeamMember{}, fmt.Errorf("no access to this board")
 	}
 
-	targetMember, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
+	targetMember, err := s.workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return TeamMember{}, fmt.Errorf("target member not found")
@@ -1293,7 +976,7 @@ func (s *Service) RemoveBoardMember(ctx context.Context, actorUserID string, wor
 		return fmt.Errorf("cannot remove yourself from this board")
 	}
 
-	actorRole, err := workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	actorRole, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("not a member of this team")
@@ -1312,19 +995,14 @@ func (s *Service) RemoveBoardMember(ctx context.Context, actorUserID string, wor
 		return fmt.Errorf("no access to this board")
 	}
 
-	if _, err := workspaceMemberByID(ctx, s.db, workspaceID, targetUserID); err != nil {
+	if _, err := s.workspaceMemberByID(ctx, s.db, workspaceID, targetUserID); err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("target member not found")
 		}
 		return err
 	}
 
-	result, err := s.db.ExecContext(ctx, `
-DELETE FROM board_memberships
-WHERE workspace_id = ?
-	AND board_id = ?
-	AND user_id = ?
-`, workspaceID, boardID, targetUserID)
+	result, err := s.exec(ctx, "account_board_membership_delete_one.sql", workspaceID, boardID, targetUserID)
 	if err != nil {
 		return err
 	}
@@ -1347,13 +1025,7 @@ func (s *Service) HasBoardAccess(ctx context.Context, userID string, workspaceID
 	}
 
 	var count int
-	if err := s.db.GetContext(ctx, &count, `
-SELECT COUNT(1)
-FROM board_memberships
-WHERE board_id = ?
-	AND workspace_id = ?
-	AND user_id = ?
-`, boardID, workspaceID, userID); err != nil {
+	if err := s.get(ctx, &count, "account_board_access_count.sql", boardID, workspaceID, userID); err != nil {
 		return false, err
 	}
 	return count > 0, nil
@@ -1365,7 +1037,7 @@ func (s *Service) CanWriteBoard(ctx context.Context, userID string, workspaceID 
 		return false, err
 	}
 
-	role, err := workspaceUserRole(ctx, s.db, strings.TrimSpace(workspaceID), strings.TrimSpace(userID))
+	role, err := s.workspaceUserRole(ctx, s.db, strings.TrimSpace(workspaceID), strings.TrimSpace(userID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil
@@ -1382,7 +1054,7 @@ func (s *Service) CanWriteWorkspace(ctx context.Context, userID string, workspac
 		return false, fmt.Errorf("workspace access context is required")
 	}
 
-	role, err := workspaceUserRole(ctx, s.db, workspaceID, userID)
+	role, err := s.workspaceUserRole(ctx, s.db, workspaceID, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil
@@ -1398,52 +1070,20 @@ func (s *Service) DeleteBoardMembershipsForBoard(ctx context.Context, workspaceI
 	if workspaceID == "" || boardID == "" {
 		return fmt.Errorf("board membership context is required")
 	}
-	_, err := s.db.ExecContext(ctx, `
-DELETE FROM board_memberships
-WHERE workspace_id = ?
-	AND board_id = ?
-`, workspaceID, boardID)
+	_, err := s.exec(ctx, "account_board_memberships_delete_for_board.sql", workspaceID, boardID)
 	return err
 }
 
 func (s *Service) workspaceByID(ctx context.Context, id string) (Team, error) {
 	var row Team
-	err := s.db.GetContext(ctx, &row, `
-SELECT
-	id,
-	name,
-	plan,
-	trial_ends_at,
-	stripe_customer_id,
-	stripe_subscription_id,
-	is_archived,
-	created_at,
-	updated_at
-FROM workspaces
-WHERE id = ?
-LIMIT 1
-`, id)
+	err := s.get(ctx, &row, "account_workspace_get_by_id.sql", id)
 	row.Plan = normalizeWorkspacePlan(row.Plan)
 	return row, err
 }
 
-func workspaceByIDTx(ctx context.Context, tx *sqlx.Tx, id string) (Team, error) {
+func (s *Service) workspaceByIDTx(ctx context.Context, tx *sqlx.Tx, id string) (Team, error) {
 	var row Team
-	err := tx.GetContext(ctx, &row, `
-SELECT
-	id,
-	name,
-	plan,
-	trial_ends_at,
-	stripe_customer_id,
-	stripe_subscription_id,
-	is_archived,
-	created_at,
-	updated_at
-FROM workspaces
-WHERE id = ?
-LIMIT 1
-`, id)
+	err := s.txGet(ctx, tx, &row, "account_workspace_get_by_id.sql", id)
 	row.Plan = normalizeWorkspacePlan(row.Plan)
 	return row, err
 }
@@ -1486,30 +1126,18 @@ func billingTrialEndsAt(nowRFC3339 string, plan string) string {
 	return parsed.Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339)
 }
 
-func workspaceUserRole(ctx context.Context, db sqlx.QueryerContext, workspaceID string, userID string) (string, error) {
+func (s *Service) workspaceUserRole(ctx context.Context, db sqlx.QueryerContext, workspaceID string, userID string) (string, error) {
 	var role string
-	err := sqlx.GetContext(ctx, db, &role, `
-SELECT role
-FROM workspace_users
-WHERE workspace_id = ?
-	AND user_id = ?
-LIMIT 1
-`, workspaceID, userID)
+	err := s.getQueryer(ctx, db, &role, "account_workspace_user_role.sql", workspaceID, userID)
 	if err != nil {
 		return "", err
 	}
 	return normalizeTeamRole(role), nil
 }
 
-func workspaceMemberByID(ctx context.Context, db sqlx.QueryerContext, workspaceID string, userID string) (TeamMember, error) {
+func (s *Service) workspaceMemberByID(ctx context.Context, db sqlx.QueryerContext, workspaceID string, userID string) (TeamMember, error) {
 	var member TeamMember
-	err := sqlx.GetContext(ctx, db, &member, `
-SELECT workspace_id, user_id, email, name, role, created_at
-FROM workspace_users
-WHERE workspace_id = ?
-	AND user_id = ?
-LIMIT 1
-`, workspaceID, userID)
+	err := s.getQueryer(ctx, db, &member, "account_workspace_member_get_by_id.sql", workspaceID, userID)
 	if err != nil {
 		return TeamMember{}, err
 	}
@@ -1528,8 +1156,6 @@ func normalizeTeamRole(role string) string {
 		return TeamRoleEditor
 	case TeamRoleReader:
 		return TeamRoleReader
-	case TeamRoleMember:
-		return TeamRoleEditor
 	default:
 		return TeamRoleReader
 	}
@@ -1537,7 +1163,7 @@ func normalizeTeamRole(role string) string {
 
 func isSupportedTeamRole(role string) bool {
 	switch strings.ToLower(strings.TrimSpace(role)) {
-	case TeamRoleOwner, TeamRoleAdmin, TeamRoleEditor, TeamRoleReader, TeamRoleMember:
+	case TeamRoleOwner, TeamRoleAdmin, TeamRoleEditor, TeamRoleReader:
 		return true
 	default:
 		return false
@@ -1561,13 +1187,30 @@ func isAssignableInviteRole(role string) bool {
 func defaultBoardProjectName(teamName string) string {
 	teamName = strings.TrimSpace(teamName)
 	if teamName == "" {
-		return "board"
+		return "Personal board"
 	}
-	possessive := "'s"
-	if strings.HasSuffix(strings.ToLower(teamName), "s") {
-		possessive = "'"
+	return teamName
+}
+
+func resolveWorkspaceName(teamName string, userName string, userEmail string) string {
+	teamName = strings.TrimSpace(teamName)
+	if teamName != "" {
+		return teamName
 	}
-	return fmt.Sprintf("%s%s board", teamName, possessive)
+	base := personalBoardBaseName(userName, userEmail)
+	return fmt.Sprintf("%s's board", base)
+}
+
+func personalBoardBaseName(userName string, userEmail string) string {
+	displayName := strings.TrimSpace(userName)
+	if displayName != "" {
+		return displayName
+	}
+	fromEmail := strings.TrimSpace(defaultNameFromEmail(userEmail))
+	if fromEmail != "" {
+		return fromEmail
+	}
+	return "Personal"
 }
 
 func nowRFC3339() string {
@@ -1598,20 +1241,6 @@ func normalizeInviteEmails(raw []string, ownerEmail string) []string {
 		result = append(result, email)
 	}
 	return result
-}
-
-func personalBoardSuffix(userID string) string {
-	clean := strings.ToLower(strings.TrimSpace(userID))
-	clean = strings.TrimPrefix(clean, "u_")
-	clean = strings.NewReplacer("_", "-", " ", "-", ".", "-").Replace(clean)
-	clean = strings.Trim(clean, "-")
-	if clean == "" {
-		return "member"
-	}
-	if len(clean) > 16 {
-		return clean[:16]
-	}
-	return clean
 }
 
 func projectStorageID(workspaceID, slug string) string {

@@ -1,4 +1,4 @@
-package datbase
+package database
 
 import (
 	"context"

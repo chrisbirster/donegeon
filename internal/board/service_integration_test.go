@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"donegeon/internal/datbase"
+	"donegeon/internal/database"
 	"donegeon/internal/quickadd"
 	"donegeon/internal/task"
 	"github.com/jmoiron/sqlx"
@@ -26,11 +26,11 @@ func newBoardIntegrationEnv(t *testing.T) *boardIntegrationEnv {
 	t.Helper()
 
 	dbPath := filepath.Join(t.TempDir(), "board-service-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -38,7 +38,7 @@ func newBoardIntegrationEnv(t *testing.T) *boardIntegrationEnv {
 		_ = db.Close()
 	})
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}

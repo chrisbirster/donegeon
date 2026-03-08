@@ -5,24 +5,24 @@ import (
 	"path/filepath"
 	"testing"
 
-	"donegeon/internal/datbase"
+	"donegeon/internal/database"
 )
 
 func TestRepositoryListAndCreate(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "repo-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -58,17 +58,17 @@ func TestRepositoryCloseIncrementsProcessedCountOnce(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "repo-processed.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -107,17 +107,17 @@ func TestRepositoryCreateAndUpdateLabels(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "repo-labels.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}

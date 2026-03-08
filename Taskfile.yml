@@ -1,15 +1,57 @@
 version: '3'
 
 tasks:
+  env:ensure:
+    desc: Ensure root .env exists (copies from .env.example if missing)
+    cmds:
+      - |
+        if [ -f .env ]; then
+          echo "root .env exists"
+          exit 0
+        fi
+        if [ -f .env.example ]; then
+          cp .env.example .env
+          echo "created root .env from .env.example"
+          exit 0
+        fi
+        echo "failed: neither .env nor .env.example exists at repo root"
+        exit 1
+
   default:
     desc: Start development environment
     cmds:
       - task: dev
 
+  env:sqlite:
+    desc: Ensure local SQLite override env exists (.env.local.sqlite)
+    cmds:
+      - |
+        if [ -f .env.local.sqlite ]; then
+          echo ".env.local.sqlite exists"
+          exit 0
+        fi
+        cat > .env.local.sqlite <<'EOF'
+        # Local development overrides (keeps root .env unchanged)
+        DONEGEON_DB_BACKEND=sqlite
+        DONEGEON_DB_PATH=donegeon.local.db
+        DONEGEON_APP_BASE_URL=http://localhost:5173
+        DONEGEON_COOKIE_DOMAIN=
+        DONEGEON_COOKIE_SECURE=false
+        DONEGEON_AUTH_DEBUG_CODE=true
+        DONEGEON_REQUIRE_AUTH=true
+        EOF
+        echo "created .env.local.sqlite"
+
   dev:
     desc: Run backend and frontend dev servers concurrently
     deps:
       - dev:backend
+      - dev:frontend
+
+  dev:sqlite:
+    desc: Run backend + frontend using local SQLite override (.env.local.sqlite)
+    deps:
+      - dev:backend:sqlite
       - dev:frontend
 
   dev:backend:
@@ -18,14 +60,50 @@ tasks:
       - sh: command -v air >/dev/null 2>&1
         msg: air is required. Install it with `task install:air`.
     cmds:
+      - task: env:ensure
       - |
         set -a
         [ -f .env ] && . ./.env
         set +a
         : "${DONEGEON_AUTH_DEBUG_CODE:=true}"
         : "${DONEGEON_REQUIRE_AUTH:=true}"
+        if [ "${DONEGEON_COOKIE_DOMAIN:-}" = "app.donegeon.com" ]; then
+          echo "dev: overriding DONEGEON_COOKIE_DOMAIN=app.donegeon.com for localhost"
+          export DONEGEON_COOKIE_DOMAIN=""
+        fi
         export DONEGEON_AUTH_DEBUG_CODE DONEGEON_REQUIRE_AUTH
         echo "starting backend (DONEGEON_AUTH_DEBUG_CODE=${DONEGEON_AUTH_DEBUG_CODE})"
+        air -c .air.toml
+
+  dev:backend:sqlite:
+    desc: Run Go API with hot reload using .env + .env.local.sqlite overrides (SQLite local DB).
+    preconditions:
+      - sh: command -v air >/dev/null 2>&1
+        msg: air is required. Install it with `task install:air`.
+    cmds:
+      - task: env:ensure
+      - task: env:sqlite
+      - |
+        set -a
+        [ -f .env ] && . ./.env
+        [ -f .env.local.sqlite ] && . ./.env.local.sqlite
+        set +a
+        : "${DONEGEON_DB_BACKEND:=sqlite}"
+        : "${DONEGEON_DB_PATH:=donegeon.local.db}"
+        : "${DONEGEON_APP_BASE_URL:=http://localhost:5173}"
+        : "${DONEGEON_COOKIE_DOMAIN:=}"
+        : "${DONEGEON_COOKIE_SECURE:=false}"
+        : "${DONEGEON_AUTH_DEBUG_CODE:=true}"
+        : "${DONEGEON_REQUIRE_AUTH:=true}"
+        export \
+          DONEGEON_DB_BACKEND \
+          DONEGEON_DB_PATH \
+          DONEGEON_APP_BASE_URL \
+          DONEGEON_COOKIE_DOMAIN \
+          DONEGEON_COOKIE_SECURE \
+          DONEGEON_AUTH_DEBUG_CODE \
+          DONEGEON_REQUIRE_AUTH
+        echo "starting backend (db=${DONEGEON_DB_BACKEND} path=${DONEGEON_DB_PATH})"
         air -c .air.toml
 
   dev:frontend:
@@ -79,6 +157,18 @@ tasks:
     desc: Build frontend and backend
     cmds:
       - task: build:web
+      - task: build:server
+
+  build:all:
+    desc: Build web app, marketing site, and server
+    cmds:
+      - task: build:web
+      - task: build:marketing
+      - task: build:server
+
+  build:server:
+    desc: Build Go server binary
+    cmds:
       - go build ./...
 
   build:web:
@@ -104,14 +194,86 @@ tasks:
     cmds:
       - flyctl deploy
 
+  deploy:env:
+    desc: Generate/refresh root .env for production deploy (Turso + SST outputs + generated secrets)
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+      - sh: command -v turso >/dev/null 2>&1
+        msg: turso CLI is required. Install Turso CLI and run `turso auth login`.
+    cmds:
+      - bun scripts/deploy-env.mjs
+
+  deploy:db:reset:
+    desc: Hard reset Turso DB (optional backup), refresh .env DB URL/token, and bounce Fly app
+    preconditions:
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+      - sh: command -v turso >/dev/null 2>&1
+        msg: turso CLI is required. Install Turso CLI and run `turso auth login`.
+      - sh: command -v flyctl >/dev/null 2>&1
+        msg: flyctl is required. Install Fly CLI first.
+    cmds:
+      - task: deploy:env
+      - |
+        set -euo pipefail
+        set -a
+        [ -f .env ] && . ./.env
+        set +a
+
+        if [ "${DONEGEON_DB_BACKEND:-}" != "turso" ]; then
+          echo "deploy:db:reset requires DONEGEON_DB_BACKEND=turso"
+          exit 1
+        fi
+
+        APP="${DEPLOY_FLY_APP:-donegeon}"
+        LOCATION="${DEPLOY_ENV_TURSO_LOCATION:-aws-us-east-1}"
+        SCALE_DOWN="${DEPLOY_DB_SCALE_DOWN:-1}"
+        BACKUP="${DEPLOY_DB_BACKUP:-1}"
+
+        DB_NAME="${DEPLOY_ENV_TURSO_DB_NAME:-}"
+        if [ -z "$DB_NAME" ]; then
+          DB_NAME="$(turso db list | awk -v url="${DONEGEON_DB_URL:-}" 'NR>1 && index($0, url) { print $1; exit }')"
+        fi
+        if [ -z "$DB_NAME" ]; then
+          DB_NAME="donegeon"
+        fi
+
+        echo "deploy:db:reset target db=$DB_NAME app=$APP location=$LOCATION"
+
+        if [ "$BACKUP" = "1" ]; then
+          OUT_FILE="${DB_NAME}-backup-$(date +%Y%m%d-%H%M%S).db"
+          turso db export "$DB_NAME" --output-file "$OUT_FILE" --overwrite
+          echo "backup created: $OUT_FILE"
+        else
+          echo "backup skipped (DEPLOY_DB_BACKUP=$BACKUP)"
+        fi
+
+        if [ "$SCALE_DOWN" = "1" ]; then
+          flyctl scale count 0 --app "$APP" -y
+        fi
+
+        turso db destroy "$DB_NAME" -y
+        turso db create "$DB_NAME" --location "$LOCATION" --wait
+
+        DEPLOY_ENV_TURSO_DB_NAME="$DB_NAME" \
+        DEPLOY_ENV_REFRESH_DB_URL=1 \
+        DEPLOY_ENV_ROTATE_DB_TOKEN=1 \
+        bun scripts/deploy-env.mjs
+
+        if [ "$SCALE_DOWN" = "1" ]; then
+          flyctl scale count 1 --app "$APP" -y
+        fi
+
+        echo "deploy:db:reset complete"
+
   deploy:app:secrets:
     desc: Set app secrets from .env on Fly (best-effort; skips blank lines/comments)
     preconditions:
       - sh: command -v flyctl >/dev/null 2>&1
         msg: flyctl is required. Install Fly CLI first.
-      - sh: test -f .env
-        msg: .env not found at repo root.
     cmds:
+      - task: env:ensure
       - |
         while IFS='=' read -r key value; do
           [ -z "$key" ] && continue
@@ -120,6 +282,45 @@ tasks:
           flyctl secrets set "$key=$value" >/dev/null || true
         done < .env
         echo "done: attempted to sync non-empty .env keys to Fly secrets"
+
+  deploy:app:secrets:from-infra:
+    desc: Sync SST email outputs into Fly secrets (reads infra/.sst/outputs.json)
+    preconditions:
+      - sh: command -v flyctl >/dev/null 2>&1
+        msg: flyctl is required. Install Fly CLI first.
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+      - sh: test -f infra/.sst/outputs.json
+        msg: infra/.sst/outputs.json not found. Run `task deploy:infra` first.
+    cmds:
+      - task: env:ensure
+      - |
+        set -a
+        [ -f .env ] && . ./.env
+        set +a
+        EMAIL_API_BASE_URL="$(bun -e 'const fs=require(\"fs\");const o=JSON.parse(fs.readFileSync(\"infra/.sst/outputs.json\",\"utf8\"));const base=String(o.emailApiBaseUrl||\"\").trim();if(!base){process.exit(2)}process.stdout.write(base);' || true)"
+        if [ -z "$EMAIL_API_BASE_URL" ]; then
+          echo "failed: emailApiBaseUrl missing from infra/.sst/outputs.json"
+          exit 1
+        fi
+        EMAIL_SEND_URL="${EMAIL_API_BASE_URL%/}/send"
+        AUTH_HEADER="$(bun -e 'const fs=require(\"fs\");const o=JSON.parse(fs.readFileSync(\"infra/.sst/outputs.json\",\"utf8\"));process.stdout.write(String(o.authHeaderName||\"Authorization\"));')"
+        if [ -n "${DONEGEON_EMAIL_SEND_AUTH_VALUE:-}" ]; then
+          flyctl secrets set \
+            DONEGEON_OTP_MAIL_PROVIDER=sst \
+            DONEGEON_TEAM_INVITE_MAIL_PROVIDER=sst \
+            DONEGEON_EMAIL_SEND_URL="$EMAIL_SEND_URL" \
+            DONEGEON_EMAIL_SEND_AUTH_HEADER="$AUTH_HEADER" \
+            DONEGEON_EMAIL_SEND_AUTH_VALUE="$DONEGEON_EMAIL_SEND_AUTH_VALUE"
+        else
+          echo "warning: DONEGEON_EMAIL_SEND_AUTH_VALUE is empty. Set it in root .env for production."
+          flyctl secrets set \
+            DONEGEON_OTP_MAIL_PROVIDER=sst \
+            DONEGEON_TEAM_INVITE_MAIL_PROVIDER=sst \
+            DONEGEON_EMAIL_SEND_URL="$EMAIL_SEND_URL" \
+            DONEGEON_EMAIL_SEND_AUTH_HEADER="$AUTH_HEADER"
+        fi
+        echo "done: synced email provider secrets from SST outputs"
 
   deploy:infra:
     desc: Deploy SST infra to production (email API + marketing site)
@@ -169,3 +370,29 @@ tasks:
     desc: Deploy marketing site via SST (dev stage)
     cmds:
       - task: deploy:infra:dev
+
+  deploy:all:
+    desc: Build all, deploy infra, generate env, sync Fly secrets, then deploy app
+    preconditions:
+      - sh: command -v flyctl >/dev/null 2>&1
+        msg: flyctl is required. Install Fly CLI first.
+      - sh: command -v bun >/dev/null 2>&1
+        msg: bun is required. Install bun first.
+    cmds:
+      - task: build:all
+      - task: deploy:infra
+      - task: deploy:env
+      - |
+        if [ "${DEPLOY_DB_RESET:-0}" = "1" ]; then
+          echo "DEPLOY_DB_RESET=1 -> wiping Turso before deploy"
+          task deploy:db:reset
+        else
+          echo "DEPLOY_DB_RESET=0 -> keeping existing Turso data"
+        fi
+      - task: deploy:app:secrets
+      - task: deploy:app
+
+  deploy:all:wipe-db:
+    desc: Full deploy with Turso wipe (equivalent to DEPLOY_DB_RESET=1 task deploy:all)
+    cmds:
+      - DEPLOY_DB_RESET=1 task deploy:all

@@ -25,6 +25,7 @@ import (
 
 	"donegeon/internal/account"
 	"donegeon/internal/board"
+	"donegeon/internal/calendar"
 	"donegeon/internal/config"
 	apperrors "donegeon/internal/errors"
 	"donegeon/internal/project"
@@ -59,6 +60,7 @@ type API struct {
 	tasks      *task.Service
 	projects   *project.Service
 	boards     *board.Service
+	calendars  *calendar.Service
 	parser     *quickadd.Parser
 	todoist    *todoistcompat.Service
 	accounts   *account.Service
@@ -72,6 +74,7 @@ func New(
 	tasks *task.Service,
 	projects *project.Service,
 	boards *board.Service,
+	calendars *calendar.Service,
 	parser *quickadd.Parser,
 	todoist *todoistcompat.Service,
 	accounts *account.Service,
@@ -83,6 +86,7 @@ func New(
 		tasks:      tasks,
 		projects:   projects,
 		boards:     boards,
+		calendars:  calendars,
 		parser:     parser,
 		todoist:    todoist,
 		accounts:   accounts,
@@ -121,6 +125,11 @@ func New(
 	mux.HandleFunc("GET /api/board/members", api.handleListBoardMembers)
 	mux.HandleFunc("POST /api/board/members", api.handleCreateBoardMember)
 	mux.HandleFunc("DELETE /api/board/members/{userId}", api.handleDeleteBoardMember)
+	mux.HandleFunc("GET /api/calendar/connections", api.handleListCalendarConnections)
+	mux.HandleFunc("POST /api/calendar/connect/{provider}", api.handleCreateCalendarConnect)
+	mux.HandleFunc("GET /api/calendar/callback/{provider}", api.handleCalendarConnectCallback)
+	mux.HandleFunc("DELETE /api/calendar/connections/{id}", api.handleDeleteCalendarConnection)
+	mux.HandleFunc("POST /api/calendar/sync", api.handleSyncCalendars)
 	mux.HandleFunc("PATCH /api/projects/{id}", api.handlePatchProject)
 	mux.HandleFunc("DELETE /api/projects/{id}", api.handleDeleteProject)
 	mux.HandleFunc("POST /api/tasks", api.handleCreateTask)
@@ -268,7 +277,7 @@ func (a *API) handleAuthLoginVerify(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to start auth session"))
 		return
 	}
-	if err := a.writeSessionCookie(w, webSession.ID); err != nil {
+	if err := a.writeSessionCookie(w, r, webSession.ID); err != nil {
 		a.logError(r, "write_session_cookie_failed", err)
 		_ = a.accounts.RevokeAuthSession(r.Context(), webSession.ID)
 		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to set auth session"))
@@ -360,9 +369,12 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	trimmedTeamName := strings.TrimSpace(req.TeamName)
+	resolvedTeamName := strings.TrimSpace(req.TeamName)
+	if session.Team != nil && strings.TrimSpace(session.Team.Name) != "" {
+		resolvedTeamName = strings.TrimSpace(session.Team.Name)
+	}
 	for _, inv := range invites {
-		if err := a.sendInviteEmail(r.Context(), inv.Email, trimmedTeamName, inv.InvitationCode); err != nil {
+		if err := a.sendInviteEmail(r.Context(), inv.Email, resolvedTeamName, inv.InvitationCode); err != nil {
 			a.logError(r, "send_invite_email_failed", err)
 		}
 	}
@@ -379,7 +391,7 @@ func (a *API) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 			_ = a.accounts.RevokeAuthSession(r.Context(), sessionID)
 		}
 	}
-	a.clearSessionCookie(w)
+	a.clearSessionCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1406,6 +1418,103 @@ func (a *API) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (a *API) handleListCalendarConnections(w http.ResponseWriter, r *http.Request) {
+	if a.calendars == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "calendar service unavailable"))
+		return
+	}
+	items, err := a.calendars.ListConnections(r.Context())
+	if err != nil {
+		a.logError(r, "list_calendar_connections_failed", err)
+		writeAPIError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (a *API) handleCreateCalendarConnect(w http.ResponseWriter, r *http.Request) {
+	if a.calendars == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "calendar service unavailable"))
+		return
+	}
+	provider := strings.TrimSpace(r.PathValue("provider"))
+	if provider == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "calendar provider is required"), "provider"))
+		return
+	}
+	authURL, err := a.calendars.BeginConnect(r.Context(), provider)
+	if err != nil {
+		a.logError(r, "begin_calendar_connect_failed", err)
+		writeAPIError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"provider": strings.ToLower(provider),
+		"authUrl":  authURL,
+	})
+}
+
+func (a *API) handleCalendarConnectCallback(w http.ResponseWriter, r *http.Request) {
+	if a.calendars == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "calendar service unavailable"))
+		return
+	}
+	provider := strings.TrimSpace(r.PathValue("provider"))
+	state := strings.TrimSpace(r.URL.Query().Get("state"))
+	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	redirectBase := strings.TrimRight(a.cfg.AppBaseURL, "/") + "/profile"
+	if provider == "" || state == "" || code == "" {
+		http.Redirect(w, r, redirectBase+"?calendar=error&message="+url.QueryEscape("Calendar connect callback is missing required values"), http.StatusFound)
+		return
+	}
+	if _, err := a.calendars.CompleteConnect(r.Context(), provider, state, code); err != nil {
+		a.logError(r, "complete_calendar_connect_failed", err)
+		http.Redirect(w, r, redirectBase+"?calendar=error&message="+url.QueryEscape(err.Error()), http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, redirectBase+"?calendar=connected&provider="+url.QueryEscape(strings.ToLower(provider)), http.StatusFound)
+}
+
+func (a *API) handleDeleteCalendarConnection(w http.ResponseWriter, r *http.Request) {
+	if a.calendars == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "calendar service unavailable"))
+		return
+	}
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "connection id is required"), "connectionId"))
+		return
+	}
+	if err := a.calendars.DeleteConnection(r.Context(), id); err != nil {
+		a.logError(r, "delete_calendar_connection_failed", err)
+		writeAPIError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) handleSyncCalendars(w http.ResponseWriter, r *http.Request) {
+	if a.calendars == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "calendar service unavailable"))
+		return
+	}
+	var req struct {
+		ConnectionID string `json:"connectionId"`
+	}
+	if err := decodeJSON(r, &req); err != nil && !errors.Is(err, io.EOF) && !strings.Contains(strings.ToLower(err.Error()), "empty body") {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	result, err := a.calendars.SyncConnections(r.Context(), strings.TrimSpace(req.ConnectionID))
+	if err != nil {
+		a.logError(r, "sync_calendar_failed", err)
+		writeAPIError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (a *API) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api") || r.URL.Path == "/api/health" {
@@ -1432,7 +1541,7 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 		if principal, ok, extended := a.readSessionPrincipal(r); ok {
 			if extended {
 				if sessionID, sidOk := a.readSessionID(r); sidOk {
-					_ = a.writeSessionCookie(w, sessionID)
+					_ = a.writeSessionCookie(w, r, sessionID)
 				}
 			}
 			scope := ScopeRead
@@ -1532,7 +1641,7 @@ func (a *API) readSessionID(r *http.Request) (string, bool) {
 	return sessionID, true
 }
 
-func (a *API) writeSessionCookie(w http.ResponseWriter, sessionID string) error {
+func (a *API) writeSessionCookie(w http.ResponseWriter, r *http.Request, sessionID string) error {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return fmt.Errorf("session id is required")
@@ -1548,37 +1657,103 @@ func (a *API) writeSessionCookie(w http.ResponseWriter, sessionID string) error 
 	if maxAge <= 0 {
 		maxAge = 86400 * 30
 	}
+	requestHost := cookieRequestHost(r)
+	domain := cookieDomainForRequestHost(a.cfg.CookieDomain, requestHost)
+	sameSite := cookieSameSiteMode(a.cfg.CookieSameSite)
+	secure := a.cfg.CookieSecure
+	if domain == "" && sameSite == http.SameSiteNoneMode {
+		sameSite = http.SameSiteLaxMode
+	}
+	if domain == "" && isLocalCookieHost(requestHost) {
+		secure = false
+	}
+
 	cookie := &http.Cookie{
 		Name:     authSessionCookieName,
 		Value:    encoded,
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: cookieSameSiteMode(a.cfg.CookieSameSite),
-		Secure:   a.cfg.CookieSecure,
+		SameSite: sameSite,
+		Secure:   secure,
 		MaxAge:   maxAge,
 	}
-	if strings.TrimSpace(a.cfg.CookieDomain) != "" {
-		cookie.Domain = strings.TrimSpace(a.cfg.CookieDomain)
+	if domain != "" {
+		cookie.Domain = domain
 	}
 	http.SetCookie(w, cookie)
 	return nil
 }
 
-func (a *API) clearSessionCookie(w http.ResponseWriter) {
+func (a *API) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
+	requestHost := cookieRequestHost(r)
+	domain := cookieDomainForRequestHost(a.cfg.CookieDomain, requestHost)
+	sameSite := cookieSameSiteMode(a.cfg.CookieSameSite)
+	secure := a.cfg.CookieSecure
+	if domain == "" && sameSite == http.SameSiteNoneMode {
+		sameSite = http.SameSiteLaxMode
+	}
+	if domain == "" && isLocalCookieHost(requestHost) {
+		secure = false
+	}
+
 	cookie := &http.Cookie{
 		Name:     authSessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: cookieSameSiteMode(a.cfg.CookieSameSite),
-		Secure:   a.cfg.CookieSecure,
+		SameSite: sameSite,
+		Secure:   secure,
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 	}
-	if strings.TrimSpace(a.cfg.CookieDomain) != "" {
-		cookie.Domain = strings.TrimSpace(a.cfg.CookieDomain)
+	if domain != "" {
+		cookie.Domain = domain
 	}
 	http.SetCookie(w, cookie)
+}
+
+func cookieRequestHost(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	host := strings.TrimSpace(strings.ToLower(r.Host))
+	if host == "" {
+		return ""
+	}
+	if strings.Contains(host, ":") {
+		parsedHost, _, err := net.SplitHostPort(host)
+		if err == nil {
+			return strings.TrimSpace(strings.ToLower(parsedHost))
+		}
+	}
+	return host
+}
+
+func cookieDomainForRequestHost(rawDomain string, requestHost string) string {
+	domain := strings.TrimSpace(strings.ToLower(rawDomain))
+	if domain == "" {
+		return ""
+	}
+	domain = strings.TrimPrefix(domain, ".")
+	host := strings.TrimSpace(strings.ToLower(requestHost))
+	if host == "" {
+		return ""
+	}
+	if host == domain || strings.HasSuffix(host, "."+domain) {
+		return domain
+	}
+	return ""
+}
+
+func isLocalCookieHost(host string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(host))
+	if normalized == "" {
+		return false
+	}
+	return normalized == "localhost" ||
+		normalized == "127.0.0.1" ||
+		normalized == "::1" ||
+		strings.HasSuffix(normalized, ".localhost")
 }
 
 func cookieSameSiteMode(raw string) http.SameSite {

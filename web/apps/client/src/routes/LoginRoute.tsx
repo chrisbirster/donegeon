@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import { createMemo, createSignal, onMount } from "solid-js";
 
-import { authApi, teamApi } from "../server/api";
+import { useApi } from "../context/ApiContext";
 
 function normalizePreferredPlan(raw: string): string {
   const value = raw.trim().toLowerCase();
@@ -15,6 +15,7 @@ function normalizePreferredPlan(raw: string): string {
 }
 
 export default function LoginRoute() {
+  const api = useApi();
   const location = useLocation();
   const navigate = useNavigate();
   const [email, setEmail] = createSignal("");
@@ -41,7 +42,7 @@ export default function LoginRoute() {
     if (code) {
       setResolvingInvite(true);
       try {
-        const { invitation } = await authApi.invitation(code);
+        const { invitation } = await api.auth.invitation(code);
         setEmail(invitation.email);
         setInviteEmailLocked(true);
         setInviteTeamName(invitation.teamName || "");
@@ -53,10 +54,10 @@ export default function LoginRoute() {
     }
 
     try {
-      const { session: currentSession } = await authApi.me();
+      const { session: currentSession } = await api.auth.me();
       if (code) {
         try {
-          const accepted = await teamApi.acceptInvitation(code);
+          const accepted = await api.team.acceptInvitation(code);
           if (accepted.session.user.showOnboarding) {
             navigate(onboardingHref(), { replace: true });
             return;
@@ -83,7 +84,7 @@ export default function LoginRoute() {
     setError("");
     setSaving(true);
     try {
-      const res = await authApi.requestLoginCode({
+      const res = await api.auth.requestLoginCode({
         email: email().trim(),
       });
       setChallengeId(res.challengeId);
@@ -103,7 +104,7 @@ export default function LoginRoute() {
     setError("");
     setSaving(true);
     try {
-      const { session } = await authApi.verifyLoginCode({
+      const { session } = await api.auth.verifyLoginCode({
         challengeId: id,
         code: code().trim(),
         invitationCode: inviteCode() || undefined,

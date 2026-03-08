@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"donegeon/internal/datbase"
+	"donegeon/internal/database"
 	"donegeon/internal/quickadd"
 )
 
@@ -15,17 +15,17 @@ func TestServiceCreateFromQuickAddPersistsRecurrence(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "service-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -51,17 +51,17 @@ func TestServiceCreateFromQuickAddPersistsProjectAndPriority(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "service-project-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -96,21 +96,103 @@ func TestServiceCreateFromQuickAddPersistsProjectAndPriority(t *testing.T) {
 	}
 }
 
-func TestServiceCreateFromQuickAddAutofillsDueFromRecurrenceUsingTimezone(t *testing.T) {
+func TestServiceCreateFromQuickAddResolvesProjectAlias(t *testing.T) {
 	t.Parallel()
 
-	dbPath := filepath.Join(t.TempDir(), "service-recurrence-due-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	dbPath := filepath.Join(t.TempDir(), "service-project-alias-test.db")
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
+	if err != nil {
+		t.Fatalf("load queries: %v", err)
+	}
+
+	repo := NewRepository(db, queries)
+	service := NewService(repo, quickadd.NewParser())
+	service.SetResolveProject(func(_ context.Context, ref string) (*string, error) {
+		if ref == "asdf-asdf" {
+			return strPtr("board-asdf-asdf"), nil
+		}
+		return nil, nil
+	})
+
+	created, parsed, err := service.CreateFromQuickAdd(context.Background(), "new task #asdf-asdf")
+	if err != nil {
+		t.Fatalf("create from quick add: %v", err)
+	}
+
+	if parsed.Project == nil || *parsed.Project != "board-asdf-asdf" {
+		t.Fatalf("unexpected parsed project after alias resolution: %v", strOrNil(parsed.Project))
+	}
+	if created.ProjectID == nil || *created.ProjectID != "board-asdf-asdf" {
+		t.Fatalf("unexpected created project after alias resolution: %v", strOrNil(created.ProjectID))
+	}
+}
+
+func TestServiceCreateFromQuickAddResolvesNumericLeadingProjectAlias(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "service-project-alias-numeric-test.db")
+	if err := database.RunMigrations(dbPath); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	db, err := database.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	queries, err := database.LoadQueries()
+	if err != nil {
+		t.Fatalf("load queries: %v", err)
+	}
+
+	repo := NewRepository(db, queries)
+	service := NewService(repo, quickadd.NewParser())
+	service.SetResolveProject(func(_ context.Context, ref string) (*string, error) {
+		if ref == "2658a11f-44ca-41" {
+			return strPtr("board-2658a11f-44ca-41"), nil
+		}
+		return nil, nil
+	})
+
+	created, parsed, err := service.CreateFromQuickAdd(context.Background(), "new task #2658a11f-44ca-41")
+	if err != nil {
+		t.Fatalf("create from quick add: %v", err)
+	}
+
+	if parsed.Project == nil || *parsed.Project != "board-2658a11f-44ca-41" {
+		t.Fatalf("unexpected parsed project after alias resolution: %v", strOrNil(parsed.Project))
+	}
+	if created.ProjectID == nil || *created.ProjectID != "board-2658a11f-44ca-41" {
+		t.Fatalf("unexpected created project after alias resolution: %v", strOrNil(created.ProjectID))
+	}
+}
+
+func TestServiceCreateFromQuickAddAutofillsDueFromRecurrenceUsingTimezone(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "service-recurrence-due-test.db")
+	if err := database.RunMigrations(dbPath); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	db, err := database.Open(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -140,17 +222,17 @@ func TestServiceCreateFromQuickAddAllowsDeadlineBeforeDue(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "service-deadline-before-due-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -178,17 +260,17 @@ func TestServiceCloseRecurringTaskSpawnsNextOccurrence(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "service-recurrence-close-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -257,17 +339,17 @@ func TestServiceCreateFromQuickAddNormalizesInHoursDeadline(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "service-deadline-hours-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -311,17 +393,17 @@ func TestServiceGetNormalizesLegacyInHoursDeadlineFromCreatedAt(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "service-get-deadline-hours-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}
@@ -363,17 +445,17 @@ func TestServiceCreateFromQuickAddPersistsLabelsAndScheduleInput(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "service-quick-add-labels-schedule-test.db")
-	if err := datbase.RunMigrations(dbPath); err != nil {
+	if err := database.RunMigrations(dbPath); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
 
-	db, err := datbase.Open(context.Background(), dbPath)
+	db, err := database.Open(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
 
-	queries, err := datbase.LoadQueries()
+	queries, err := database.LoadQueries()
 	if err != nil {
 		t.Fatalf("load queries: %v", err)
 	}

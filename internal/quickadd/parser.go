@@ -27,8 +27,8 @@ func NewParser() *Parser {
 
 var (
 	deadlinePattern  = regexp.MustCompile(`\{([^{}]+)\}`)
-	projectPattern   = regexp.MustCompile(`^#[A-Za-z][A-Za-z0-9_-]*$`)
-	labelPattern     = regexp.MustCompile(`^@[A-Za-z][A-Za-z0-9_-]*$`)
+	projectPattern   = regexp.MustCompile(`^#[A-Za-z0-9][A-Za-z0-9_-]*$`)
+	labelPattern     = regexp.MustCompile(`^@[A-Za-z0-9][A-Za-z0-9_-]*$`)
 	assigneePattern  = regexp.MustCompile(`^\+[A-Za-z][A-Za-z0-9_-]*$`)
 	priorityPattern  = regexp.MustCompile(`^p([1-4])$`)
 	duePrefixPattern = regexp.MustCompile(`(?i)^due\s+(?:on\s+)?`)
@@ -87,7 +87,7 @@ func (p *Parser) Parse(text string) Parsed {
 
 	for _, part := range parts {
 		switch {
-		case result.Project == nil && projectPattern.MatchString(part):
+		case result.Project == nil && isProjectToken(part):
 			result.Project = stringPtr(part[1:])
 		case labelPattern.MatchString(part):
 			result.Labels = append(result.Labels, part[1:])
@@ -113,6 +113,18 @@ func (p *Parser) Parse(text string) Parsed {
 
 	result.Content = content
 	return result
+}
+
+func isProjectToken(value string) bool {
+	if !projectPattern.MatchString(value) {
+		return false
+	}
+	for _, r := range value[1:] {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			return true
+		}
+	}
+	return false
 }
 
 func extractDueText(content string) (string, string) {

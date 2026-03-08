@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import { createSignal, onMount } from "solid-js";
 
-import { authApi } from "../server/api";
+import { useApi } from "../context/ApiContext";
 
 function parseInviteEmails(raw: string): string[] {
   return raw
@@ -18,6 +18,7 @@ function normalizePlan(raw: string): "personal" | "pro_trial" | "enterprise" {
 }
 
 export default function OnboardingRoute() {
+  const api = useApi();
   const location = useLocation();
   const navigate = useNavigate();
   const [name, setName] = createSignal("");
@@ -31,7 +32,7 @@ export default function OnboardingRoute() {
     const params = new URLSearchParams(location.search);
     setPlan(normalizePlan(params.get("plan") || "personal"));
     try {
-      const { session } = await authApi.me();
+      const { session } = await api.auth.me();
       if (!session.user.showOnboarding) {
         navigate("/task/inbox", { replace: true });
         return;
@@ -47,7 +48,7 @@ export default function OnboardingRoute() {
     setError("");
     setSaving(true);
     try {
-      await authApi.completeOnboarding(
+      await api.auth.completeOnboarding(
         teamName().trim(),
         name().trim(),
         parseInviteEmails(inviteInput()),
@@ -81,14 +82,16 @@ export default function OnboardingRoute() {
           placeholder="Your name"
         />
 
-        <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Team name</label>
+        <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Team name (optional)</label>
         <input
-          required
           value={teamName()}
           onInput={(event) => setTeamName(event.currentTarget.value)}
           class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-          placeholder="My Team"
+          placeholder="Gladiators"
         />
+        <p class="mt-1 text-xs text-[#8ea3c7]">
+          Leave blank to default to your name (or your email prefix) + &quot;board&quot;.
+        </p>
 
         <fieldset class="mt-5">
           <legend class="text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Plan</legend>

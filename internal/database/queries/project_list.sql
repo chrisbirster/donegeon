@@ -11,6 +11,15 @@ WITH task_counts AS (
       AND project_id <> ''
     GROUP BY project_id
 ),
+board_member_counts AS (
+    SELECT
+        LOWER(board_id) AS board_key,
+        workspace_id,
+        COUNT(DISTINCT user_id) AS member_count
+    FROM board_memberships
+    WHERE workspace_id = :workspace_id
+    GROUP BY LOWER(board_id), workspace_id
+),
 project_rows AS (
     SELECT
         p.id,
@@ -42,7 +51,8 @@ visible_project_rows AS (
         pr.is_favorite,
         pr.workspace_id,
         pr.created_at,
-        pr.updated_at
+        pr.updated_at,
+        pr.project_slug
     FROM project_rows pr
     WHERE (
         LOWER(pr.project_slug) <> 'board'
@@ -97,7 +107,8 @@ visible_orphan_rows AS (
         o.is_favorite,
         o.workspace_id,
         o.created_at,
-        o.updated_at
+        o.updated_at,
+        o.project_slug
     FROM orphan_rows o
     WHERE (
         LOWER(o.project_slug) <> 'board'
@@ -127,10 +138,23 @@ SELECT
     c.is_inbox_project,
     c.is_archived,
     c.is_favorite,
+    CASE
+        WHEN (LOWER(c.project_slug) = 'board' OR LOWER(c.project_slug) LIKE 'board-%')
+         AND COALESCE(bmc.member_count, 0) > 1 THEN 1
+        ELSE 0
+    END AS is_team_board,
     c.workspace_id,
     c.created_at,
     c.updated_at,
     COALESCE(tc.open_task_count, 0) AS open_task_count
 FROM combined c
 LEFT JOIN task_counts tc ON tc.project_id = c.id
+LEFT JOIN board_member_counts bmc
+    ON bmc.workspace_id = :workspace_id
+   AND bmc.board_key = LOWER(
+       CASE
+           WHEN LOWER(c.project_slug) = 'board' THEN 'default'
+           ELSE c.project_slug
+       END
+   )
 ORDER BY LOWER(c.name) ASC, c.created_at ASC;

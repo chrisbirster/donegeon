@@ -1,3 +1,9 @@
+import {
+  UiActionBusUnavailableError,
+  dispatchApiWorkerRequest,
+  isUiActionBusEnabled,
+} from "../lib/uiEventBus";
+
 export type Task = {
   id: string;
   content: string;
@@ -21,6 +27,7 @@ export type Project = {
   isInboxProject: boolean;
   isArchived: boolean;
   isFavorite: boolean;
+  isTeamBoard?: boolean;
   openTaskCount: number;
 };
 
@@ -221,6 +228,33 @@ export type TeamSettings = {
   canManage: boolean;
 };
 
+export type CalendarProvider = "google";
+
+export type CalendarConnection = {
+  id: string;
+  provider: CalendarProvider | string;
+  externalAccountId?: string;
+  email: string;
+  scope?: string;
+  calendarId: string;
+  expiresAt?: string;
+  lastSyncAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  hasRefreshToken: boolean;
+};
+
+export type CalendarSyncResult = {
+  connectionId: string;
+  provider: string;
+  pulled: number;
+  error?: string;
+};
+
+export type CalendarSyncResponse = {
+  results: CalendarSyncResult[];
+};
+
 export type BoardMember = TeamMember;
 
 export type BillingCheckoutResponse = {
@@ -317,14 +351,46 @@ function getAuthHeaders() {
   return headers;
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+function normalizeHeaders(headers: HeadersInit | undefined): Record<string, string> {
+  if (!headers) return {};
+
+  if (headers instanceof Headers) {
+    const normalized: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      normalized[key] = value;
+    });
+    return normalized;
+  }
+
+  if (Array.isArray(headers)) {
+    const normalized: Record<string, string> = {};
+    for (const [key, value] of headers) {
+      normalized[key] = value;
+    }
+    return normalized;
+  }
+
+  return { ...headers };
+}
+
+function toWorkerBody(body: BodyInit | null | undefined): string | undefined {
+  if (body === undefined || body === null) return undefined;
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  return undefined;
+}
+
+function toApiError(message: string, status?: number, body?: unknown): Error & { status?: number; body?: unknown } {
+  const error = new Error(message) as Error & { status?: number; body?: unknown };
+  if (status !== undefined) error.status = status;
+  if (body !== undefined) error.body = body;
+  return error;
+}
+
+async function apiDirect<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     credentials: "same-origin",
     ...init,
-    headers: {
-      ...getAuthHeaders(),
-      ...(init?.headers || {}),
-    },
   });
 
   if (!response.ok) {
@@ -343,10 +409,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Ignore malformed error body and preserve HTTP status message.
     }
-    const error = new Error(message) as Error & { status?: number; body?: any };
-    error.status = response.status;
-    error.body = body;
-    throw error;
+    throw toApiError(message, response.status, body);
   }
 
   if (response.status === 204) {
@@ -354,6 +417,45 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const mergedHeaders = {
+    ...getAuthHeaders(),
+    ...normalizeHeaders(init?.headers),
+  };
+
+  const requestInit: RequestInit = {
+    ...init,
+    credentials: "same-origin",
+    headers: mergedHeaders,
+  };
+
+  if (isUiActionBusEnabled()) {
+    const body = toWorkerBody(init?.body);
+    const canUseWorkerForBody = body !== undefined || init?.body === undefined || init?.body === null;
+    if (canUseWorkerForBody) {
+      try {
+        const response = await dispatchApiWorkerRequest({
+          path,
+          method: (init?.method || "GET").toUpperCase(),
+          headers: mergedHeaders,
+          body,
+        });
+        if (!response.ok) {
+          throw toApiError(response.errorMessage || `HTTP ${response.status}`, response.status, response.body);
+        }
+        return response.body as T;
+      } catch (err) {
+        if (!(err instanceof UiActionBusUnavailableError)) {
+          throw err;
+        }
+        // Fallback to direct fetch only when worker infrastructure is unavailable.
+      }
+    }
+  }
+
+  return apiDirect<T>(path, requestInit);
 }
 
 export const authApi = {
@@ -527,4 +629,45 @@ export const boardApi = {
         method: "DELETE",
       },
     ),
+};
+
+export const calendarApi = {
+  listConnections: () => api<{ items: CalendarConnection[] }>("/api/calendar/connections"),
+  startConnect: (provider: CalendarProvider) =>
+    api<{ provider: string; authUrl: string }>(`/api/calendar/connect/${encodeURIComponent(provider)}`, {
+      method: "POST",
+    }),
+  disconnect: (id: string) =>
+    api<void>(`/api/calendar/connections/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  sync: (connectionId?: string) =>
+    api<CalendarSyncResponse>("/api/calendar/sync", {
+      method: "POST",
+      body: JSON.stringify({ connectionId }),
+    }),
+};
+
+export type ApiClient = {
+  auth: typeof authApi;
+  team: typeof teamApi;
+  billing: typeof billingApi;
+  tasks: typeof taskApi;
+  projects: typeof projectApi;
+  parse: typeof parseApi;
+  rrule: typeof rruleApi;
+  board: typeof boardApi;
+  calendar: typeof calendarApi;
+};
+
+export const apiClient: ApiClient = {
+  auth: authApi,
+  team: teamApi,
+  billing: billingApi,
+  tasks: taskApi,
+  projects: projectApi,
+  parse: parseApi,
+  rrule: rruleApi,
+  board: boardApi,
+  calendar: calendarApi,
 };

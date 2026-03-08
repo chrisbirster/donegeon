@@ -52,3 +52,36 @@ func TestParseExtractsDueKeywordWeekday(t *testing.T) {
 		t.Fatalf("unexpected content: %q", parsed.Content)
 	}
 }
+
+func TestParseAllowsNumericLeadingLabel(t *testing.T) {
+	parser := NewParser()
+	parsed := parser.Parse("task that takes 10 min @10min @chore")
+
+	if len(parsed.Labels) != 2 {
+		t.Fatalf("unexpected labels count: got=%d want=2", len(parsed.Labels))
+	}
+	if parsed.Labels[0] != "10min" {
+		t.Fatalf("unexpected first label: got=%q want=%q", parsed.Labels[0], "10min")
+	}
+	if parsed.Labels[1] != "chore" {
+		t.Fatalf("unexpected second label: got=%q want=%q", parsed.Labels[1], "chore")
+	}
+	if parsed.Content != "task that takes 10 min" {
+		t.Fatalf("unexpected content: got=%q want=%q", parsed.Content, "task that takes 10 min")
+	}
+}
+
+func TestParseAllowsNumericLeadingProjectToken(t *testing.T) {
+	parser := NewParser()
+	parsed := parser.Parse("ship it #2658a11f-44ca-41 p2")
+
+	if parsed.Project == nil || *parsed.Project != "2658a11f-44ca-41" {
+		t.Fatalf("unexpected project: got=%v want=%q", strOrNil(parsed.Project), "2658a11f-44ca-41")
+	}
+	if parsed.Priority == nil || *parsed.Priority != 2 {
+		t.Fatalf("unexpected priority: got=%v want=%d", intOrNil(parsed.Priority), 2)
+	}
+	if parsed.Content != "ship it" {
+		t.Fatalf("unexpected content: got=%q want=%q", parsed.Content, "ship it")
+	}
+}
