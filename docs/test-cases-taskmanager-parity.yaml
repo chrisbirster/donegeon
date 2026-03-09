@@ -1,0 +1,28 @@
+schema_version: "0.4"
+meta:
+  suite_name: TaskManager parity spec manifest
+  generated_at: "2026-03-09T00:37:50Z"
+  intended_runner: internal/httpapi/taskmanager_parity_spec_test.go
+  audit_test: internal/httpapi/taskmanager_parity_coverage_test.go
+  notes:
+    - Human-readable manifest for split TaskManager parity specs.
+    - Executable parity cases now live under docs/specs/taskmanager/.
+    - Quick-add parser cases moved to docs/specs/quickadd/ and are exercised by internal/quickadd/parser_spec_test.go.
+    - Upload actions remain intentionally unimplemented in the service and are skipped by the parity execution test.
+
+spec_root: docs/specs/taskmanager
+layout:
+  naming: one file per dispatched action
+  examples:
+    - docs/specs/taskmanager/addTask.yaml
+    - docs/specs/taskmanager/updateTask.yaml
+    - docs/specs/taskmanager/getWorkspaces.yaml
+    - docs/specs/taskmanager/uploadFile.yaml
+
+coverage:
+  parity_cases: 423
+  action_files: 63
+  upload_actions_intentionally_unimplemented:
+    - deleteUpload
+    - uploadFile
+    - uploadWorkspaceLogo

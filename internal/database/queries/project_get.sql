@@ -49,6 +49,8 @@ SELECT
     p.is_archived,
     p.is_favorite,
     CASE
+        WHEN LOWER(p.project_slug) = 'board-team'
+          OR LOWER(p.project_slug) LIKE 'board-team-%' THEN 1
         WHEN (LOWER(p.project_slug) = 'board' OR LOWER(p.project_slug) LIKE 'board-%')
          AND COALESCE(bmc.member_count, 0) > 1 THEN 1
         ELSE 0

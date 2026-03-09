@@ -56,6 +56,14 @@ func (s *Service) selectRows(ctx context.Context, dest any, name string, args ..
 	return s.db.SelectContext(ctx, dest, q, args...)
 }
 
+func (s *Service) txSelectRows(ctx context.Context, tx *sqlx.Tx, dest any, name string, args ...any) error {
+	q, err := s.query(name)
+	if err != nil {
+		return err
+	}
+	return tx.SelectContext(ctx, dest, q, args...)
+}
+
 func (s *Service) getQueryer(ctx context.Context, db sqlx.QueryerContext, dest any, name string, args ...any) error {
 	q, err := s.query(name)
 	if err != nil {

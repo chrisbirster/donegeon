@@ -90,6 +90,7 @@ const (
 	TeamRoleEditor = "editor"
 	TeamRoleReader = "reader"
 	defaultBoardID = "default"
+	teamBoardID    = "board-team"
 	PlanPersonal   = "personal"
 	PlanProTrial   = "pro_trial"
 	PlanPro        = "pro"
@@ -188,8 +189,9 @@ func (s *Service) GetSession(ctx context.Context, userID string) (Session, error
 	}, nil
 }
 
-func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamName string, displayName string, inviteEmails []string, plan string) (Session, []TeamInvite, error) {
-	trimmedTeamName := strings.TrimSpace(teamName)
+func (s *Service) CompleteOnboarding(ctx context.Context, userID string, personalBoardName string, teamBoardName string, displayName string, inviteEmails []string, plan string) (Session, []TeamInvite, error) {
+	trimmedPersonalBoardName := strings.TrimSpace(personalBoardName)
+	trimmedTeamBoardName := strings.TrimSpace(teamBoardName)
 	requestedPlan := normalizeWorkspacePlan(plan)
 
 	tx, err := s.db.BeginTxx(ctx, nil)
@@ -217,29 +219,49 @@ func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamNam
 		user.Name = displayName
 		user.UpdatedAt = now
 	}
-	resolvedWorkspaceName := resolveWorkspaceName(trimmedTeamName, user.Name, user.Email)
+	resolvedPersonalBoardName := resolvePersonalBoardName(trimmedPersonalBoardName, user.Name, user.Email)
+	resolvedTeamBoardName := ""
 
 	workspaceID := ""
+	effectivePlan := requestedPlan
+	hasExistingWorkspace := false
 	if user.CurrentWorkspace != nil && strings.TrimSpace(*user.CurrentWorkspace) != "" {
+		hasExistingWorkspace = true
 		workspaceID = strings.TrimSpace(*user.CurrentWorkspace)
+		existingWorkspace, err := s.workspaceByIDTx(ctx, tx, workspaceID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return Session{}, nil, fmt.Errorf("workspace not found")
+			}
+			return Session{}, nil, err
+		}
+		if effectivePlan == "" {
+			effectivePlan = normalizeWorkspacePlan(existingWorkspace.Plan)
+		}
+	} else {
+		workspaceID = "W_" + uuid.NewString()
+		if effectivePlan == "" {
+			effectivePlan = PlanPersonal
+		}
+	}
+	if effectivePlan != PlanPersonal {
+		resolvedTeamBoardName = resolveTeamBoardName(trimmedTeamBoardName, user.Name, user.Email)
+	}
+	resolvedWorkspaceName := resolveWorkspaceName(effectivePlan, resolvedPersonalBoardName, resolvedTeamBoardName)
+	if hasExistingWorkspace {
 		if requestedPlan == "" {
 			if _, err := s.txExec(ctx, tx, "account_workspace_update_name.sql", resolvedWorkspaceName, now, workspaceID); err != nil {
 				return Session{}, nil, err
 			}
 		} else {
-			trialEndsAt := billingTrialEndsAt(now, requestedPlan)
-			if _, err := s.txExec(ctx, tx, "account_workspace_update_name_plan.sql", resolvedWorkspaceName, requestedPlan, nullableString(trialEndsAt), now, workspaceID); err != nil {
+			trialEndsAt := billingTrialEndsAt(now, effectivePlan)
+			if _, err := s.txExec(ctx, tx, "account_workspace_update_name_plan.sql", resolvedWorkspaceName, effectivePlan, nullableString(trialEndsAt), now, workspaceID); err != nil {
 				return Session{}, nil, err
 			}
 		}
 	} else {
-		workspaceID = "W_" + uuid.NewString()
-		selectedPlan := requestedPlan
-		if selectedPlan == "" {
-			selectedPlan = PlanPersonal
-		}
-		trialEndsAt := billingTrialEndsAt(now, selectedPlan)
-		if _, err := s.txExec(ctx, tx, "account_workspace_insert.sql", workspaceID, resolvedWorkspaceName, selectedPlan, nullableString(trialEndsAt), now, now); err != nil {
+		trialEndsAt := billingTrialEndsAt(now, effectivePlan)
+		if _, err := s.txExec(ctx, tx, "account_workspace_insert.sql", workspaceID, resolvedWorkspaceName, effectivePlan, nullableString(trialEndsAt), now, now); err != nil {
 			return Session{}, nil, err
 		}
 	}
@@ -248,8 +270,12 @@ func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamNam
 		return Session{}, nil, err
 	}
 
-	invites := make([]TeamInvite, 0, len(inviteEmails))
-	for _, email := range normalizeInviteEmails(inviteEmails, user.Email) {
+	normalizedInvites := inviteEmails
+	if effectivePlan == PlanPersonal {
+		normalizedInvites = nil
+	}
+	invites := make([]TeamInvite, 0, len(normalizedInvites))
+	for _, email := range normalizeInviteEmails(normalizedInvites, user.Email) {
 		code := uuid.NewString()
 		if _, err := s.txExec(ctx, tx, "account_workspace_invitation_insert_pending.sql", code, workspaceID, email, TeamRoleEditor, now, now); err != nil {
 			return Session{}, nil, err
@@ -269,8 +295,16 @@ func (s *Service) CompleteOnboarding(ctx context.Context, userID string, teamNam
 		return Session{}, nil, err
 	}
 
-	if err := s.ensureDefaultProjectsTx(ctx, tx, user.ID, workspaceID, resolvedWorkspaceName, now); err != nil {
+	if err := s.ensureInboxProjectTx(ctx, tx, user.ID, workspaceID, now); err != nil {
 		return Session{}, nil, err
+	}
+	if err := s.ensurePersonalBoardProjectTx(ctx, tx, user.ID, workspaceID, resolvedPersonalBoardName, now); err != nil {
+		return Session{}, nil, err
+	}
+	if effectivePlan != PlanPersonal {
+		if err := s.ensureTeamBoardProjectTx(ctx, tx, user.ID, workspaceID, resolvedTeamBoardName, now); err != nil {
+			return Session{}, nil, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return Session{}, nil, err
@@ -353,6 +387,13 @@ func (s *Service) UpdateTeamName(ctx context.Context, actorUserID string, worksp
 	if !canManageTeam(role) {
 		return Team{}, fmt.Errorf("only team owners or admins can update team settings")
 	}
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Team{}, fmt.Errorf("team not found")
+		}
+		return Team{}, err
+	}
 
 	now := nowRFC3339()
 	tx, err := s.db.BeginTxx(ctx, nil)
@@ -367,8 +408,17 @@ func (s *Service) UpdateTeamName(ctx context.Context, actorUserID string, worksp
 		return Team{}, err
 	}
 
-	if err := s.ensureDefaultProjectsTx(ctx, tx, actorUserID, workspaceID, teamName, now); err != nil {
+	if err := s.ensureInboxProjectTx(ctx, tx, actorUserID, workspaceID, now); err != nil {
 		return Team{}, err
+	}
+	if team.Plan == PlanPersonal {
+		if err := s.ensurePersonalBoardProjectTx(ctx, tx, actorUserID, workspaceID, teamName, now); err != nil {
+			return Team{}, err
+		}
+	} else {
+		if err := s.ensureTeamBoardProjectTx(ctx, tx, actorUserID, workspaceID, teamName, now); err != nil {
+			return Team{}, err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -782,14 +832,10 @@ func (s *Service) AcceptInvitation(ctx context.Context, userID string, invitatio
 		return Session{}, err
 	}
 
-	workspace, err := s.workspaceByIDTx(ctx, tx, inv.WorkspaceID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return Session{}, fmt.Errorf("team not found")
-		}
+	if err := s.ensureInboxProjectTx(ctx, tx, user.ID, inv.WorkspaceID, now); err != nil {
 		return Session{}, err
 	}
-	if err := s.ensureDefaultProjectsTx(ctx, tx, user.ID, inv.WorkspaceID, workspace.Name, now); err != nil {
+	if err := s.ensureWorkspaceTeamBoardAccessTx(ctx, tx, inv.WorkspaceID, user.ID, now); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -827,6 +873,47 @@ func (s *Service) ensureDefaultProjectsTx(ctx context.Context, tx *sqlx.Tx, user
 	return nil
 }
 
+func (s *Service) ensureInboxProjectTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, now string) error {
+	_, err := s.txExec(ctx, tx, "account_project_upsert_by_id.sql", projectStorageID(workspaceID, "inbox"), "inbox", 1, userID, workspaceID, now, now)
+	return err
+}
+
+func (s *Service) ensurePersonalBoardProjectTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, boardName string, now string) error {
+	if _, err := s.txExec(ctx, tx, "account_project_upsert_by_id.sql", projectStorageID(workspaceID, "board"), boardName, 0, userID, workspaceID, now, now); err != nil {
+		return err
+	}
+	return s.upsertBoardMembershipTx(ctx, tx, workspaceID, defaultBoardID, userID, now)
+}
+
+func (s *Service) ensureTeamBoardProjectTx(ctx context.Context, tx *sqlx.Tx, userID string, workspaceID string, boardName string, now string) error {
+	if _, err := s.txExec(ctx, tx, "account_project_upsert_by_id.sql", projectStorageID(workspaceID, teamBoardID), boardName, 0, userID, workspaceID, now, now); err != nil {
+		return err
+	}
+	return s.upsertBoardMembershipsForWorkspaceTx(ctx, tx, workspaceID, teamBoardID, now)
+}
+
+func (s *Service) ensureWorkspaceTeamBoardAccessTx(ctx context.Context, tx *sqlx.Tx, workspaceID string, userID string, now string) error {
+	projectIDs, err := s.teamBoardProjectIDsTx(ctx, tx, workspaceID)
+	if err != nil {
+		return err
+	}
+	for _, projectID := range projectIDs {
+		boardID := normalizeBoardID(tenant.ProjectSlug(projectID))
+		if err := s.upsertBoardMembershipTx(ctx, tx, workspaceID, boardID, userID, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) teamBoardProjectIDsTx(ctx context.Context, tx *sqlx.Tx, workspaceID string) ([]string, error) {
+	rows := []string{}
+	if err := s.txSelectRows(ctx, tx, &rows, "account_team_board_project_ids_list.sql", workspaceID); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 func (s *Service) upsertBoardMembershipTx(ctx context.Context, tx *sqlx.Tx, workspaceID string, boardID string, userID string, now string) error {
 	workspaceID = strings.TrimSpace(workspaceID)
 	userID = strings.TrimSpace(userID)
@@ -839,6 +926,19 @@ func (s *Service) upsertBoardMembershipTx(ctx context.Context, tx *sqlx.Tx, work
 		return fmt.Errorf("board membership context is required")
 	}
 	_, err := s.txExec(ctx, tx, "account_board_membership_upsert.sql", boardID, workspaceID, userID, now, now)
+	return err
+}
+
+func (s *Service) upsertBoardMembershipsForWorkspaceTx(ctx context.Context, tx *sqlx.Tx, workspaceID string, boardID string, now string) error {
+	workspaceID = strings.TrimSpace(workspaceID)
+	boardID = normalizeBoardID(boardID)
+	if now == "" {
+		now = nowRFC3339()
+	}
+	if workspaceID == "" || boardID == "" {
+		return fmt.Errorf("board membership context is required")
+	}
+	_, err := s.txExec(ctx, tx, "account_board_membership_upsert_from_workspace_users.sql", boardID, now, now, workspaceID)
 	return err
 }
 
@@ -1192,13 +1292,35 @@ func defaultBoardProjectName(teamName string) string {
 	return teamName
 }
 
-func resolveWorkspaceName(teamName string, userName string, userEmail string) string {
-	teamName = strings.TrimSpace(teamName)
-	if teamName != "" {
-		return teamName
+func resolvePersonalBoardName(boardName string, userName string, userEmail string) string {
+	boardName = strings.TrimSpace(boardName)
+	if boardName != "" {
+		return boardName
 	}
 	base := personalBoardBaseName(userName, userEmail)
 	return fmt.Sprintf("%s's board", base)
+}
+
+func resolveTeamBoardName(boardName string, userName string, userEmail string) string {
+	boardName = strings.TrimSpace(boardName)
+	if boardName != "" {
+		return boardName
+	}
+	base := personalBoardBaseName(userName, userEmail)
+	return fmt.Sprintf("%s's team board", base)
+}
+
+func resolveWorkspaceName(plan string, personalBoardName string, teamBoardName string) string {
+	if normalizeWorkspacePlan(plan) == PlanPersonal {
+		return resolvePersonalBoardName(personalBoardName, "", "")
+	}
+	if strings.TrimSpace(teamBoardName) != "" {
+		return strings.TrimSpace(teamBoardName)
+	}
+	if strings.TrimSpace(personalBoardName) != "" {
+		return strings.TrimSpace(personalBoardName)
+	}
+	return "Team board"
 }
 
 func personalBoardBaseName(userName string, userEmail string) string {

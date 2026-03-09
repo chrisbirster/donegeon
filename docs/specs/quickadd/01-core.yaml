@@ -1,0 +1,197 @@
+---
+schema_version: '0.3'
+meta:
+  suite_name: 'Quick-add parser: core content'
+  generated_at: '2026-03-09T00:41:44Z'
+  source_manifest: docs/test-cases.yaml
+  notes:
+  - Cases with plain content parsing and no extracted metadata or temporal fields.
+context:
+  now: '2026-02-23T10:00:00Z'
+  timezone: UTC
+  locale: en-US
+tests:
+- test_id: PARSE_001
+  description: 'Parse quick-add text: Buy milk'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Buy milk
+  then:
+    success: true
+    parsed:
+      content: Buy milk
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_010
+  description: 'Parse quick-add text: Email bob@example.com'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Email bob@example.com
+  then:
+    success: true
+    parsed:
+      content: Email bob@example.com
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_011
+  description: 'Parse quick-add text: Fix #1 bug'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Fix #1 bug'
+  then:
+    success: true
+    parsed:
+      content: 'Fix #1 bug'
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_014
+  description: 'Parse quick-add text: Book dentist'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Book dentist
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_016
+  description: 'Parse quick-add text: Update resume'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Update resume
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_079
+  description: 'Parse quick-add text: Review PR'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Review PR
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_081
+  description: 'Parse quick-add text: Fix bug'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Fix bug
+  then:
+    success: true
+    parsed:
+      content: Fix bug
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_082
+  description: 'Parse quick-add text: Pay rent'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Pay rent
+  then:
+    success: true
+    parsed:
+      content: Pay rent
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''

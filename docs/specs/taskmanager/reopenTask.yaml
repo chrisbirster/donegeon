@@ -1,0 +1,501 @@
+---
+schema_version: '0.3'
+meta:
+  suite_name: 'TaskManager parity: reopenTask'
+  generated_at: '2026-03-09T00:41:44Z'
+  source_manifest: docs/test-cases-taskmanager-parity.yaml
+  actions:
+  - reopenTask
+  notes:
+  - Each test remains self-contained and keeps its original given/when/then payload.
+context:
+  now: '2026-02-23T10:00:00Z'
+  timezone: UTC
+  locale: en-US
+tests:
+- test_id: TRN_REOPENTASK_001
+  description: 'reopenTask: missing auth token'
+  given:
+    user:
+      authenticated: false
+      token:
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: reopenTask
+    payload:
+      taskId: T1
+  then:
+    success: false
+    error:
+      code: UNAUTHORIZED
+- test_id: TRN_REOPENTASK_002
+  description: 'reopenTask: invalid token'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_INVALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: reopenTask
+    payload:
+      taskId: T1
+  then:
+    success: false
+    error:
+      code: UNAUTHORIZED
+- test_id: TRN_REOPENTASK_003
+  description: 'reopenTask: insufficient scope (read-only token)'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_READONLY
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: reopenTask
+    payload:
+      taskId: T1
+  then:
+    success: false
+    error:
+      code: FORBIDDEN
+- test_id: TRN_REOPENTASK_004
+  description: 'reopenTask: happy path'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: reopenTask
+    payload:
+      taskId: T1
+  then:
+    success: true
+    response_shape: depends_on_endpoint
+- test_id: TRN_REOPENTASK_005
+  description: 'reopenTask: not found'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: reopenTask
+    payload:
+      taskId: DOES_NOT_EXIST
+  then:
+    success: false
+    error:
+      code: NOT_FOUND
+      field: taskId
+- test_id: TRN_REOPENTASK_006
+  description: 'reopenTask: idempotent requestId'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: reopenTask
+    payload:
+      taskId: T1
+      requestId: REQ_FIXED_123
+  then:
+    success: true
+    idempotent: true
+- test_id: TRN_REOPENTASK_007
+  description: 'reopenTask: rate limited'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+    rateLimit:
+      force: true
+  when:
+    action: reopenTask
+    payload:
+      taskId: T1
+  then:
+    success: false
+    error:
+      code: RATE_LIMITED
+    retry_after_seconds: 60

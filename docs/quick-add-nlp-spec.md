@@ -1,6 +1,6 @@
 # Quick-Add NLP Recurrence Spec
 
-Running list of natural-language quick-add phrases we support. These are enforced by parser spec cases `PARSE_121` through `PARSE_144` in `docs/test-cases.yaml`.
+Running list of natural-language quick-add phrases we support. These are enforced by parser spec cases `PARSE_121` through `PARSE_144` in `docs/specs/quickadd/07-nlp-and-rrule.yaml`.
 
 | Phrase | recurrence_rule | due_text |
 | --- | --- | --- |

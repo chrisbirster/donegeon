@@ -9,6 +9,7 @@ meta:
     - Starter draft for board-specific rules; edit expected outcomes as gameplay rules evolve.
     - Focuses on deterministic assertions over animation timing.
     - Uses `donegeon_config.yml` as config baseline unless test overrides it.
+    - This file is descriptive only today; executable board coverage lives in Go integration and Playwright tests.
 
 context:
   auth_token: TOKEN_VALID

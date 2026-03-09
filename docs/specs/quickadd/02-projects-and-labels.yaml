@@ -1,0 +1,996 @@
+---
+schema_version: '0.3'
+meta:
+  suite_name: 'Quick-add parser: projects and labels'
+  generated_at: '2026-03-09T00:41:44Z'
+  source_manifest: docs/test-cases.yaml
+  notes:
+  - Project token and label extraction cases, including combinations.
+context:
+  now: '2026-02-23T10:00:00Z'
+  timezone: UTC
+  locale: en-US
+tests:
+- test_id: PARSE_002
+  description: 'Parse quick-add text: Buy milk #Inbox'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Buy milk #Inbox'
+  then:
+    success: true
+    parsed:
+      content: Buy milk
+      project: Inbox
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_003
+  description: 'Parse quick-add text: Buy milk @shopping'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Buy milk @shopping
+  then:
+    success: true
+    parsed:
+      content: Buy milk
+      project:
+      labels:
+      - shopping
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_020
+  description: 'Parse quick-add text: Review PR #Inbox +alice // follow up'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Review PR #Inbox +alice // follow up'
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project: Inbox
+      labels: []
+      assignee: alice
+      priority:
+      deadline:
+      due_text:
+      description: follow up
+- test_id: PARSE_022
+  description: 'Parse quick-add text: Book dentist +alice @work'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Book dentist +alice @work
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project:
+      labels:
+      - work
+      assignee: alice
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_024
+  description: 'Parse quick-add text: Review PR @health'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Review PR @health
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project:
+      labels:
+      - health
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_029
+  description: 'Parse quick-add text: Update resume #SideHustle p1 @health'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Update resume #SideHustle p1 @health'
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project: SideHustle
+      labels:
+      - health
+      assignee:
+      priority: 1
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_033
+  description: 'Parse quick-add text: Update resume p2 #SideHustle // attach screenshot'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Update resume p2 #SideHustle // attach screenshot'
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project: SideHustle
+      labels: []
+      assignee:
+      priority: 2
+      deadline:
+      due_text:
+      description: attach screenshot
+- test_id: PARSE_035
+  description: 'Parse quick-add text: Update resume p3 @errands'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Update resume p3 @errands
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project:
+      labels:
+      - errands
+      assignee:
+      priority: 3
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_041
+  description: 'Parse quick-add text: Buy milk @deepwork'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Buy milk @deepwork
+  then:
+    success: true
+    parsed:
+      content: Buy milk
+      project:
+      labels:
+      - deepwork
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_042
+  description: 'Parse quick-add text: Pay rent @shopping +bob @deepwork #Work'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Pay rent @shopping +bob @deepwork #Work'
+  then:
+    success: true
+    parsed:
+      content: Pay rent
+      project: Work
+      labels:
+      - deepwork
+      - shopping
+      assignee: bob
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_044
+  description: 'Parse quick-add text: Back up laptop @health // follow up'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Back up laptop @health // follow up
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project:
+      labels:
+      - health
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: follow up
+- test_id: PARSE_045
+  description: 'Parse quick-add text: Back up laptop p3 @shopping #Errands'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Back up laptop p3 @shopping #Errands'
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project: Errands
+      labels:
+      - shopping
+      assignee:
+      priority: 3
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_047
+  description: 'Parse quick-add text: Send invoice #SideHustle'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Send invoice #SideHustle'
+  then:
+    success: true
+    parsed:
+      content: Send invoice
+      project: SideHustle
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_048
+  description: 'Parse quick-add text: Review PR #Inbox'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Review PR #Inbox'
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project: Inbox
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_053
+  description: 'Parse quick-add text: Update resume @work @health +bob p4'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Update resume @work @health +bob p4
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project:
+      labels:
+      - health
+      - work
+      assignee: bob
+      priority: 4
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_055
+  description: 'Parse quick-add text: Update resume @finance p3 // attach screenshot'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Update resume @finance p3 // attach screenshot
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project:
+      labels:
+      - finance
+      assignee:
+      priority: 3
+      deadline:
+      due_text:
+      description: attach screenshot
+- test_id: PARSE_057
+  description: 'Parse quick-add text: Plan sprint p3 @errands // high impact'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Plan sprint p3 @errands // high impact
+  then:
+    success: true
+    parsed:
+      content: Plan sprint
+      project:
+      labels:
+      - errands
+      assignee:
+      priority: 3
+      deadline:
+      due_text:
+      description: high impact
+- test_id: PARSE_058
+  description: 'Parse quick-add text: Read chapter @deepwork'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Read chapter @deepwork
+  then:
+    success: true
+    parsed:
+      content: Read chapter
+      project:
+      labels:
+      - deepwork
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_060
+  description: 'Parse quick-add text: Book dentist #SideHustle +bob'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Book dentist #SideHustle +bob'
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project: SideHustle
+      labels: []
+      assignee: bob
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_061
+  description: 'Parse quick-add text: Review PR @work @admin'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Review PR @work @admin
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project:
+      labels:
+      - admin
+      - work
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_062
+  description: 'Parse quick-add text: Call mom #SideHustle'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Call mom #SideHustle'
+  then:
+    success: true
+    parsed:
+      content: Call mom
+      project: SideHustle
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_064
+  description: 'Parse quick-add text: Back up laptop @health'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Back up laptop @health
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project:
+      labels:
+      - health
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_069
+  description: 'Parse quick-add text: Read chapter p1 @health @finance // needs review'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Read chapter p1 @health @finance // needs review
+  then:
+    success: true
+    parsed:
+      content: Read chapter
+      project:
+      labels:
+      - health
+      - finance
+      assignee:
+      priority: 1
+      deadline:
+      due_text:
+      description: needs review
+- test_id: PARSE_074
+  description: 'Parse quick-add text: Book dentist @admin'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Book dentist @admin
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project:
+      labels:
+      - admin
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_075
+  description: 'Parse quick-add text: Write report +bob @shopping @work #SideHustle'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Write report +bob @shopping @work #SideHustle'
+  then:
+    success: true
+    parsed:
+      content: Write report
+      project: SideHustle
+      labels:
+      - shopping
+      - work
+      assignee: bob
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_078
+  description: 'Parse quick-add text: Write report #Work // high impact'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Write report #Work // high impact'
+  then:
+    success: true
+    parsed:
+      content: Write report
+      project: Work
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: high impact
+- test_id: PARSE_083
+  description: 'Parse quick-add text: Fix bug +bob p2 #Errands @admin'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Fix bug +bob p2 #Errands @admin'
+  then:
+    success: true
+    parsed:
+      content: Fix bug
+      project: Errands
+      labels:
+      - admin
+      assignee: bob
+      priority: 2
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_084
+  description: 'Parse quick-add text: Read chapter #SideHustle'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Read chapter #SideHustle'
+  then:
+    success: true
+    parsed:
+      content: Read chapter
+      project: SideHustle
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_085
+  description: 'Parse quick-add text: Pay rent @errands // lactose-free'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Pay rent @errands // lactose-free
+  then:
+    success: true
+    parsed:
+      content: Pay rent
+      project:
+      labels:
+      - errands
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: lactose-free
+- test_id: PARSE_087
+  description: 'Parse quick-add text: Call mom @finance +alice'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Call mom @finance +alice
+  then:
+    success: true
+    parsed:
+      content: Call mom
+      project:
+      labels:
+      - finance
+      assignee: alice
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_089
+  description: 'Parse quick-add text: Back up laptop @health p4'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Back up laptop @health p4
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project:
+      labels:
+      - health
+      assignee:
+      priority: 4
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_092
+  description: 'Parse quick-add text: Write report #Errands @deepwork // needs review'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Write report #Errands @deepwork // needs review'
+  then:
+    success: true
+    parsed:
+      content: Write report
+      project: Errands
+      labels:
+      - deepwork
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: needs review
+- test_id: PARSE_093
+  description: 'Parse quick-add text: Buy milk @errands'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Buy milk @errands
+  then:
+    success: true
+    parsed:
+      content: Buy milk
+      project:
+      labels:
+      - errands
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_103
+  description: 'Parse quick-add text: Plan sprint @work @health'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Plan sprint @work @health
+  then:
+    success: true
+    parsed:
+      content: Plan sprint
+      project:
+      labels:
+      - health
+      - work
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_104
+  description: 'Parse quick-add text: Back up laptop #Inbox @bug'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Back up laptop #Inbox @bug'
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project: Inbox
+      labels:
+      - bug
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_106
+  description: 'Parse quick-add text: Write report @bug #SideHustle +bob'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Write report @bug #SideHustle +bob'
+  then:
+    success: true
+    parsed:
+      content: Write report
+      project: SideHustle
+      labels:
+      - bug
+      assignee: bob
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_112
+  description: 'Parse quick-add text: Prep interview @bug'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Prep interview @bug
+  then:
+    success: true
+    parsed:
+      content: Prep interview
+      project:
+      labels:
+      - bug
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_113
+  description: 'Parse quick-add text: Write report @admin @health // follow up'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Write report @admin @health // follow up
+  then:
+    success: true
+    parsed:
+      content: Write report
+      project:
+      labels:
+      - admin
+      - health
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: follow up
+- test_id: PARSE_116
+  description: 'Parse quick-add text: Prep interview #SideHustle @deepwork // follow
+    up'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Prep interview #SideHustle @deepwork // follow up'
+  then:
+    success: true
+    parsed:
+      content: Prep interview
+      project: SideHustle
+      labels:
+      - deepwork
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: follow up
+- test_id: PARSE_118
+  description: 'Parse quick-add text: Fix bug @finance'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Fix bug @finance
+  then:
+    success: true
+    parsed:
+      content: Fix bug
+      project:
+      labels:
+      - finance
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_120
+  description: 'Parse quick-add text: Ship feature +alice @bug'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Ship feature +alice @bug
+  then:
+    success: true
+    parsed:
+      content: Ship feature
+      project:
+      labels:
+      - bug
+      assignee: alice
+      priority:
+      deadline:
+      due_text:
+      description: ''

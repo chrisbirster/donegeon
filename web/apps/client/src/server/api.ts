@@ -219,6 +219,14 @@ export type InvitationForLogin = {
   status: string;
 };
 
+export type CompleteOnboardingInput = {
+  personalBoardName: string;
+  teamBoardName?: string;
+  name: string;
+  emails: string[];
+  plan?: string;
+};
+
 export type TeamSettings = {
   team: AuthTeam;
   members: TeamMember[];
@@ -472,10 +480,10 @@ export const authApi = {
     }),
   invitation: (invitationCode: string) =>
     api<{ invitation: InvitationForLogin }>(`/api/auth/invitation?code=${encodeURIComponent(invitationCode)}`),
-  completeOnboarding: (teamName: string, name: string, emails: string[], plan?: string) =>
+  completeOnboarding: (input: CompleteOnboardingInput) =>
     api<{ session: AuthSession; invitations: Array<{ email: string; invitationCode: string }> }>("/api/auth/onboarding", {
       method: "POST",
-      body: JSON.stringify({ teamName, name, emails, plan }),
+      body: JSON.stringify(input),
     }),
   logout: () =>
     api<void>("/api/auth/logout", {

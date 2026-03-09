@@ -1,6 +1,6 @@
 # donegeon
 
-Donegeon is a Go-first Todoist-like backend with an embedded SolidJS SPA frontend.
+Donegeon is a Go-first task-manager backend with an embedded SolidJS SPA frontend.
 
 ## Stack
 
@@ -112,19 +112,25 @@ task deploy:all:wipe-db
 go test ./internal/... ./cmd/...
 ```
 
-Quick-add parser tests are sourced directly from `docs/test-cases.yaml`.
+Quick-add parser tests are sourced from the split specs under `docs/specs/quickadd/`.
 
-Todoist parity archive/spec references are kept in:
+Manifest and coverage index:
 
-- `docs/test-cases-todoist-parity-archive.yaml`
+- `docs/test-cases.yaml`
+- `docs/test-index.md`
+
+TaskManager parity archive/spec references are kept in:
+
+- `docs/test-cases-taskmanager-parity.yaml`
+- `docs/specs/taskmanager/`
 
 Implemented parity actions are exercised by Go tests in:
 
-- `internal/httpapi/todoist_parity_spec_test.go`
+- `internal/httpapi/taskmanager_parity_spec_test.go`
 
-Todoist compatibility action endpoint:
+TaskManager compatibility action endpoint:
 
-- `POST /api/todoist/action`
+- `POST /api/taskmanager/action`
 - Request body: `{ "action": "<methodName>", "payload": { ... } }`
 - Upload actions remain intentionally unimplemented: `uploadFile`, `uploadWorkspaceLogo`, `deleteUpload`
 

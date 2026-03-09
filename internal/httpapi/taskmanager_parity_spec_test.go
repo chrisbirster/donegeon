@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,7 +15,6 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"gopkg.in/yaml.v3"
 
 	"donegeon/internal/account"
 	"donegeon/internal/config"
@@ -24,14 +22,11 @@ import (
 	"donegeon/internal/project"
 	"donegeon/internal/quickadd"
 	"donegeon/internal/task"
-	"donegeon/internal/todoistcompat"
+	"donegeon/internal/taskmanagercompat"
+	"donegeon/internal/testspec"
 )
 
-type todoistParitySpec struct {
-	Tests []todoistParityCase `yaml:"tests"`
-}
-
-type todoistParityCase struct {
+type taskManagerParityCase struct {
 	TestID      string `yaml:"test_id"`
 	Description string `yaml:"description"`
 	Given       struct {
@@ -104,23 +99,21 @@ type parityEnv struct {
 	db     *sqlx.DB
 }
 
-func TestTodoistParityNonUploadActions(t *testing.T) {
-	specPath := filepath.Join("..", "..", "docs", "test-cases-todoist-parity-archive.yaml")
-	raw, err := os.ReadFile(specPath)
+func TestTaskManagerParityNonUploadActions(t *testing.T) {
+	specRoot := filepath.Join("..", "..", "docs", "specs", "taskmanager")
+	tests, files, err := testspec.LoadTests[taskManagerParityCase](specRoot)
 	if err != nil {
-		t.Fatalf("read parity archive: %v", err)
+		t.Fatalf("load parity specs: %v", err)
 	}
-
-	var spec todoistParitySpec
-	if err := yaml.Unmarshal(raw, &spec); err != nil {
-		t.Fatalf("decode parity archive: %v", err)
+	if len(files) == 0 {
+		t.Fatal("no parity spec files found")
 	}
 
 	executedByAction := map[string]int{}
 	actionsDiscovered := map[string]struct{}{}
 	considered := 0
 
-	for _, testCase := range spec.Tests {
+	for _, testCase := range tests {
 		action := strings.TrimSpace(testCase.When.Action)
 		if action == "" || action == "parse_quick_add_text" || isUploadAction(action) {
 			continue
@@ -187,7 +180,7 @@ func newParityEnv(t *testing.T) *parityEnv {
 	parser := quickadd.NewParser()
 	taskSvc := task.NewService(task.NewRepository(db, queries), parser)
 	projectSvc := project.NewService(project.NewRepository(db, queries))
-	compatSvc := todoistcompat.NewService(db, taskSvc, projectSvc)
+	compatSvc := taskmanagercompat.NewService(db, taskSvc, projectSvc)
 	accountSvc := account.NewService(db, queries)
 
 	cfg := config.Config{
@@ -211,7 +204,7 @@ func newParityEnv(t *testing.T) *parityEnv {
 	}
 }
 
-func (e *parityEnv) seedFixtures(t *testing.T, testCase todoistParityCase) {
+func (e *parityEnv) seedFixtures(t *testing.T, testCase taskManagerParityCase) {
 	t.Helper()
 	ctx := context.Background()
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -397,7 +390,7 @@ VALUES (?, ?, ?, 'pending', ?, ?)
 	}
 }
 
-func (e *parityEnv) newRequest(testCase todoistParityCase) (*http.Request, error) {
+func (e *parityEnv) newRequest(testCase taskManagerParityCase) (*http.Request, error) {
 	body := map[string]any{
 		"action":  strings.TrimSpace(testCase.When.Action),
 		"payload": testCase.When.Payload,
@@ -406,7 +399,7 @@ func (e *parityEnv) newRequest(testCase todoistParityCase) (*http.Request, error
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, e.server.URL+"/api/todoist/action", bytes.NewReader(raw))
+	req, err := http.NewRequest(http.MethodPost, e.server.URL+"/api/taskmanager/action", bytes.NewReader(raw))
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +407,7 @@ func (e *parityEnv) newRequest(testCase todoistParityCase) (*http.Request, error
 	return req, nil
 }
 
-func applyCaseHeaders(req *http.Request, testCase todoistParityCase) {
+func applyCaseHeaders(req *http.Request, testCase taskManagerParityCase) {
 	req.Header.Set("X-Timezone", "UTC")
 
 	if testCase.Given.User.Authenticated && testCase.Given.User.Token != nil {
@@ -429,7 +422,7 @@ func applyCaseHeaders(req *http.Request, testCase todoistParityCase) {
 	}
 }
 
-func assertCaseResponse(t *testing.T, testCase todoistParityCase, statusCode int, body []byte) {
+func assertCaseResponse(t *testing.T, testCase taskManagerParityCase, statusCode int, body []byte) {
 	t.Helper()
 
 	if testCase.Then.Success {

@@ -1,0 +1,220 @@
+---
+schema_version: '0.3'
+meta:
+  suite_name: 'Quick-add parser: assignee, priority, and description'
+  generated_at: '2026-03-09T00:41:44Z'
+  source_manifest: docs/test-cases.yaml
+  notes:
+  - Assignee, priority, and description token extraction cases.
+context:
+  now: '2026-02-23T10:00:00Z'
+  timezone: UTC
+  locale: en-US
+tests:
+- test_id: PARSE_004
+  description: 'Parse quick-add text: Review PR +alice'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Review PR +alice
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project:
+      labels: []
+      assignee: alice
+      priority:
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_005
+  description: 'Parse quick-add text: Pay rent p1'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Pay rent p1
+  then:
+    success: true
+    parsed:
+      content: Pay rent
+      project:
+      labels: []
+      assignee:
+      priority: 1
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_006
+  description: 'Parse quick-add text: Refactor docs p4'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Refactor docs p4
+  then:
+    success: true
+    parsed:
+      content: Refactor docs
+      project:
+      labels: []
+      assignee:
+      priority: 4
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_008
+  description: 'Parse quick-add text: Buy milk // lactose-free'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Buy milk // lactose-free
+  then:
+    success: true
+    parsed:
+      content: Buy milk
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: lactose-free
+- test_id: PARSE_039
+  description: 'Parse quick-add text: Plan sprint p3'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Plan sprint p3
+  then:
+    success: true
+    parsed:
+      content: Plan sprint
+      project:
+      labels: []
+      assignee:
+      priority: 3
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_050
+  description: 'Parse quick-add text: Update resume // follow up'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Update resume // follow up
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text:
+      description: follow up
+- test_id: PARSE_086
+  description: 'Parse quick-add text: Ship feature +alice // lactose-free'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Ship feature +alice // lactose-free
+  then:
+    success: true
+    parsed:
+      content: Ship feature
+      project:
+      labels: []
+      assignee: alice
+      priority:
+      deadline:
+      due_text:
+      description: lactose-free
+- test_id: PARSE_095
+  description: 'Parse quick-add text: Clean desk p3'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Clean desk p3
+  then:
+    success: true
+    parsed:
+      content: Clean desk
+      project:
+      labels: []
+      assignee:
+      priority: 3
+      deadline:
+      due_text:
+      description: ''
+- test_id: PARSE_102
+  description: 'Parse quick-add text: Fix bug +chris'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Fix bug +chris
+  then:
+    success: true
+    parsed:
+      content: Fix bug
+      project:
+      labels: []
+      assignee: chris
+      priority:
+      deadline:
+      due_text:
+      description: ''

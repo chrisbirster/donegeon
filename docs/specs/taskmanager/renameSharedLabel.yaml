@@ -1,0 +1,577 @@
+---
+schema_version: '0.3'
+meta:
+  suite_name: 'TaskManager parity: renameSharedLabel'
+  generated_at: '2026-03-09T00:41:44Z'
+  source_manifest: docs/test-cases-taskmanager-parity.yaml
+  actions:
+  - renameSharedLabel
+  notes:
+  - Each test remains self-contained and keeps its original given/when/then payload.
+context:
+  now: '2026-02-23T10:00:00Z'
+  timezone: UTC
+  locale: en-US
+tests:
+- test_id: UPD_RENAMESHAREDLABEL_001
+  description: 'renameSharedLabel: missing auth token'
+  given:
+    user:
+      authenticated: false
+      token:
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: renameSharedLabel
+    payload:
+      name: TeamLabel
+      newName: TeamLabelRenamed
+  then:
+    success: false
+    error:
+      code: UNAUTHORIZED
+- test_id: UPD_RENAMESHAREDLABEL_002
+  description: 'renameSharedLabel: invalid token'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_INVALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: renameSharedLabel
+    payload:
+      name: TeamLabel
+      newName: TeamLabelRenamed
+  then:
+    success: false
+    error:
+      code: UNAUTHORIZED
+- test_id: UPD_RENAMESHAREDLABEL_003
+  description: 'renameSharedLabel: insufficient scope (read-only token)'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_READONLY
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: renameSharedLabel
+    payload:
+      name: TeamLabel
+      newName: TeamLabelRenamed
+  then:
+    success: false
+    error:
+      code: FORBIDDEN
+- test_id: UPD_RENAMESHAREDLABEL_004
+  description: 'renameSharedLabel: happy path'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: renameSharedLabel
+    payload:
+      name: TeamLabel
+      newName: TeamLabelRenamed
+  then:
+    success: true
+    response_shape: depends_on_endpoint
+- test_id: UPD_RENAMESHAREDLABEL_005
+  description: 'renameSharedLabel: validation error'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: renameSharedLabel
+    payload:
+      name: ''
+      newName: TeamLabelRenamed
+  then:
+    success: false
+    error:
+      code: VALIDATION_ERROR
+- test_id: UPD_RENAMESHAREDLABEL_006
+  description: 'renameSharedLabel: happy path with optional fields'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: renameSharedLabel
+    payload:
+      name: TeamLabel
+      newName: TeamLabelRenamed
+      color: berry_red
+  then:
+    success: true
+    variant: with_optional_fields
+- test_id: UPD_RENAMESHAREDLABEL_007
+  description: 'renameSharedLabel: idempotent requestId'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+  when:
+    action: renameSharedLabel
+    payload:
+      name: TeamLabel
+      newName: TeamLabelRenamed
+      requestId: REQ_FIXED_123
+  then:
+    success: true
+    idempotent: true
+- test_id: UPD_RENAMESHAREDLABEL_008
+  description: 'renameSharedLabel: rate limited'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    projects:
+    - id: P_INBOX
+      name: Inbox
+      isInboxProject: true
+    - id: P_HOME
+      name: Home
+    - id: P_SHARED
+      name: Shared Project
+      isShared: true
+    sections:
+    - id: S_WEEK
+      projectId: P_HOME
+      name: This Week
+    labels:
+    - id: L_SHOPPING
+      name: shopping
+    tasks:
+    - id: T1
+      content: Buy milk
+      description: ''
+      projectId: P_INBOX
+      sectionId:
+      labels:
+      - shopping
+      priority: 1
+      due:
+      checked: false
+      isDeleted: false
+    - id: T2
+      content: File taxes
+      description: ''
+      projectId: P_HOME
+      sectionId: S_WEEK
+      labels: []
+      priority: 2
+      due:
+        date: '2026-04-15'
+        isRecurring: false
+      checked: false
+      isDeleted: false
+    comments:
+    - id: C1
+      taskId: T1
+      content: Remember lactose-free.
+    workspaces:
+    - id: W1
+      name: Acme Workspace
+    workspaceInvitations:
+    - invitationCode: INV_ABC123
+      workspaceId: W1
+      email: invitee@example.com
+    uploads:
+    - id: U1
+      fileName: document.pdf
+      fileUrl: https://files.example/doc.pdf
+    rateLimit:
+      force: true
+  when:
+    action: renameSharedLabel
+    payload:
+      name: TeamLabel
+      newName: TeamLabelRenamed
+  then:
+    success: false
+    error:
+      code: RATE_LIMITED
+    retry_after_seconds: 60

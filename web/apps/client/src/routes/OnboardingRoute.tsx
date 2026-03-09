@@ -22,7 +22,8 @@ export default function OnboardingRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const [name, setName] = createSignal("");
-  const [teamName, setTeamName] = createSignal("");
+  const [personalBoardName, setPersonalBoardName] = createSignal("");
+  const [teamBoardName, setTeamBoardName] = createSignal("");
   const [plan, setPlan] = createSignal<"personal" | "pro_trial" | "enterprise">("personal");
   const [inviteInput, setInviteInput] = createSignal("");
   const [saving, setSaving] = createSignal(false);
@@ -48,12 +49,13 @@ export default function OnboardingRoute() {
     setError("");
     setSaving(true);
     try {
-      await api.auth.completeOnboarding(
-        teamName().trim(),
-        name().trim(),
-        parseInviteEmails(inviteInput()),
-        plan(),
-      );
+      await api.auth.completeOnboarding({
+        personalBoardName: personalBoardName().trim(),
+        teamBoardName: plan() === "personal" ? undefined : teamBoardName().trim(),
+        name: name().trim(),
+        emails: plan() === "personal" ? [] : parseInviteEmails(inviteInput()),
+        plan: plan(),
+      });
       navigate("/task/inbox", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Onboarding failed");
@@ -69,9 +71,9 @@ export default function OnboardingRoute() {
         onSubmit={(event) => void submit(event)}
       >
         <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#8ea3c7]">Onboarding</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">Create your team</h1>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">Set up your workspace</h1>
         <p class="mt-1 text-sm text-[#9fb0cc]">
-          Set your team/workspace name and optionally invite teammates by email.
+          Choose your board names now. Personal creates a private board. Pro adds a shared team board.
         </p>
 
         <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Your name (optional)</label>
@@ -82,16 +84,31 @@ export default function OnboardingRoute() {
           placeholder="Your name"
         />
 
-        <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Team name (optional)</label>
+        <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Personal board name (optional)</label>
         <input
-          value={teamName()}
-          onInput={(event) => setTeamName(event.currentTarget.value)}
+          value={personalBoardName()}
+          onInput={(event) => setPersonalBoardName(event.currentTarget.value)}
           class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
           placeholder="Gladiators"
         />
         <p class="mt-1 text-xs text-[#8ea3c7]">
           Leave blank to default to your name (or your email prefix) + &quot;board&quot;.
         </p>
+
+        {plan() !== "personal" ? (
+          <>
+            <label class="mt-4 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Team board name (optional)</label>
+            <input
+              value={teamBoardName()}
+              onInput={(event) => setTeamBoardName(event.currentTarget.value)}
+              class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+              placeholder="maze"
+            />
+            <p class="mt-1 text-xs text-[#8ea3c7]">
+              Leave blank to default to your name + &quot;team board&quot;.
+            </p>
+          </>
+        ) : null}
 
         <fieldset class="mt-5">
           <legend class="text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Plan</legend>
@@ -138,15 +155,19 @@ export default function OnboardingRoute() {
           </div>
         </fieldset>
 
-        <label class="mt-4 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Invite emails (optional)</label>
-        <textarea
-          rows={4}
-          value={inviteInput()}
-          onInput={(event) => setInviteInput(event.currentTarget.value)}
-          class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-          placeholder="teammate1@company.com, teammate2@company.com"
-        />
-        <p class="mt-1 text-xs text-[#8ea3c7]">Use commas or new lines between emails.</p>
+        {plan() !== "personal" ? (
+          <>
+            <label class="mt-4 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Invite emails (optional)</label>
+            <textarea
+              rows={4}
+              value={inviteInput()}
+              onInput={(event) => setInviteInput(event.currentTarget.value)}
+              class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+              placeholder="teammate1@company.com, teammate2@company.com"
+            />
+            <p class="mt-1 text-xs text-[#8ea3c7]">Use commas or new lines between emails.</p>
+          </>
+        ) : null}
 
         <button
           type="submit"

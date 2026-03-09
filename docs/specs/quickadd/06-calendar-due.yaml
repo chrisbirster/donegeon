@@ -1,0 +1,277 @@
+---
+schema_version: '0.3'
+meta:
+  suite_name: 'Quick-add parser: calendar due wording'
+  generated_at: '2026-03-09T00:41:44Z'
+  source_manifest: docs/test-cases.yaml
+  notes:
+  - Calendar-style due phrases such as weekdays, month names, and explicit dates.
+context:
+  now: '2026-02-23T10:00:00Z'
+  timezone: UTC
+  locale: en-US
+tests:
+- test_id: PARSE_019
+  description: 'Parse quick-add text: Review PR march 1'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Review PR march 1
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: march 1
+      description: ''
+- test_id: PARSE_021
+  description: 'Parse quick-add text: Book dentist march 1 @deepwork // lactose-free'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Book dentist march 1 @deepwork // lactose-free
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project:
+      labels:
+      - deepwork
+      assignee:
+      priority:
+      deadline:
+      due_text: march 1
+      description: lactose-free
+- test_id: PARSE_028
+  description: 'Parse quick-add text: Plan sprint #Home @errands on friday at 5pm
+    // high impact'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Plan sprint #Home @errands on friday at 5pm // high impact'
+  then:
+    success: true
+    parsed:
+      content: Plan sprint
+      project: Home
+      labels:
+      - errands
+      assignee:
+      priority:
+      deadline:
+      due_text: on friday at 5pm
+      description: high impact
+- test_id: PARSE_052
+  description: 'Parse quick-add text: Review PR on friday at 5pm +bob // follow up'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Review PR on friday at 5pm +bob // follow up
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project:
+      labels: []
+      assignee: bob
+      priority:
+      deadline:
+      due_text: on friday at 5pm
+      description: follow up
+- test_id: PARSE_054
+  description: 'Parse quick-add text: Fix bug @health on friday at 5pm'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Fix bug @health on friday at 5pm
+  then:
+    success: true
+    parsed:
+      content: Fix bug
+      project:
+      labels:
+      - health
+      assignee:
+      priority:
+      deadline:
+      due_text: on friday at 5pm
+      description: ''
+- test_id: PARSE_065
+  description: 'Parse quick-add text: Book dentist #SideHustle march 1 @errands'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Book dentist #SideHustle march 1 @errands'
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project: SideHustle
+      labels:
+      - errands
+      assignee:
+      priority:
+      deadline:
+      due_text: march 1
+      description: ''
+- test_id: PARSE_066
+  description: 'Parse quick-add text: Plan sprint p1 on friday at 5pm #Errands'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Plan sprint p1 on friday at 5pm #Errands'
+  then:
+    success: true
+    parsed:
+      content: Plan sprint
+      project: Errands
+      labels: []
+      assignee:
+      priority: 1
+      deadline:
+      due_text: on friday at 5pm
+      description: ''
+- test_id: PARSE_070
+  description: 'Parse quick-add text: Review PR @admin march 1 p3 #Inbox'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Review PR @admin march 1 p3 #Inbox'
+  then:
+    success: true
+    parsed:
+      content: Review PR
+      project: Inbox
+      labels:
+      - admin
+      assignee:
+      priority: 3
+      deadline:
+      due_text: march 1
+      description: ''
+- test_id: PARSE_080
+  description: 'Parse quick-add text: Ship feature march 1 #Inbox @admin'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Ship feature march 1 #Inbox @admin'
+  then:
+    success: true
+    parsed:
+      content: Ship feature
+      project: Inbox
+      labels:
+      - admin
+      assignee:
+      priority:
+      deadline:
+      due_text: march 1
+      description: ''
+- test_id: PARSE_091
+  description: 'Parse quick-add text: Prep interview on friday at 5pm @errands @work
+    p2'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Prep interview on friday at 5pm @errands @work p2
+  then:
+    success: true
+    parsed:
+      content: Prep interview
+      project:
+      labels:
+      - errands
+      - work
+      assignee:
+      priority: 2
+      deadline:
+      due_text: on friday at 5pm
+      description: ''
+- test_id: PARSE_101
+  description: 'Parse quick-add text: Back up laptop on friday at 5pm #Inbox @finance'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Back up laptop on friday at 5pm #Inbox @finance'
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project: Inbox
+      labels:
+      - finance
+      assignee:
+      priority:
+      deadline:
+      due_text: on friday at 5pm
+      description: ''

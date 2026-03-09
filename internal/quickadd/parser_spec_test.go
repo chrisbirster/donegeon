@@ -1,12 +1,11 @@
 package quickadd
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	"donegeon/internal/testspec"
 )
 
 type quickAddSpec struct {
@@ -38,20 +37,18 @@ type quickAddSpecTest struct {
 }
 
 func TestParserFromSourceOfTruth(t *testing.T) {
-	specPath := filepath.Join("..", "..", "docs", "test-cases.yaml")
-	b, err := os.ReadFile(specPath)
+	specRoot := filepath.Join("..", "..", "docs", "specs", "quickadd")
+	tests, files, err := testspec.LoadTests[quickAddSpecTest](specRoot)
 	if err != nil {
-		t.Fatalf("read spec: %v", err)
+		t.Fatalf("load quick-add specs: %v", err)
 	}
-
-	var spec quickAddSpec
-	if err := yaml.Unmarshal(b, &spec); err != nil {
-		t.Fatalf("decode spec: %v", err)
+	if len(files) == 0 {
+		t.Fatal("no quick-add spec files found")
 	}
 
 	parser := NewParser()
 	count := 0
-	for _, testCase := range spec.Tests {
+	for _, testCase := range tests {
 		if testCase.When.Action != "parse_quick_add_text" {
 			continue
 		}

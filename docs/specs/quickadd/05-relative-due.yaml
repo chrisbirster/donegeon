@@ -1,0 +1,508 @@
+---
+schema_version: '0.3'
+meta:
+  suite_name: 'Quick-add parser: relative due wording'
+  generated_at: '2026-03-09T00:41:44Z'
+  source_manifest: docs/test-cases.yaml
+  notes:
+  - Relative due phrases such as today, tomorrow, next, and in-N wording.
+context:
+  now: '2026-02-23T10:00:00Z'
+  timezone: UTC
+  locale: en-US
+tests:
+- test_id: PARSE_012
+  description: 'Parse quick-add text: Call mom tomorrow'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Call mom tomorrow
+  then:
+    success: true
+    parsed:
+      content: Call mom
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: tomorrow
+      description: ''
+- test_id: PARSE_015
+  description: 'Parse quick-add text: Prep interview @bug next monday +bob p3'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Prep interview @bug next monday +bob p3
+  then:
+    success: true
+    parsed:
+      content: Prep interview
+      project:
+      labels:
+      - bug
+      assignee: bob
+      priority: 3
+      deadline:
+      due_text: next monday
+      description: ''
+- test_id: PARSE_025
+  description: 'Parse quick-add text: Clean desk +alice p1 in 2 days // needs review'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Clean desk +alice p1 in 2 days // needs review
+  then:
+    success: true
+    parsed:
+      content: Clean desk
+      project:
+      labels: []
+      assignee: alice
+      priority: 1
+      deadline:
+      due_text: in 2 days
+      description: needs review
+- test_id: PARSE_034
+  description: 'Parse quick-add text: Update resume in 2 days #Errands // high impact'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Update resume in 2 days #Errands // high impact'
+  then:
+    success: true
+    parsed:
+      content: Update resume
+      project: Errands
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: in 2 days
+      description: high impact
+- test_id: PARSE_038
+  description: 'Parse quick-add text: Back up laptop tomorrow'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Back up laptop tomorrow
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: tomorrow
+      description: ''
+- test_id: PARSE_049
+  description: 'Parse quick-add text: Book dentist tomorrow'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Book dentist tomorrow
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project:
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: tomorrow
+      description: ''
+- test_id: PARSE_051
+  description: 'Parse quick-add text: Fix bug p1 next monday @admin // attach screenshot'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Fix bug p1 next monday @admin // attach screenshot
+  then:
+    success: true
+    parsed:
+      content: Fix bug
+      project:
+      labels:
+      - admin
+      assignee:
+      priority: 1
+      deadline:
+      due_text: next monday
+      description: attach screenshot
+- test_id: PARSE_059
+  description: 'Parse quick-add text: Plan sprint p1 next monday #Work'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Plan sprint p1 next monday #Work'
+  then:
+    success: true
+    parsed:
+      content: Plan sprint
+      project: Work
+      labels: []
+      assignee:
+      priority: 1
+      deadline:
+      due_text: next monday
+      description: ''
+- test_id: PARSE_071
+  description: 'Parse quick-add text: Ship feature next monday p2'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Ship feature next monday p2
+  then:
+    success: true
+    parsed:
+      content: Ship feature
+      project:
+      labels: []
+      assignee:
+      priority: 2
+      deadline:
+      due_text: next monday
+      description: ''
+- test_id: PARSE_073
+  description: 'Parse quick-add text: Send invoice +chris #Errands tomorrow'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Send invoice +chris #Errands tomorrow'
+  then:
+    success: true
+    parsed:
+      content: Send invoice
+      project: Errands
+      labels: []
+      assignee: chris
+      priority:
+      deadline:
+      due_text: tomorrow
+      description: ''
+- test_id: PARSE_090
+  description: 'Parse quick-add text: Back up laptop tomorrow #SideHustle +bob @finance
+    // high impact'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Back up laptop tomorrow #SideHustle +bob @finance // high impact'
+  then:
+    success: true
+    parsed:
+      content: Back up laptop
+      project: SideHustle
+      labels:
+      - finance
+      assignee: bob
+      priority:
+      deadline:
+      due_text: tomorrow
+      description: high impact
+- test_id: PARSE_094
+  description: 'Parse quick-add text: Write report tomorrow #SideHustle @finance'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Write report tomorrow #SideHustle @finance'
+  then:
+    success: true
+    parsed:
+      content: Write report
+      project: SideHustle
+      labels:
+      - finance
+      assignee:
+      priority:
+      deadline:
+      due_text: tomorrow
+      description: ''
+- test_id: PARSE_096
+  description: 'Parse quick-add text: Pay rent #Inbox p2 in 2 days'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Pay rent #Inbox p2 in 2 days'
+  then:
+    success: true
+    parsed:
+      content: Pay rent
+      project: Inbox
+      labels: []
+      assignee:
+      priority: 2
+      deadline:
+      due_text: in 2 days
+      description: ''
+- test_id: PARSE_097
+  description: 'Parse quick-add text: Read chapter @deepwork @work next monday //
+    high impact'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Read chapter @deepwork @work next monday // high impact
+  then:
+    success: true
+    parsed:
+      content: Read chapter
+      project:
+      labels:
+      - work
+      - deepwork
+      assignee:
+      priority:
+      deadline:
+      due_text: next monday
+      description: high impact
+- test_id: PARSE_099
+  description: 'Parse quick-add text: Send invoice #Home next monday'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Send invoice #Home next monday'
+  then:
+    success: true
+    parsed:
+      content: Send invoice
+      project: Home
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: next monday
+      description: ''
+- test_id: PARSE_108
+  description: 'Parse quick-add text: Write report #Errands @bug +bob tomorrow'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Write report #Errands @bug +bob tomorrow'
+  then:
+    success: true
+    parsed:
+      content: Write report
+      project: Errands
+      labels:
+      - bug
+      assignee: bob
+      priority:
+      deadline:
+      due_text: tomorrow
+      description: ''
+- test_id: PARSE_111
+  description: 'Parse quick-add text: Read chapter +chris #Inbox in 2 days @finance'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Read chapter +chris #Inbox in 2 days @finance'
+  then:
+    success: true
+    parsed:
+      content: Read chapter
+      project: Inbox
+      labels:
+      - finance
+      assignee: chris
+      priority:
+      deadline:
+      due_text: in 2 days
+      description: ''
+- test_id: PARSE_114
+  description: 'Parse quick-add text: Book dentist @errands in 2 days p2'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: Book dentist @errands in 2 days p2
+  then:
+    success: true
+    parsed:
+      content: Book dentist
+      project:
+      labels:
+      - errands
+      assignee:
+      priority: 2
+      deadline:
+      due_text: in 2 days
+      description: ''
+- test_id: PARSE_115
+  description: 'Parse quick-add text: Plan sprint in 2 days #Errands @errands +chris'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Plan sprint in 2 days #Errands @errands +chris'
+  then:
+    success: true
+    parsed:
+      content: Plan sprint
+      project: Errands
+      labels:
+      - errands
+      assignee: chris
+      priority:
+      deadline:
+      due_text: in 2 days
+      description: ''
+- test_id: PARSE_117
+  description: 'Parse quick-add text: Buy milk #Inbox in 2 days'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Buy milk #Inbox in 2 days'
+  then:
+    success: true
+    parsed:
+      content: Buy milk
+      project: Inbox
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: in 2 days
+      description: ''
+- test_id: PARSE_119
+  description: 'Parse quick-add text: Clean desk next monday #SideHustle'
+  given:
+    user:
+      authenticated: true
+      token: TOKEN_VALID
+    parser:
+      mode: quick_add_v1
+  when:
+    action: parse_quick_add_text
+    payload:
+      text: 'Clean desk next monday #SideHustle'
+  then:
+    success: true
+    parsed:
+      content: Clean desk
+      project: SideHustle
+      labels: []
+      assignee:
+      priority:
+      deadline:
+      due_text: next monday
+      description: ''

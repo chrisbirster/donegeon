@@ -1,4 +1,4 @@
-package todoistcompat
+package taskmanagercompat
 
 import (
 	"context"

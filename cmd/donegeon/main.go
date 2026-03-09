@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,7 +24,7 @@ import (
 	"donegeon/internal/project"
 	"donegeon/internal/quickadd"
 	"donegeon/internal/task"
-	"donegeon/internal/todoistcompat"
+	"donegeon/internal/taskmanagercompat"
 	webdist "donegeon/web/dist"
 )
 
@@ -94,7 +95,7 @@ func run() error {
 		return resolveProjectIDByReference(ref, projects), nil
 	})
 	accountService := account.NewService(db, queries)
-	todoistService := todoistcompat.NewService(db, taskService, projectService)
+	taskManagerService := taskmanagercompat.NewService(db, taskService, projectService)
 	boardRepo := board.NewRepository(db, queries)
 	boardCfg, err := board.LoadGameplayConfig(cfg.BoardConfigPath)
 	if err != nil {
@@ -118,12 +119,26 @@ func run() error {
 		ProviderRequestTimeout: cfg.CalendarProviderTimeout,
 	})
 
+	logger.Info("app_runtime_config",
+		slog.Bool("require_auth", cfg.RequireAuth),
+		slog.Bool("auth_debug_code", cfg.AuthDebugCode),
+		slog.String("app_base_url", cfg.AppBaseURL),
+		slog.String("cookie_domain", cfg.CookieDomain),
+		slog.Bool("cookie_secure", cfg.CookieSecure),
+		slog.String("cookie_samesite", cfg.CookieSameSite),
+		slog.Bool("email_sender_configured", strings.TrimSpace(cfg.EmailSendURL) != ""),
+		slog.Bool("google_calendar_configured", strings.TrimSpace(cfg.GoogleCalendarClientID) != "" && strings.TrimSpace(cfg.GoogleCalendarSecret) != ""),
+		slog.Bool("stripe_configured", strings.TrimSpace(cfg.StripeSecretKey) != "" && strings.TrimSpace(cfg.StripeProPriceID) != ""),
+		slog.String("board_config_path", cfg.BoardConfigPath),
+		slog.String("quest_config_path", cfg.QuestConfigPath),
+	)
+
 	staticFS, err := fs.Sub(webdist.Files, ".")
 	if err != nil {
 		return fmt.Errorf("load web dist fs: %w", err)
 	}
 
-	handler := httpapi.New(logger, cfg, taskService, projectService, boardService, calendarService, parser, todoistService, accountService, staticFS)
+	handler := httpapi.New(logger, cfg, taskService, projectService, boardService, calendarService, parser, taskManagerService, accountService, staticFS)
 	server := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
 		Handler:           handler,

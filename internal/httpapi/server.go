@@ -33,8 +33,8 @@ import (
 	rruleparser "donegeon/internal/rrule"
 	"donegeon/internal/sessionctx"
 	"donegeon/internal/task"
+	"donegeon/internal/taskmanagercompat"
 	"donegeon/internal/tenant"
-	"donegeon/internal/todoistcompat"
 )
 
 const requestIDHeader = "X-Request-Id"
@@ -45,6 +45,7 @@ type ctxKey string
 const (
 	ctxKeyScope     ctxKey = "scope"
 	ctxKeyRequestID ctxKey = "request_id"
+	ctxKeyLogState  ctxKey = "request_log_state"
 )
 
 type Scope string
@@ -54,18 +55,37 @@ const (
 	ScopeWrite Scope = "write"
 )
 
+type requestLogState struct {
+	Scope             Scope
+	Principal         sessionctx.Principal
+	Authenticated     bool
+	AuthSource        string
+	HasSessionCookie  bool
+	SessionExtended   bool
+	AuthFailureReason string
+}
+
+type projectLogSnapshot struct {
+	Total          int
+	BoardCount     int
+	InboxCount     int
+	TeamBoardCount int
+	ProjectIDs     []string
+	ProjectNames   []string
+}
+
 type API struct {
-	logger     *slog.Logger
-	cfg        config.Config
-	tasks      *task.Service
-	projects   *project.Service
-	boards     *board.Service
-	calendars  *calendar.Service
-	parser     *quickadd.Parser
-	todoist    *todoistcompat.Service
-	accounts   *account.Service
-	webHandler http.Handler
-	cookies    *securecookie.SecureCookie
+	logger      *slog.Logger
+	cfg         config.Config
+	tasks       *task.Service
+	projects    *project.Service
+	boards      *board.Service
+	calendars   *calendar.Service
+	parser      *quickadd.Parser
+	taskManager *taskmanagercompat.Service
+	accounts    *account.Service
+	webHandler  http.Handler
+	cookies     *securecookie.SecureCookie
 }
 
 func New(
@@ -76,22 +96,22 @@ func New(
 	boards *board.Service,
 	calendars *calendar.Service,
 	parser *quickadd.Parser,
-	todoist *todoistcompat.Service,
+	taskManager *taskmanagercompat.Service,
 	accounts *account.Service,
 	staticFS fs.FS,
 ) http.Handler {
 	api := &API{
-		logger:     logger,
-		cfg:        cfg,
-		tasks:      tasks,
-		projects:   projects,
-		boards:     boards,
-		calendars:  calendars,
-		parser:     parser,
-		todoist:    todoist,
-		accounts:   accounts,
-		webHandler: newSPAHandler(staticFS),
-		cookies:    securecookie.New([]byte(cfg.CookieSigningKey), nil),
+		logger:      logger,
+		cfg:         cfg,
+		tasks:       tasks,
+		projects:    projects,
+		boards:      boards,
+		calendars:   calendars,
+		parser:      parser,
+		taskManager: taskManager,
+		accounts:    accounts,
+		webHandler:  newSPAHandler(staticFS),
+		cookies:     securecookie.New([]byte(cfg.CookieSigningKey), nil),
 	}
 
 	mux := http.NewServeMux()
@@ -116,7 +136,7 @@ func New(
 	mux.HandleFunc("POST /api/rrule/parse", api.handleParseRRule)
 	mux.HandleFunc("POST /api/quick-add/parse", api.handleParseQuickAdd)
 	mux.HandleFunc("POST /api/tasks/quick-add", api.handleQuickAddTask)
-	mux.HandleFunc("POST /api/todoist/action", api.handleTodoistAction)
+	mux.HandleFunc("POST /api/taskmanager/action", api.handleTaskManagerAction)
 	mux.HandleFunc("GET /api/tasks", api.handleListTasks)
 	mux.HandleFunc("GET /api/projects", api.handleListProjects)
 	mux.HandleFunc("POST /api/projects", api.handleCreateProject)
@@ -213,6 +233,14 @@ func (a *API) handleAuthLoginRequest(w http.ResponseWriter, r *http.Request) {
 	if sendErr != nil && a.cfg.AuthDebugCode {
 		response["deliveryWarning"] = sendErr.Error()
 	}
+
+	a.logInfo(r, "auth_login_requested",
+		slog.String("challenge_id", challenge.ID),
+		slog.String("email", challenge.Email),
+		slog.String("delivery", strings.TrimSpace(response["delivery"].(string))),
+		slog.Bool("debug_code_enabled", a.cfg.AuthDebugCode),
+		slog.Bool("delivery_warning", sendErr != nil),
+	)
 	writeJSON(w, http.StatusOK, response)
 }
 
@@ -284,6 +312,14 @@ func (a *API) handleAuthLoginVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	a.logInfo(r, "auth_login_verified",
+		append(sessionLogAttrs(session),
+			slog.String("challenge_id", strings.TrimSpace(req.ChallengeID)),
+			slog.Bool("invitation_applied", strings.TrimSpace(req.InvitationCode) != ""),
+			slog.Bool("auth_session_created", true),
+		)...,
+	)
+
 	writeJSON(w, http.StatusOK, map[string]any{"session": session})
 }
 
@@ -320,6 +356,7 @@ func (a *API) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apperrors.New(apperrors.CodeUnauthorized, "not authenticated"))
 		return
 	}
+	a.logDebug(r, "auth_me_state", sessionLogAttrs(session)...)
 	writeJSON(w, http.StatusOK, map[string]any{"session": session})
 }
 
@@ -330,27 +367,48 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		TeamName string   `json:"teamName"`
-		Name     string   `json:"name"`
-		Emails   []string `json:"emails"`
-		Plan     string   `json:"plan"`
+		PersonalBoardName string   `json:"personalBoardName"`
+		TeamBoardName     string   `json:"teamBoardName"`
+		TeamName          string   `json:"teamName"`
+		Name              string   `json:"name"`
+		Emails            []string `json:"emails"`
+		Plan              string   `json:"plan"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
 		return
 	}
 
+	requestedPlan := strings.ToLower(strings.TrimSpace(req.Plan))
+	switch requestedPlan {
+	case "pro":
+		requestedPlan = account.PlanProTrial
+	case account.PlanProTrial, account.PlanEnterprise, account.PlanPersonal:
+	default:
+		requestedPlan = account.PlanPersonal
+	}
+	personalBoardName := strings.TrimSpace(req.PersonalBoardName)
+	teamBoardName := strings.TrimSpace(req.TeamBoardName)
+	legacyTeamName := strings.TrimSpace(req.TeamName)
+	if personalBoardName == "" {
+		personalBoardName = legacyTeamName
+	}
+	if requestedPlan != account.PlanPersonal && teamBoardName == "" {
+		teamBoardName = legacyTeamName
+	}
+
 	principal := sessionctx.PrincipalFromContext(r.Context())
 	session, invites, err := a.accounts.CompleteOnboarding(
 		r.Context(),
 		principal.UserID,
-		strings.TrimSpace(req.TeamName),
+		personalBoardName,
+		teamBoardName,
 		strings.TrimSpace(req.Name),
 		req.Emails,
-		strings.TrimSpace(req.Plan),
+		requestedPlan,
 	)
 	if err != nil {
-		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "teamName"))
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "personalBoardName"))
 		return
 	}
 
@@ -369,13 +427,35 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resolvedTeamName := strings.TrimSpace(req.TeamName)
+	resolvedTeamName := teamBoardName
 	if session.Team != nil && strings.TrimSpace(session.Team.Name) != "" {
 		resolvedTeamName = strings.TrimSpace(session.Team.Name)
 	}
 	for _, inv := range invites {
 		if err := a.sendInviteEmail(r.Context(), inv.Email, resolvedTeamName, inv.InvitationCode); err != nil {
 			a.logError(r, "send_invite_email_failed", err)
+		}
+	}
+
+	if session.User.CurrentWorkspace != nil {
+		nextPrincipal := sessionctx.Principal{
+			UserID:      session.User.ID,
+			Email:       session.User.Email,
+			WorkspaceID: strings.TrimSpace(*session.User.CurrentWorkspace),
+		}
+		snapshot, snapErr := a.loadProjectSnapshot(r.Context(), nextPrincipal, true)
+		if snapErr != nil {
+			a.logError(r, "auth_onboarding_project_snapshot_failed", snapErr)
+		} else {
+			attrs := append(
+				sessionLogAttrs(session),
+				slog.String("requested_personal_board_name", personalBoardName),
+				slog.String("requested_team_board_name", teamBoardName),
+				slog.String("requested_plan", requestedPlan),
+				slog.Int("invite_count", len(invites)),
+			)
+			attrs = append(attrs, snapshot.attrs()...)
+			a.logInfo(r, "auth_onboarding_completed", attrs...)
 		}
 	}
 
@@ -858,13 +938,13 @@ func (a *API) handleQuickAddTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"task": created, "parsed": parsed})
 }
 
-func (a *API) handleTodoistAction(w http.ResponseWriter, r *http.Request) {
+func (a *API) handleTaskManagerAction(w http.ResponseWriter, r *http.Request) {
 	if err := requireWriteScope(r.Context()); err != nil {
 		writeAPIError(w, err)
 		return
 	}
-	if a.todoist == nil {
-		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "todoist compatibility service unavailable"))
+	if a.taskManager == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "taskmanager compatibility service unavailable"))
 		return
 	}
 
@@ -887,9 +967,9 @@ func (a *API) handleTodoistAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
-	result, err := a.todoist.Dispatch(ctx, action, req.Payload)
+	result, err := a.taskManager.Dispatch(ctx, action, req.Payload)
 	if err != nil {
-		a.logError(r, "todoist_dispatch_failed", err)
+		a.logError(r, "taskmanager_dispatch_failed", err)
 		writeAPIError(w, err)
 		return
 	}
@@ -927,6 +1007,8 @@ func (a *API) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, err)
 		return
 	}
+
+	a.logDebug(r, "projects_listed", summarizeProjects(result).attrs()...)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"items": result,
@@ -992,6 +1074,14 @@ func (a *API) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, err)
 		return
 	}
+
+	a.logInfo(r, "project_created",
+		slog.String("project_id", created.ID),
+		slog.String("project_name", created.Name),
+		slog.Bool("is_inbox_project", created.IsInboxProject),
+		slog.Bool("is_team_board", created.IsTeamBoard),
+		slog.Bool("is_board_project", tenant.IsBoardProject(created.ID)),
+	)
 
 	writeJSON(w, http.StatusCreated, created)
 }
@@ -1517,6 +1607,8 @@ func (a *API) handleSyncCalendars(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logState := requestLogStateFromContext(r.Context())
+
 		if !strings.HasPrefix(r.URL.Path, "/api") || r.URL.Path == "/api/health" {
 			next.ServeHTTP(w, r)
 			return
@@ -1532,6 +1624,10 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 			if !isWriteRequest(r.Method) {
 				scope = ScopeRead
 			}
+			if logState != nil {
+				logState.Scope = scope
+				logState.AuthSource = "public"
+			}
 			ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
 			ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -1539,6 +1635,13 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		if principal, ok, extended := a.readSessionPrincipal(r); ok {
+			if logState != nil {
+				logState.Principal = principal
+				logState.Authenticated = true
+				logState.AuthSource = "session"
+				logState.HasSessionCookie = true
+				logState.SessionExtended = extended
+			}
 			if extended {
 				if sessionID, sidOk := a.readSessionID(r); sidOk {
 					_ = a.writeSessionCookie(w, r, sessionID)
@@ -1560,6 +1663,9 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 					}
 				}
 			}
+			if logState != nil {
+				logState.Scope = scope
+			}
 			ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
 			ctx = sessionctx.WithPrincipal(ctx, principal)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -1571,6 +1677,11 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 			if isWriteRequest(r.Method) {
 				scope = ScopeWrite
 			}
+			if logState != nil {
+				logState.Scope = scope
+				logState.AuthSource = "auth_disabled"
+				logState.Principal = sessionctx.PrincipalFromContext(r.Context())
+			}
 			ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
 			ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -1579,6 +1690,11 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 
 		token, ok := bearerToken(r.Header.Get("Authorization"))
 		if !ok {
+			if logState != nil {
+				logState.Scope = inferredScopeFromMethod(r.Method)
+				logState.AuthSource = "missing"
+				logState.AuthFailureReason = "missing_or_invalid_authorization_header"
+			}
 			writeAPIError(w, apperrors.New(apperrors.CodeUnauthorized, "missing or invalid authorization header"))
 			return
 		}
@@ -1590,10 +1706,21 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 		case a.cfg.ReadOnlyToken:
 			scope = ScopeRead
 		default:
+			if logState != nil {
+				logState.Scope = inferredScopeFromMethod(r.Method)
+				logState.AuthSource = "bearer"
+				logState.AuthFailureReason = "invalid_api_token"
+			}
 			writeAPIError(w, apperrors.New(apperrors.CodeUnauthorized, "invalid api token"))
 			return
 		}
 
+		if logState != nil {
+			logState.Scope = scope
+			logState.Authenticated = true
+			logState.AuthSource = "bearer"
+			logState.Principal = sessionctx.PrincipalFromContext(r.Context())
+		}
 		ctx := context.WithValue(r.Context(), ctxKeyScope, scope)
 		ctx = sessionctx.WithPrincipal(ctx, sessionctx.PrincipalFromContext(ctx))
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -1938,6 +2065,7 @@ func (a *API) requestIDMiddleware(next http.Handler) http.Handler {
 		}
 		w.Header().Set(requestIDHeader, requestID)
 		ctx := context.WithValue(r.Context(), ctxKeyRequestID, requestID)
+		ctx = context.WithValue(ctx, ctxKeyLogState, &requestLogState{})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -1955,6 +2083,9 @@ func (a *API) loggingMiddleware(next http.Handler) http.Handler {
 			slog.Int("status", lw.status),
 			slog.Int("bytes", lw.bytesWritten),
 			slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+		}
+		if state := requestLogStateFromContext(r.Context()); state != nil {
+			attrs = append(attrs, state.attrs()...)
 		}
 
 		switch {
@@ -1997,12 +2128,157 @@ func chain(middlewares ...func(http.Handler) http.Handler) func(http.Handler) ht
 // logError logs an error with request context. Use this in handlers before
 // calling writeAPIError when you want the underlying cause visible in logs.
 func (a *API) logError(r *http.Request, msg string, err error) {
-	a.logger.Error(msg,
+	a.logger.LogAttrs(r.Context(), slog.LevelError, msg, a.baseLogAttrs(r, slog.String("error", err.Error()))...)
+}
+
+func (a *API) logInfo(r *http.Request, msg string, attrs ...slog.Attr) {
+	a.logger.LogAttrs(r.Context(), slog.LevelInfo, msg, a.baseLogAttrs(r, attrs...)...)
+}
+
+func (a *API) logDebug(r *http.Request, msg string, attrs ...slog.Attr) {
+	a.logger.LogAttrs(r.Context(), slog.LevelDebug, msg, a.baseLogAttrs(r, attrs...)...)
+}
+
+func (a *API) baseLogAttrs(r *http.Request, attrs ...slog.Attr) []slog.Attr {
+	base := []slog.Attr{
 		slog.String("request_id", requestIDFromContext(r.Context())),
 		slog.String("method", r.Method),
 		slog.String("path", r.URL.Path),
-		slog.String("error", err.Error()),
-	)
+	}
+	if state := requestLogStateFromContext(r.Context()); state != nil {
+		base = append(base, state.attrs()...)
+	}
+	return append(base, attrs...)
+}
+
+func requestLogStateFromContext(ctx context.Context) *requestLogState {
+	state, _ := ctx.Value(ctxKeyLogState).(*requestLogState)
+	return state
+}
+
+func (s *requestLogState) attrs() []slog.Attr {
+	if s == nil {
+		return nil
+	}
+
+	attrs := make([]slog.Attr, 0, 8)
+	if s.Scope != "" {
+		attrs = append(attrs, slog.String("scope", string(s.Scope)))
+	}
+	if strings.TrimSpace(s.AuthSource) != "" {
+		attrs = append(attrs, slog.String("auth_source", strings.TrimSpace(s.AuthSource)))
+	}
+	if s.Authenticated {
+		attrs = append(attrs, slog.Bool("authenticated", true))
+	}
+	if s.HasSessionCookie {
+		attrs = append(attrs, slog.Bool("session_cookie_present", true))
+	}
+	if s.SessionExtended {
+		attrs = append(attrs, slog.Bool("session_extended", true))
+	}
+	if strings.TrimSpace(s.AuthFailureReason) != "" {
+		attrs = append(attrs, slog.String("auth_failure_reason", strings.TrimSpace(s.AuthFailureReason)))
+	}
+	if s.Authenticated || strings.TrimSpace(s.Principal.Email) != "" {
+		if strings.TrimSpace(s.Principal.UserID) != "" {
+			attrs = append(attrs, slog.String("user_id", strings.TrimSpace(s.Principal.UserID)))
+		}
+		if strings.TrimSpace(s.Principal.WorkspaceID) != "" {
+			attrs = append(attrs, slog.String("workspace_id", strings.TrimSpace(s.Principal.WorkspaceID)))
+		}
+		if strings.TrimSpace(s.Principal.Email) != "" {
+			attrs = append(attrs, slog.String("user_email", strings.TrimSpace(s.Principal.Email)))
+		}
+	}
+	return attrs
+}
+
+func sessionLogAttrs(session account.Session) []slog.Attr {
+	attrs := []slog.Attr{
+		slog.String("session_user_id", strings.TrimSpace(session.User.ID)),
+		slog.String("session_user_email", strings.TrimSpace(session.User.Email)),
+		slog.String("session_user_name", strings.TrimSpace(session.User.Name)),
+		slog.Bool("show_onboarding", session.User.ShowOnboarding),
+	}
+	if session.User.CurrentWorkspace != nil && strings.TrimSpace(*session.User.CurrentWorkspace) != "" {
+		attrs = append(attrs, slog.String("session_workspace_id", strings.TrimSpace(*session.User.CurrentWorkspace)))
+	}
+	if session.Team != nil {
+		attrs = append(attrs,
+			slog.String("session_team_id", strings.TrimSpace(session.Team.ID)),
+			slog.String("session_team_name", strings.TrimSpace(session.Team.Name)),
+			slog.String("session_team_plan", strings.TrimSpace(session.Team.Plan)),
+			slog.Bool("session_team_archived", session.Team.IsArchived),
+		)
+		if session.Team.TrialEndsAt != nil && strings.TrimSpace(*session.Team.TrialEndsAt) != "" {
+			attrs = append(attrs, slog.String("session_team_trial_ends_at", strings.TrimSpace(*session.Team.TrialEndsAt)))
+		}
+	}
+	return attrs
+}
+
+func summarizeProjects(items []project.Project) projectLogSnapshot {
+	snapshot := projectLogSnapshot{
+		Total:        len(items),
+		ProjectIDs:   make([]string, 0, minInt(len(items), 10)),
+		ProjectNames: make([]string, 0, minInt(len(items), 10)),
+	}
+	for _, item := range items {
+		if item.IsInboxProject {
+			snapshot.InboxCount++
+		}
+		if tenant.IsBoardProject(item.ID) {
+			snapshot.BoardCount++
+		}
+		if item.IsTeamBoard {
+			snapshot.TeamBoardCount++
+		}
+		if len(snapshot.ProjectIDs) < 10 {
+			snapshot.ProjectIDs = append(snapshot.ProjectIDs, strings.TrimSpace(item.ID))
+		}
+		if len(snapshot.ProjectNames) < 10 {
+			snapshot.ProjectNames = append(snapshot.ProjectNames, strings.TrimSpace(item.Name))
+		}
+	}
+	return snapshot
+}
+
+func (s projectLogSnapshot) attrs() []slog.Attr {
+	return []slog.Attr{
+		slog.Int("project_count", s.Total),
+		slog.Int("board_project_count", s.BoardCount),
+		slog.Int("team_board_count", s.TeamBoardCount),
+		slog.Int("inbox_project_count", s.InboxCount),
+		slog.Any("project_ids", s.ProjectIDs),
+		slog.Any("project_names", s.ProjectNames),
+	}
+}
+
+func (a *API) loadProjectSnapshot(ctx context.Context, principal sessionctx.Principal, includeArchived bool) (projectLogSnapshot, error) {
+	if a.projects == nil {
+		return projectLogSnapshot{}, fmt.Errorf("project service unavailable")
+	}
+	listCtx := sessionctx.WithPrincipal(ctx, principal)
+	items, err := a.projects.List(listCtx, project.ListParams{IncludeArchived: includeArchived})
+	if err != nil {
+		return projectLogSnapshot{}, err
+	}
+	return summarizeProjects(items), nil
+}
+
+func inferredScopeFromMethod(method string) Scope {
+	if isWriteRequest(method) {
+		return ScopeWrite
+	}
+	return ScopeRead
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func writeAPIError(w http.ResponseWriter, err error) {
