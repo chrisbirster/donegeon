@@ -190,8 +190,8 @@ func (s *Service) GetSession(ctx context.Context, userID string) (Session, error
 }
 
 func (s *Service) CompleteOnboarding(ctx context.Context, userID string, personalBoardName string, teamBoardName string, displayName string, inviteEmails []string, plan string) (Session, []TeamInvite, error) {
-	trimmedPersonalBoardName := strings.TrimSpace(personalBoardName)
-	trimmedTeamBoardName := strings.TrimSpace(teamBoardName)
+	trimmedPersonalBoardName := normalizeExplicitBoardName(personalBoardName)
+	trimmedTeamBoardName := normalizeExplicitBoardName(teamBoardName)
 	requestedPlan := normalizeWorkspacePlan(plan)
 
 	tx, err := s.db.BeginTxx(ctx, nil)
@@ -1321,6 +1321,14 @@ func resolveWorkspaceName(plan string, personalBoardName string, teamBoardName s
 		return strings.TrimSpace(personalBoardName)
 	}
 	return "Team board"
+}
+
+func normalizeExplicitBoardName(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	return strings.Join(strings.Fields(trimmed), "-")
 }
 
 func personalBoardBaseName(userName string, userEmail string) string {

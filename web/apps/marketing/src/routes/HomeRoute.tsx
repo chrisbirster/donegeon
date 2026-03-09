@@ -1,6 +1,7 @@
 import { createSignal, onMount, Show } from "solid-js";
 
-const APP_URL = "https://app.donegeon.com";
+const DEFAULT_APP_URL = import.meta.env.DEV ? "http://localhost:5173" : "https://app.donegeon.com";
+const APP_URL = (import.meta.env.VITE_DONEGEON_APP_URL || DEFAULT_APP_URL).replace(/\/+$/, "");
 
 const PLAN_LINKS = {
   personal: `${APP_URL}/login?plan=personal`,

@@ -10,7 +10,7 @@ INSERT INTO projects (
     updated_at
 ) VALUES (
     :id,
-    :name,
+    COALESCE(:name, :default_name),
     0,
     0,
     COALESCE(:is_favorite, 0),

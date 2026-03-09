@@ -17,6 +17,10 @@ function normalizePlan(raw: string): "personal" | "pro_trial" | "enterprise" {
   return "personal";
 }
 
+function normalizeBoardNameInput(raw: string): string {
+  return raw.trim().replace(/\s+/g, "-");
+}
+
 export default function OnboardingRoute() {
   const api = useApi();
   const location = useLocation();
@@ -28,6 +32,8 @@ export default function OnboardingRoute() {
   const [inviteInput, setInviteInput] = createSignal("");
   const [saving, setSaving] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [personalBoardSpacingHint, setPersonalBoardSpacingHint] = createSignal(false);
+  const [teamBoardSpacingHint, setTeamBoardSpacingHint] = createSignal(false);
 
   onMount(async () => {
     const params = new URLSearchParams(location.search);
@@ -64,6 +70,18 @@ export default function OnboardingRoute() {
     }
   }
 
+  function handlePersonalBoardNameInput(raw: string) {
+    const normalized = normalizeBoardNameInput(raw);
+    setPersonalBoardSpacingHint(normalized !== raw);
+    setPersonalBoardName(normalized);
+  }
+
+  function handleTeamBoardNameInput(raw: string) {
+    const normalized = normalizeBoardNameInput(raw);
+    setTeamBoardSpacingHint(normalized !== raw);
+    setTeamBoardName(normalized);
+  }
+
   return (
     <main class="flex h-screen items-center justify-center bg-[#0a0d12] px-4 text-[#eceff7]">
       <form
@@ -87,10 +105,13 @@ export default function OnboardingRoute() {
         <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Personal board name (optional)</label>
         <input
           value={personalBoardName()}
-          onInput={(event) => setPersonalBoardName(event.currentTarget.value)}
+          onInput={(event) => handlePersonalBoardNameInput(event.currentTarget.value)}
           class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-          placeholder="Gladiators"
+          placeholder="super-cool"
         />
+        {personalBoardSpacingHint() ? (
+          <p class="mt-1 text-xs text-[#ffbf78]">Spaces turn into hyphens. Example: super cool -&gt; super-cool.</p>
+        ) : null}
         <p class="mt-1 text-xs text-[#8ea3c7]">
           Leave blank to default to your name (or your email prefix) + &quot;board&quot;.
         </p>
@@ -100,10 +121,13 @@ export default function OnboardingRoute() {
             <label class="mt-4 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Team board name (optional)</label>
             <input
               value={teamBoardName()}
-              onInput={(event) => setTeamBoardName(event.currentTarget.value)}
+              onInput={(event) => handleTeamBoardNameInput(event.currentTarget.value)}
               class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-              placeholder="maze"
+              placeholder="team-maze"
             />
+            {teamBoardSpacingHint() ? (
+              <p class="mt-1 text-xs text-[#ffbf78]">Spaces turn into hyphens. Example: super cool -&gt; super-cool.</p>
+            ) : null}
             <p class="mt-1 text-xs text-[#8ea3c7]">
               Leave blank to default to your name + &quot;team board&quot;.
             </p>

@@ -91,7 +91,8 @@ func (r *Repository) Upsert(ctx context.Context, id string, in UpsertInput) (Pro
 	}
 	principal := sessionctx.PrincipalFromContext(ctx)
 
-	name := cleanName(id)
+	defaultName := cleanName(id)
+	var name any
 	if in.Name != nil && strings.TrimSpace(*in.Name) != "" {
 		name = strings.TrimSpace(*in.Name)
 	}
@@ -99,6 +100,7 @@ func (r *Repository) Upsert(ctx context.Context, id string, in UpsertInput) (Pro
 	args := map[string]any{
 		"id":           id,
 		"name":         name,
+		"default_name": defaultName,
 		"is_favorite":  nullableBoolAsInt(in.IsFavorite),
 		"user_id":      principal.UserID,
 		"workspace_id": principal.WorkspaceID,

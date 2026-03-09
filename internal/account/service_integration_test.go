@@ -78,6 +78,64 @@ func TestCompleteOnboardingProTrialCreatesPrivateAndTeamBoardsPlusInbox(t *testi
 	assertTeamBoardNames(t, projects, "maze")
 }
 
+func TestCompleteOnboardingNormalizesExplicitBoardNames(t *testing.T) {
+	ctx := context.Background()
+	svc, db, queries := newAccountTestService(t)
+
+	seedAccountUser(t, ctx, svc, "U_OWNER", "chris@example.com", "Chris")
+
+	session, invites, err := svc.CompleteOnboarding(ctx, "U_OWNER", "super cool", "", "Chris", nil, PlanPersonal)
+	if err != nil {
+		t.Fatalf("complete onboarding: %v", err)
+	}
+	if len(invites) != 0 {
+		t.Fatalf("expected no invites, got %d", len(invites))
+	}
+	if session.Team == nil {
+		t.Fatal("expected workspace in session")
+	}
+	if session.Team.Name != "super-cool" {
+		t.Fatalf("expected workspace name %q, got %q", "super-cool", session.Team.Name)
+	}
+
+	projects := listVisibleProjectsForUser(t, db, queries, session.User.ID, session.Team.ID, session.User.Email)
+	assertProjectNames(t, projects, "super-cool", "inbox")
+	assertProjectIDs(t, projects, "board", "inbox")
+}
+
+func TestProjectUpsertWithoutNamePreservesExistingBoardDisplayName(t *testing.T) {
+	ctx := context.Background()
+	svc, db, queries := newAccountTestService(t)
+
+	seedAccountUser(t, ctx, svc, "U_OWNER", "chris@example.com", "Chris")
+
+	session, _, err := svc.CompleteOnboarding(ctx, "U_OWNER", "super-cool", "", "Chris", nil, PlanPersonal)
+	if err != nil {
+		t.Fatalf("complete onboarding: %v", err)
+	}
+	if session.Team == nil {
+		t.Fatal("expected workspace in session")
+	}
+
+	projectSvc := project.NewService(project.NewRepository(db, queries))
+	projectCtx := sessionctx.WithPrincipal(context.Background(), sessionctx.Principal{
+		UserID:      session.User.ID,
+		WorkspaceID: session.Team.ID,
+		Email:       session.User.Email,
+	})
+
+	updated, err := projectSvc.Upsert(projectCtx, "board", project.UpsertInput{})
+	if err != nil {
+		t.Fatalf("upsert project: %v", err)
+	}
+	if updated.Name != "super-cool" {
+		t.Fatalf("expected board display name %q, got %q", "super-cool", updated.Name)
+	}
+
+	projects := listVisibleProjectsForUser(t, db, queries, session.User.ID, session.Team.ID, session.User.Email)
+	assertProjectNames(t, projects, "super-cool", "inbox")
+}
+
 func TestAcceptInvitationSharesOnlyTeamBoardAndInbox(t *testing.T) {
 	ctx := context.Background()
 	svc, db, queries := newAccountTestService(t)
