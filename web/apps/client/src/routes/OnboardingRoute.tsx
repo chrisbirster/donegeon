@@ -83,7 +83,7 @@ export default function OnboardingRoute() {
   }
 
   return (
-    <main class="flex h-screen items-center justify-center bg-[#0a0d12] px-4 text-[#eceff7]">
+    <main class="flex min-h-screen items-start justify-center overflow-y-auto bg-[#0a0d12] px-4 py-6 text-[#eceff7] sm:py-10">
       <form
         class="w-full max-w-xl rounded-2xl border border-[#2c3648] bg-[#111926] p-6 shadow-[0_24px_64px_rgba(0,0,0,0.45)]"
         onSubmit={(event) => void submit(event)}

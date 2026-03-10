@@ -17,6 +17,8 @@ import {
 } from "../server/api";
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
+import { mergeNormalizedLabels } from "../lib/quickAddLabels";
+import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
 import AppShell from "../components/AppShell";
 import SidebarAccountCard from "../components/SidebarAccountCard";
 import TaskQuickAddComposer from "../components/task/TaskQuickAddComposer";
@@ -282,6 +284,13 @@ function addChip(value: string | undefined, label: string): string | null {
 
 function sortTasks(list: Task[]): Task[] {
   return [...list].sort((a, b) => a.sortOrder - b.sortOrder || a.content.localeCompare(b.content));
+}
+
+function sortCompletedTasks(list: Task[]): Task[] {
+  return [...list].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return b.sortOrder - a.sortOrder;
+    return a.content.localeCompare(b.content);
+  });
 }
 
 function prettifyLabel(value: string): string {
@@ -595,6 +604,7 @@ export default function HomeRoute() {
   const [detailActivating, setDetailActivating] = createSignal(false);
   const [rowActivatingTaskID, setRowActivatingTaskID] = createSignal<string | null>(null);
   const [detailNewProjectName, setDetailNewProjectName] = createSignal<string | null>(null);
+  const [detailProjectAssigning, setDetailProjectAssigning] = createSignal(false);
 
   const tasksQuery = createQuery(() => ({
     queryKey: ["tasks", "list"],
@@ -607,6 +617,8 @@ export default function HomeRoute() {
 
   let mainInputRef: HTMLInputElement | undefined;
   let parseTimer: number | undefined;
+  let parseController: AbortController | undefined;
+  let parseRequestSeq = 0;
   let searchInputRef: HTMLInputElement | undefined;
   let globalKeyHandler: ((event: KeyboardEvent) => void) | undefined;
   let lastParsedText = "";
@@ -635,6 +647,10 @@ export default function HomeRoute() {
 
   const openTasks = createMemo(() =>
     sortTasks(tasks().filter((task) => !task.checked && !task.isDeleted)),
+  );
+
+  const completedTasks = createMemo(() =>
+    sortCompletedTasks(tasks().filter((task) => task.checked && !task.isDeleted)),
   );
 
   const openTaskCountByProjectID = createMemo(() => {
@@ -706,18 +722,18 @@ export default function HomeRoute() {
     }
   });
 
-  const visibleTasks = createMemo(() => {
+  function filterTasksForCurrentView(taskList: Task[]): Task[] {
     const view = currentView();
     if (view.kind === "today") {
       const today = startOfLocalDay(new Date());
-      return openTasks().filter((task) => {
+      return taskList.filter((task) => {
         const due = taskDueDate(task);
         return due?.getTime() === today.getTime();
       });
     }
     if (view.kind === "upcomming") {
       const today = startOfLocalDay(new Date());
-      return openTasks().filter((task) => {
+      return taskList.filter((task) => {
         const due = taskDueDate(task);
         return !!due && due.getTime() > today.getTime();
       });
@@ -725,9 +741,17 @@ export default function HomeRoute() {
     if (view.kind === "project") {
       const projectID = view.projectId?.trim();
       if (!projectID) return [] as Task[];
-      return openTasks().filter((task) => task.projectId?.trim() === projectID);
+      return taskList.filter((task) => task.projectId?.trim() === projectID);
     }
-    return openTasks().filter((task) => isInboxTask(task));
+    return taskList.filter((task) => isInboxTask(task));
+  }
+
+  const visibleTasks = createMemo(() => {
+    return filterTasksForCurrentView(openTasks());
+  });
+
+  const visibleCompletedTasks = createMemo(() => {
+    return filterTasksForCurrentView(completedTasks());
   });
 
   const detailTask = createMemo(() => {
@@ -947,9 +971,12 @@ export default function HomeRoute() {
 
   async function parseMainInput(text: string) {
     const trimmed = text.trim();
-    if (!trimmed) {
+    if (!trimmed || !shouldPreviewQuickAdd(trimmed)) {
       setParsedInput(null);
       lastParsedText = "";
+      parseRequestSeq += 1;
+      parseController?.abort();
+      parseController = undefined;
       return;
     }
 
@@ -957,12 +984,23 @@ export default function HomeRoute() {
       return;
     }
     lastParsedText = trimmed;
+    parseRequestSeq += 1;
+    const requestSeq = parseRequestSeq;
+    parseController?.abort();
+    const controller = new AbortController();
+    parseController = controller;
 
     try {
-      const parsed = await api.parse.quickAdd(trimmed);
+      const parsed = await api.parse.quickAdd(trimmed, { signal: controller.signal });
+      if (requestSeq !== parseRequestSeq) return;
       setParsedInput(parsed.parsed);
-    } catch {
+    } catch (err) {
+      if (isAbortError(err) || requestSeq !== parseRequestSeq) return;
       setParsedInput(null);
+    } finally {
+      if (requestSeq === parseRequestSeq) {
+        parseController = undefined;
+      }
     }
   }
 
@@ -973,9 +1011,33 @@ export default function HomeRoute() {
       window.clearTimeout(parseTimer);
     }
 
+    const trimmed = value.trim();
+    if (!trimmed || !shouldPreviewQuickAdd(trimmed)) {
+      lastParsedText = "";
+      parseRequestSeq += 1;
+      parseController?.abort();
+      parseController = undefined;
+      setParsedInput(null);
+      return;
+    }
+
     parseTimer = window.setTimeout(() => {
       void parseMainInput(value);
-    }, 260);
+    }, 350);
+  }
+
+  async function parseTaskTitleInput(value: string): Promise<QuickAddParsed | null> {
+    const trimmed = value.trim();
+    if (!trimmed || !shouldPreviewQuickAdd(trimmed)) {
+      return null;
+    }
+
+    const parsed = await api.parse.quickAdd(trimmed);
+    return parsed.parsed;
+  }
+
+  function hasParsedSchedule(parsed: QuickAddParsed | null): boolean {
+    return !!(parsed?.recurrenceRule || parsed?.dueText || parsed?.deadline);
   }
 
   async function addTask(e: SubmitEvent) {
@@ -998,6 +1060,9 @@ export default function HomeRoute() {
       setContent("");
       setParsedInput(null);
       lastParsedText = "";
+      parseRequestSeq += 1;
+      parseController?.abort();
+      parseController = undefined;
       setError("");
       await refreshData();
       toast.success("Task added.");
@@ -1016,6 +1081,21 @@ export default function HomeRoute() {
         closeDetailModal();
       }
       toast.success("Task completed.");
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message);
+      toast.error(message);
+    }
+  }
+
+  async function reopenTask(item: Task) {
+    try {
+      await api.tasks.reopen(item.id);
+      await refreshData();
+      if (detailTaskId() === item.id) {
+        closeDetailModal();
+      }
+      toast.info("Task reopened.");
     } catch (err) {
       const message = (err as Error).message;
       setError(message);
@@ -1049,15 +1129,29 @@ export default function HomeRoute() {
   }
 
   async function saveInlineEdit(taskId: string) {
-    const nextContent = editingContent().trim();
-    if (!nextContent) {
-      setError("Task content cannot be empty");
-      toast.error("Task content cannot be empty");
-      return;
-    }
+    const rawContent = editingContent().trim();
 
     try {
-      const updated = await api.tasks.update(taskId, { content: nextContent });
+      const parsed = await parseTaskTitleInput(rawContent);
+      const nextContent = (parsed?.content ?? rawContent).trim();
+      if (!nextContent) {
+        setError("Task content cannot be empty");
+        toast.error("Task content cannot be empty");
+        return;
+      }
+      const currentTask = tasks().find((task) => task.id === taskId);
+      const parsedProjectID = parsed?.project ? await resolveProjectIDForDetail(parsed.project) : undefined;
+      const updated = await api.tasks.update(taskId, {
+        content: nextContent,
+        description: parsed?.description || undefined,
+        projectId: parsedProjectID,
+        labels: parsed?.labels.length ? mergeNormalizedLabels(currentTask?.labels, parsed.labels) : undefined,
+        recurrenceRule: parsed?.recurrenceRule,
+        scheduleInput: hasParsedSchedule(parsed) ? rawContent : undefined,
+        priority: parsed?.priority,
+        dueText: parsed?.dueText,
+        dueDeadline: parsed?.deadline,
+      });
       setTasks((current) =>
         current.map((task) => (task.id === taskId ? updated : task)),
       );
@@ -1243,21 +1337,67 @@ export default function HomeRoute() {
     return created.id;
   }
 
+  async function createAndAssignDetailProject(rawName: string) {
+    const taskId = detailTaskId();
+    const name = rawName.trim();
+    if (!taskId || !name || detailProjectAssigning()) {
+      return;
+    }
+
+    setDetailProjectAssigning(true);
+    setError("");
+
+    try {
+      const projectID = await resolveProjectIDForDetail(name);
+      if (!projectID) {
+        throw new Error("Project name cannot be empty");
+      }
+
+      const updated = await api.tasks.update(taskId, { projectId: projectID });
+      setTasks((current) =>
+        current.map((task) => (task.id === taskId ? updated : task)),
+      );
+
+      const assignedProject = projectMap().get(projectID);
+      setDetailProjectId(assignedProject?.name ?? name);
+      setDetailNewProjectName(null);
+      if (isBoardProject(projectID)) {
+        void loadDetailActivationPreview(taskId, projectID);
+      } else {
+        setDetailActivationPreview(null);
+        setDetailActivationError("");
+        setDetailActivationLoading(false);
+      }
+      toast.success(`Project "${assignedProject?.name ?? name}" assigned to task.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to assign project";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setDetailProjectAssigning(false);
+    }
+  }
+
   async function saveDetailModal() {
     const taskId = detailTaskId();
     if (!taskId) return;
 
-    const nextContent = detailContent().trim();
-    if (!nextContent) {
-      setError("Task content cannot be empty");
-      toast.error("Task content cannot be empty");
-      return;
-    }
+    const rawContent = detailContent().trim();
 
     try {
+      const parsed = await parseTaskTitleInput(rawContent);
+      const nextContent = (parsed?.content ?? rawContent).trim();
+      if (!nextContent) {
+        setError("Task content cannot be empty");
+        toast.error("Task content cannot be empty");
+        return;
+      }
       const existingTask = detailTask();
-      const resolvedProjectID = await resolveProjectIDForDetail(detailProjectId());
-      let labels = parseLabelsInput(detailTags()).filter((label) => !isBoardLiveLabel(label));
+      const resolvedProjectID = await resolveProjectIDForDetail(parsed?.project ?? detailProjectId());
+      let labels = mergeNormalizedLabels(
+        parseLabelsInput(detailTags()).filter((label) => !isBoardLiveLabel(label)),
+        parsed?.labels,
+      ).filter((label) => !isBoardLiveLabel(label));
       const shouldKeepBoardLive =
         isBoardProject(resolvedProjectID) &&
         (isBoardLiveTask(existingTask) || detailActivationPreview()?.alreadyLive === true);
@@ -1266,13 +1406,14 @@ export default function HomeRoute() {
       }
       const updated = await api.tasks.update(taskId, {
         content: nextContent,
-        description: detailDescription(),
+        description: parsed?.description || detailDescription(),
         projectId: resolvedProjectID ?? "",
         labels,
-        recurrenceRule: detailRecurrence().trim() || undefined,
-        priority: detailPriority(),
-        dueText: detailDueText(),
-        dueDeadline: detailDeadline(),
+        recurrenceRule: detailRecurrence().trim() || parsed?.recurrenceRule || undefined,
+        scheduleInput: hasParsedSchedule(parsed) ? rawContent : undefined,
+        priority: parsed?.priority ?? detailPriority(),
+        dueText: detailDueText() || parsed?.dueText,
+        dueDeadline: detailDeadline() || parsed?.deadline,
       });
 
       setTasks((current) =>
@@ -1353,6 +1494,7 @@ export default function HomeRoute() {
     if (parseTimer !== undefined) {
       window.clearTimeout(parseTimer);
     }
+    parseController?.abort();
     if (globalKeyHandler) {
       window.removeEventListener("keydown", globalKeyHandler);
     }
@@ -1891,6 +2033,105 @@ export default function HomeRoute() {
                 </For>
               </ul>
             </Show>
+
+            <Show when={visibleCompletedTasks().length > 0}>
+              <div class={visibleTasks().length > 0 ? "mt-6" : "mt-4"} data-testid="completed-task-section">
+                <div class="mb-3 flex items-center justify-between">
+                  <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Completed</p>
+                  <span class="text-xs text-[var(--text-dim)]">{visibleCompletedTasks().length} task(s)</span>
+                </div>
+
+                <ul class="space-y-2">
+                  <For each={visibleCompletedTasks()}>
+                    {(item) => (
+                      <li
+                        data-testid="completed-task-row"
+                        data-task-id={item.id}
+                        class="group flex items-center gap-3 rounded-xl border border-[#223048] bg-[#0b1422]/85 px-3 py-3 text-[#8fa3c7] transition hover:border-[#35507a]"
+                        onClick={() => {
+                          if (editingTaskId() === item.id) return;
+                          openDetailModal(item);
+                        }}
+                      >
+                        <span class="flex h-5 w-5 items-center justify-center rounded-full border border-[#2f7a55] bg-[#163328] text-[11px] text-[#b3f2d5]">
+                          ✓
+                        </span>
+
+                        <div class="min-w-0 flex-1">
+                          <p class="truncate text-sm text-[#b9c7dc] line-through" data-testid="completed-task-content">
+                            {item.content}
+                          </p>
+                          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
+                            <span class="rounded-md bg-[#163328] px-2 py-0.5 text-[#b3f2d5]">Done</span>
+                            <Show when={scheduleBadgeLabel(item, "due")}>
+                              {(label) => (
+                                <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">{label()}</span>
+                              )}
+                            </Show>
+                            <Show when={scheduleBadgeLabel(item, "deadline")}>
+                              {(label) => (
+                                <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">{label()}</span>
+                              )}
+                            </Show>
+                            <Show when={projectNameByID(item.projectId)}>
+                              {(projectName) => (
+                                <span class="inline-flex items-center gap-1 rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">
+                                  <span>#{projectName()}</span>
+                                  <Show when={isTeamBoardProject(item.projectId, projectMap())}>
+                                    <span class="rounded border border-[#4d62a9] bg-[#202955] px-1 py-0 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
+                                      Team
+                                    </span>
+                                  </Show>
+                                </span>
+                              )}
+                            </Show>
+                            <For each={visibleTaskLabels(item.labels)}>
+                              {(label) => (
+                                <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">@{label}</span>
+                              )}
+                            </For>
+                          </div>
+                        </div>
+
+                        <span
+                          class={`rounded-md px-2 py-1 text-xs ${
+                            item.priority <= 2
+                              ? "bg-[#5f201a] text-[#ffcbc2]"
+                              : "bg-[#1e2a43] text-[#b5c4df]"
+                          }`}
+                        >
+                          p{item.priority}
+                        </span>
+
+                        <div class="ml-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                          <button
+                            type="button"
+                            class="rounded-md border border-[#2f6a53] bg-[#12251c] px-2 py-1 text-xs text-[#b8efb3] hover:border-[#63a37d]"
+                            data-testid="reopen-task"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void reopenTask(item);
+                            }}
+                          >
+                            Reopen
+                          </button>
+                          <button
+                            type="button"
+                            class="rounded-md border border-[#334660] bg-[#101b2d] px-2 py-1 text-xs text-[#d7e4ff] hover:border-[var(--accent)]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDetailModal(item);
+                            }}
+                          >
+                            Open
+                          </button>
+                        </div>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </div>
+            </Show>
           </div>
         </section>
         </div>
@@ -2033,36 +2274,30 @@ export default function HomeRoute() {
                           onInput={(event) => setDetailNewProjectName(event.currentTarget.value)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {
-                              const name = (detailNewProjectName() ?? "").trim();
-                              if (name) {
-                                setDetailProjectId(name);
-                              }
-                              setDetailNewProjectName(null);
+                              event.preventDefault();
+                              void createAndAssignDetailProject(detailNewProjectName() ?? "");
                             } else if (event.key === "Escape") {
                               setDetailNewProjectName(null);
                             }
                           }}
                           placeholder="New project name"
                           autofocus
+                          disabled={detailProjectAssigning()}
                           class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                           data-testid="task-detail-new-project"
                         />
                         <button
                           type="button"
                           class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
-                          onClick={() => {
-                            const name = (detailNewProjectName() ?? "").trim();
-                            if (name) {
-                              setDetailProjectId(name);
-                            }
-                            setDetailNewProjectName(null);
-                          }}
+                          onClick={() => void createAndAssignDetailProject(detailNewProjectName() ?? "")}
+                          disabled={detailProjectAssigning()}
                         >
-                          ✓
+                          {detailProjectAssigning() ? "..." : "✓"}
                         </button>
                         <button
                           type="button"
                           class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                          disabled={detailProjectAssigning()}
                           onClick={() => setDetailNewProjectName(null)}
                         >
                           ✕
@@ -2327,12 +2562,16 @@ export default function HomeRoute() {
                 onClick={() => {
                   const task = detailTask();
                   if (task) {
-                    void completeTask(task);
+                    if (task.checked) {
+                      void reopenTask(task);
+                    } else {
+                      void completeTask(task);
+                    }
                   }
                 }}
                 data-testid="task-detail-mark-done"
               >
-                Mark done
+                {detailTask()?.checked ? "Reopen" : "Mark done"}
               </button>
               <button
                 type="button"

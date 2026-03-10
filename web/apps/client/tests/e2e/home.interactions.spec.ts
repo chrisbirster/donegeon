@@ -156,6 +156,29 @@ test.describe("Home interaction coverage", () => {
     await expect(taskRowByContent(page, "inline escape changed")).toHaveCount(0);
   });
 
+  test("parses quick-add syntax when saving inline edit", async ({ page }) => {
+    const task = `inline quickadd parse ${Date.now()}`;
+    await addQuickTask(page, task);
+    const row = page.getByTestId("task-row").first();
+    await expect(row).toBeVisible();
+
+    await row.hover();
+    await row.getByTestId("edit-task-inline").click({ force: true });
+    const input = row.locator("input").first();
+    await expect(input).toBeVisible();
+    await input.fill("inline parsed task every thursday at 7pm due thursday {tomorrow} p1 @home // inline parsed description");
+    await input.press("Enter");
+
+    await expect(taskRowByContent(page, "inline parsed task")).toBeVisible();
+    await openTaskDetail(page, "inline parsed task");
+    await expect(page.getByTestId("task-detail-description")).toHaveValue("inline parsed description");
+    await expect(page.getByTestId("task-detail-tags")).toHaveValue("@home");
+    await expect(page.getByTestId("task-detail-priority")).toHaveValue("1");
+    await expect(page.getByTestId("task-detail-due")).not.toHaveValue("");
+    await expect(page.getByTestId("task-detail-deadline")).not.toHaveValue("");
+    await expect(page.getByTestId("task-detail-recurrence")).not.toHaveValue("");
+  });
+
   test("creates a new project from task detail and persists it", async ({ page }) => {
     const projectName = `UI Project ${Date.now()}`;
     await addQuickTask(page, "detail project create task");
@@ -164,10 +187,14 @@ test.describe("Home interaction coverage", () => {
     await page.getByTestId("task-detail-project").selectOption("__create_new__");
     await page.getByTestId("task-detail-new-project").fill(projectName);
     await page.getByTestId("task-detail-new-project").press("Enter");
-    await page.getByTestId("task-detail-save").click();
-    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
 
+    await expect(page.getByTestId("task-detail-project")).toHaveValue(projectName);
     await expect(page.getByRole("button", { name: new RegExp(projectName, "i") })).toBeVisible();
+
+    await page.getByTestId("task-detail-modal").getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: new RegExp(projectName, "i") }).first().click();
+    await openTaskDetail(page, "detail project create task");
+    await expect(page.getByTestId("task-detail-project")).toHaveValue(projectName);
   });
 
   test("shows schedule warning when deadline resolves before due", async ({ page }) => {
@@ -684,7 +711,7 @@ test.describe("Home interaction coverage", () => {
 
     await row.click();
     await expect(page.getByTestId("task-detail-modal")).toBeVisible();
-    await page.getByRole("button", { name: "Close" }).click();
+    await page.getByTestId("task-detail-modal").getByRole("button", { name: "Close" }).click();
     await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
   });
 
@@ -811,7 +838,7 @@ test.describe("Home interaction coverage", () => {
     await expect(page.getByTestId("task-detail-modal")).toBeVisible();
   });
 
-  test("detail modal project creation controls support enter, check, cancel, and save", async ({ page }) => {
+  test("detail modal project creation controls support enter, check, cancel, and immediate assignment", async ({ page }) => {
     const task = `detail project controls ${Date.now()}`;
     const projectByEnter = `Proj Enter ${Date.now()}`;
     const projectByCheck = `Proj Check ${Date.now()}`;
@@ -823,6 +850,7 @@ test.describe("Home interaction coverage", () => {
     await expect(newProjectInput).toBeVisible();
     await newProjectInput.fill(projectByEnter);
     await newProjectInput.press("Enter");
+    await expect(page.getByTestId("task-detail-project")).toHaveValue(projectByEnter);
 
     await page.getByTestId("task-detail-project").selectOption("__create_new__");
     const cancelInput = page.getByTestId("task-detail-new-project");
@@ -834,10 +862,14 @@ test.describe("Home interaction coverage", () => {
     const checkInput = page.getByTestId("task-detail-new-project");
     await checkInput.fill(projectByCheck);
     await page.getByRole("button", { name: "✓" }).click();
-    await page.getByTestId("task-detail-save").click();
-    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
 
+    await expect(page.getByTestId("task-detail-project")).toHaveValue(projectByCheck);
     await expect(page.getByRole("button", { name: new RegExp(projectByCheck, "i") })).toBeVisible();
+
+    await page.getByTestId("task-detail-modal").getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: new RegExp(projectByCheck, "i") }).first().click();
+    await openTaskDetail(page, task);
+    await expect(page.getByTestId("task-detail-project")).toHaveValue(projectByCheck);
   });
 
   test("detail tags/priority/due/deadline/rrule inputs save and persist", async ({ page }) => {
@@ -861,6 +893,27 @@ test.describe("Home interaction coverage", () => {
     await expect(page.getByTestId("task-detail-due")).not.toHaveValue("");
     await expect(page.getByTestId("task-detail-deadline")).not.toHaveValue("");
     await expect(page.getByTestId("task-detail-recurrence")).toHaveValue("FREQ=WEEKLY;INTERVAL=1;BYDAY=MO");
+  });
+
+  test("parses quick-add syntax from task detail title on save", async ({ page }) => {
+    const task = `detail title quickadd ${Date.now()}`;
+    await addQuickTask(page, task);
+    await openTaskDetail(page, task);
+
+    await page
+      .getByTestId("task-detail-title")
+      .fill("detail parsed task every thursday at 7pm due thursday {tomorrow} p2 @chore // detail parsed description");
+    await page.getByTestId("task-detail-save").click();
+    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
+
+    await expect(taskRowByContent(page, "detail parsed task")).toBeVisible();
+    await openTaskDetail(page, "detail parsed task");
+    await expect(page.getByTestId("task-detail-description")).toHaveValue("detail parsed description");
+    await expect(page.getByTestId("task-detail-tags")).toHaveValue("@chore");
+    await expect(page.getByTestId("task-detail-priority")).toHaveValue("2");
+    await expect(page.getByTestId("task-detail-due")).not.toHaveValue("");
+    await expect(page.getByTestId("task-detail-deadline")).not.toHaveValue("");
+    await expect(page.getByTestId("task-detail-recurrence")).not.toHaveValue("");
   });
 
   test("board activation make-live button handles preview and activation request", async ({ page }) => {

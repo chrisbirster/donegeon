@@ -100,6 +100,7 @@ test.describe("Board stack flows", () => {
     await updatedStack.click();
     await page.getByTestId("board-detail-mark-done").click();
     await expect(updatedStack).toHaveCount(0);
+    await expect(page.getByTestId("app-toast")).toContainText(/Reward spawned: Coin x1/i);
 
     await expect.poll(() => parseCounterValue(page.getByTestId("board-completed-count"))).toBeGreaterThan(completedBefore);
   });

@@ -544,6 +544,60 @@ func TestTaskActivatePreviewReportsMissingRequirements(t *testing.T) {
 	}
 }
 
+func TestTaskActivateSeedsEmptyBoardBeforeSpawningTask(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:   "Activate onto empty board",
+		Priority:  4,
+		ProjectID: strPtr("board"),
+	})
+	if err != nil {
+		t.Fatalf("create board task: %v", err)
+	}
+
+	result := env.command(t, "task.activate", map[string]any{
+		"taskId":  created.ID,
+		"preview": false,
+	})
+
+	patch := patchMap(t, result, "")
+	if !boolFromPatch(patch["activated"]) {
+		t.Fatalf("expected activated=true, patch=%v", patch)
+	}
+
+	state := env.state(t)
+	if findStackWithTopDef(state, "deck.first_day") == nil {
+		t.Fatalf("expected empty board activation to seed deck.first_day, state=%+v", state)
+	}
+	if findFirstStackWithKind(state, "villager") == nil {
+		t.Fatalf("expected empty board activation to seed a villager stack, state=%+v", state)
+	}
+	if findFirstStackWithKind(state, "resource") == nil {
+		t.Fatalf("expected empty board activation to seed a resource stack, state=%+v", state)
+	}
+	if findFirstStackWithKind(state, "food") == nil {
+		t.Fatalf("expected empty board activation to seed a food stack, state=%+v", state)
+	}
+
+	stack, ok := patch["stack"].(*Stack)
+	if !ok || stack == nil {
+		t.Fatalf("expected activated stack in patch, got %T", patch["stack"])
+	}
+	createdStack := state.Stacks[stack.ID]
+	if createdStack == nil {
+		t.Fatalf("expected activated stack %s in state", stack.ID)
+	}
+	if !stackContainsDefID(state, createdStack, "task.instance") {
+		t.Fatalf("expected activated stack to include task.instance, stack=%+v", createdStack)
+	}
+	if len(state.Stacks) < 6 {
+		t.Fatalf("expected seeded board plus activated task, stackCount=%d", len(state.Stacks))
+	}
+}
+
 func TestTaskActivateConsumesResourcesAndMarksTaskLive(t *testing.T) {
 	t.Parallel()
 
@@ -1347,6 +1401,63 @@ func TestVillagerLevelingPersistsAcrossStackMerges(t *testing.T) {
 	}
 }
 
+func TestTaskCompleteStackSpawnsCoinReward(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     520,
+		"y":     240,
+		"data": map[string]any{
+			"title": "Rewarded completion",
+		},
+	}), "stack")
+
+	before := env.state(t)
+	result := env.command(t, "task.complete_stack", map[string]any{
+		"stackId": taskStack.ID,
+	})
+	patch := patchMap(t, result, "")
+	reward := patchAnyMap(t, patch, "reward")
+	if got := dataStringPatch(reward["type"]); got != "coin" {
+		t.Fatalf("expected task completion reward type coin, got=%q patch=%v", got, reward)
+	}
+	if got := intFromPatch(reward["amount"]); got != 1 {
+		t.Fatalf("expected task completion reward amount 1, got=%d patch=%v", got, reward)
+	}
+	if got := dataStringPatch(reward["mode"]); got != "spawned" {
+		t.Fatalf("expected task completion reward mode spawned, got=%q patch=%v", got, reward)
+	}
+
+	createdStacks := patchStacks(t, result, "createdStacks")
+	foundLoot := false
+	after := env.state(t)
+	for _, created := range createdStacks {
+		if created == nil {
+			continue
+		}
+		createdState := after.Stacks[created.ID]
+		if createdState == nil {
+			continue
+		}
+		if stackContainsDefID(after, createdState, "loot.coin") {
+			foundLoot = true
+			break
+		}
+	}
+	if !foundLoot {
+		t.Fatalf("expected task completion to spawn a loot.coin stack, created=%+v", createdStacks)
+	}
+	if after.Meta.Metrics["tasks_completed"] <= before.Meta.Metrics["tasks_completed"] {
+		t.Fatalf(
+			"expected tasks_completed metric to increase after completion, before=%d after=%d",
+			before.Meta.Metrics["tasks_completed"],
+			after.Meta.Metrics["tasks_completed"],
+		)
+	}
+}
+
 func TestStackMergeTaskAndVillagerCountsAsAssignmentForQuests(t *testing.T) {
 	t.Parallel()
 
@@ -1438,6 +1549,72 @@ func TestStackMergeVillagerOntoZombieTriggersZombieClear(t *testing.T) {
 	}
 	if cleared := after.Stacks[zombieStack.ID]; cleared != nil && stackHasKindFromResponse(after, cleared, "zombie") {
 		t.Fatalf("expected zombie stack %s to be cleared, stack=%+v", zombieStack.ID, cleared)
+	}
+}
+
+func TestStackMergeFoodOntoExhaustedVillagerConsumesFood(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	foodStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "food.apple",
+		"x":     520,
+		"y":     300,
+		"data": map[string]any{
+			"amount": 1,
+		},
+	}), "stack")
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     580,
+		"y":     300,
+	}), "stack")
+
+	rawState, err := env.boardSvc.repo.Load(env.ctx, DefaultBoardID)
+	if err != nil {
+		t.Fatalf("load raw state: %v", err)
+	}
+	rawVillager := rawState.GetStack(villagerStack.ID)
+	if rawVillager == nil {
+		t.Fatalf("expected villager stack %s in raw state", villagerStack.ID)
+	}
+	villagerID := firstVillagerIDFromStack(rawState, rawVillager)
+	if villagerID == "" {
+		t.Fatalf("expected villager id for stack %s", villagerStack.ID)
+	}
+	ensureVillager(&rawState.Meta, villagerID).Stamina = 0
+	if err := env.boardSvc.repo.Save(env.ctx, DefaultBoardID, rawState); err != nil {
+		t.Fatalf("save exhausted villager state: %v", err)
+	}
+
+	result := env.command(t, "stack.merge", map[string]any{
+		"targetId": villagerStack.ID,
+		"sourceId": foodStack.ID,
+	})
+	patch, ok := result.Patch.(map[string]any)
+	if !ok {
+		t.Fatalf("expected patch map from villager+food merge, got %T", result.Patch)
+	}
+	if got := intFromAny(patch["staminaBefore"]); got != 0 {
+		t.Fatalf("expected staminaBefore=0 for exhausted villager, got=%d patch=%v", got, patch)
+	}
+	if got := intFromAny(patch["staminaRemaining"]); got <= 0 {
+		t.Fatalf("expected food merge to restore stamina, got=%d patch=%v", got, patch)
+	}
+
+	after := env.state(t)
+	progress := after.Meta.Villagers[villagerID]
+	if progress == nil {
+		t.Fatalf("expected villager progress for villagerId=%s, villagers=%+v", villagerID, after.Meta.Villagers)
+	}
+	if progress.Stamina <= 0 {
+		t.Fatalf("expected exhausted villager to recover stamina after food merge, progress=%+v", *progress)
+	}
+	if food := after.Stacks[foodStack.ID]; food != nil && stackHasKindFromResponse(after, food, "food") {
+		t.Fatalf("expected food stack %s to be consumed, stack=%+v", foodStack.ID, food)
+	}
+	if after.Stacks[villagerStack.ID] == nil {
+		t.Fatalf("expected villager stack %s to remain after consuming food", villagerStack.ID)
 	}
 }
 

@@ -332,9 +332,11 @@ func (s *Service) cmdStackMerge(ctx context.Context, state *State, args map[stri
 	targetHasTask := stackHasKind(state, target, "task")
 	targetHasVillager := stackHasKind(state, target, "villager")
 	targetHasZombie := stackHasKind(state, target, "zombie")
+	targetHasFood := stackHasKind(state, target, "food")
 	sourceHasTask := stackHasKind(state, source, "task")
 	sourceHasVillager := stackHasKind(state, source, "villager")
 	sourceHasZombie := stackHasKind(state, source, "zombie")
+	sourceHasFood := stackHasKind(state, source, "food")
 
 	// Treat task+villager merges as explicit task assignment so assignment metadata/quests stay consistent.
 	if targetHasTask && sourceHasVillager && !sourceHasTask {
@@ -363,6 +365,23 @@ func (s *Service) cmdStackMerge(ctx context.Context, state *State, args map[stri
 	if sourceHasZombie && targetHasVillager && !targetHasZombie {
 		return s.cmdZombieClear(state, map[string]any{
 			"zombieStackId":   sourceID,
+			"villagerStackId": targetID,
+			"targetStackId":   targetID,
+		})
+	}
+
+	// Treat food+villager merges as eating so exhausted villagers recover
+	// immediately instead of ending up in a no-op mixed stack.
+	if targetHasFood && !targetHasVillager && sourceHasVillager && !sourceHasFood {
+		return s.cmdFoodConsume(state, map[string]any{
+			"foodStackId":     targetID,
+			"villagerStackId": sourceID,
+			"targetStackId":   targetID,
+		})
+	}
+	if sourceHasFood && !sourceHasVillager && targetHasVillager && !targetHasFood {
+		return s.cmdFoodConsume(state, map[string]any{
+			"foodStackId":     sourceID,
 			"villagerStackId": targetID,
 			"targetStackId":   targetID,
 		})
@@ -721,6 +740,7 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 	seenTaskIDs := map[string]struct{}{}
 	removedCards := make([]string, 0, len(stack.Cards))
 	survivorCards := make([]string, 0, len(stack.Cards))
+	completedTaskCardCount := 0
 	basePos := stack.Pos
 	offset := 18
 
@@ -730,6 +750,7 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 			continue
 		}
 		if isTaskCard(card) {
+			completedTaskCardCount++
 			removedCards = append(removedCards, cardID)
 			if taskID := cardTaskID(card); taskID != "" {
 				if _, exists := seenTaskIDs[taskID]; !exists {
@@ -772,8 +793,30 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 			completedTaskIDs = append(completedTaskIDs, taskID)
 		}
 	}
-	meta.Metrics["tasks_completed"] += len(completedTaskIDs)
-	incrementQuestMetric(meta, "complete_task", "", len(completedTaskIDs))
+
+	completedCount := len(completedTaskIDs)
+	if completedCount < completedTaskCardCount {
+		completedCount = completedTaskCardCount
+	}
+	meta.Metrics["tasks_completed"] += completedCount
+	incrementQuestMetric(meta, "complete_task", "", completedCount)
+
+	var rewardPatch map[string]any
+	if rewardType, rewardAmount := s.taskCompleteReward(completedCount); rewardType != "" && rewardAmount > 0 {
+		rewardStack := createSingleCardStack(state, "loot."+rewardType, Point{
+			X: basePos.X + len(createdStacks)*offset + 28,
+			Y: basePos.Y + len(createdStacks)*offset + 12,
+		}, map[string]any{
+			"amount": rewardAmount,
+		})
+		createdStacks = append(createdStacks, rewardStack)
+		rewardPatch = map[string]any{
+			"type":    rewardType,
+			"amount":  rewardAmount,
+			"mode":    "spawned",
+			"stackId": rewardStack.ID,
+		}
+	}
 
 	xpGained := 0
 	villagerProgressPatch := map[string]any{
@@ -785,7 +828,7 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 		"newPerks": []string{},
 	}
 	if hasVillager {
-		xpGained = s.taskCompleteXP(len(completedTaskIDs))
+		xpGained = s.taskCompleteXP(completedCount)
 		progress, newPerks := s.awardVillagerXP(meta, villagerID, xpGained)
 		villagerProgressPatch["xp"] = progress.XP
 		villagerProgressPatch["level"] = progress.Level
@@ -799,6 +842,7 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 		"removedCards":      removedCards,
 		"createdStacks":     createdStacks,
 		"completedTaskIds":  completedTaskIDs,
+		"reward":            rewardPatch,
 		"completionByStack": hasVillager,
 		"villagerProgress":  villagerProgressPatch,
 	}, nil
@@ -840,9 +884,20 @@ func (s *Service) cmdTaskCompleteByTaskID(ctx context.Context, state *State, arg
 	meta.Metrics["tasks_completed"]++
 	incrementQuestMetric(meta, "complete_task", "", 1)
 
+	var rewardPatch map[string]any
+	if rewardType, rewardAmount := s.taskCompleteReward(1); rewardType != "" && rewardAmount > 0 {
+		meta.Inventory[rewardType] += rewardAmount
+		rewardPatch = map[string]any{
+			"type":   rewardType,
+			"amount": rewardAmount,
+			"mode":   "inventory",
+		}
+	}
+
 	return map[string]any{
 		"completedTaskId": taskID,
 		"mode":            "repo_only",
+		"reward":          rewardPatch,
 	}, nil
 }
 
@@ -1341,6 +1396,12 @@ func (s *Service) cmdTaskActivate(ctx context.Context, state *State, boardID str
 			"requirements": requirements,
 			"inventory":    copyIntMap(meta.Inventory),
 		}, nil
+	}
+
+	if len(state.Stacks) == 0 {
+		if _, err := s.cmdBoardSeedDefault(state, nil); err != nil {
+			return nil, err
+		}
 	}
 
 	x := getIntOr(args, "x", 120+(len(state.Stacks)*37)%720)
@@ -3604,6 +3665,13 @@ func (s *Service) taskCompleteXP(completedCount int) int {
 		return 0
 	}
 	return total
+}
+
+func (s *Service) taskCompleteReward(completedCount int) (string, int) {
+	if completedCount <= 0 {
+		return "", 0
+	}
+	return "coin", completedCount
 }
 
 func (s *Service) gatherResourceXP() int {

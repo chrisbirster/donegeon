@@ -111,4 +111,30 @@ test.describe("Home task flows", () => {
     await row.getByTestId("delete-task").click();
     await expect(row).toHaveCount(0);
   });
+
+  test("shows completed tasks in a completed section and allows reopening them", async ({ page }) => {
+    await addQuickTask(page, "Completed visibility task");
+
+    const openRow = taskRowByContent(page, "Completed visibility task");
+    await expect(openRow).toBeVisible();
+
+    await openRow.hover();
+    await openRow.getByTestId("open-task-details").click();
+    await expect(page.getByTestId("task-detail-modal")).toBeVisible();
+    await page.getByTestId("task-detail-mark-done").click();
+
+    await expect(page.getByText("No open tasks in this view.")).toBeVisible();
+
+    const completedRow = page.getByTestId("completed-task-row").filter({
+      has: page.getByTestId("completed-task-content").filter({ hasText: "Completed visibility task" }),
+    });
+    await expect(page.getByTestId("completed-task-section")).toBeVisible();
+    await expect(completedRow).toBeVisible();
+
+    await completedRow.hover();
+    await completedRow.getByTestId("reopen-task").click();
+
+    await expect(taskRowByContent(page, "Completed visibility task")).toBeVisible();
+    await expect(completedRow).toHaveCount(0);
+  });
 });

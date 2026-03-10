@@ -439,7 +439,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers: mergedHeaders,
   };
 
-  if (isUiActionBusEnabled()) {
+  if (init?.signal == null && isUiActionBusEnabled()) {
     const body = toWorkerBody(init?.body);
     const canUseWorkerForBody = body !== undefined || init?.body === undefined || init?.body === null;
     if (canUseWorkerForBody) {
@@ -593,8 +593,9 @@ export const projectApi = {
 };
 
 export const parseApi = {
-  quickAdd: (text: string) =>
+  quickAdd: (text: string, init?: RequestInit) =>
     api<{ parsed: QuickAddParsed }>("/api/quick-add/parse", {
+      ...init,
       method: "POST",
       body: JSON.stringify({ text }),
     }),

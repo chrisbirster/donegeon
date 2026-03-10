@@ -1,8 +1,27 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { inviteTeamMemberAndAccept, parseCounterValue, resetBoard, resetTasks } from "./support/api";
+import { inviteTeamMemberAndAccept, parseCounterValue, resetBoard, resetTasks, taskRowByContent } from "./support/api";
 
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
+
+type MockBoardStateResponse = {
+  version: string;
+  stacks: Record<string, { id: string; pos: { x: number; y: number }; z: number; cards: string[] }>;
+  cards: Record<string, { id: string; defId: string; data?: Record<string, unknown> }>;
+  meta?: {
+    inventory?: Record<string, number>;
+    metrics?: Record<string, number>;
+    villagers?: Record<
+      string,
+      {
+        stamina?: number;
+        xp?: number;
+        level?: number;
+        perks?: string[];
+      }
+    >;
+  };
+};
 
 function stackByTitle(page: Page, title: string) {
   return page.getByTestId("board-stack").filter({
@@ -91,6 +110,55 @@ async function spawnBlankTaskStack(page: Page) {
   const blankTaskStack = stackByTitle(page, "Blank Task").first();
   await expect(blankTaskStack).toBeVisible();
   return blankTaskStack;
+}
+
+function mergedMiningBoardState(stamina: number, version = "52"): MockBoardStateResponse {
+  const stackID = "stack-mining";
+  const villagerID = "villager-miner";
+  const villagerCardID = "card-villager";
+  const resourceCardID = "card-resource";
+
+  return {
+    version,
+    stacks: {
+      [stackID]: {
+        id: stackID,
+        pos: { x: 320, y: 220 },
+        z: 12,
+        cards: [resourceCardID, villagerCardID],
+      },
+    },
+    cards: {
+      [resourceCardID]: {
+        id: resourceCardID,
+        defId: "resource.tree",
+        data: {
+          charges: 3,
+          gatherTimeS: 1,
+        },
+      },
+      [villagerCardID]: {
+        id: villagerCardID,
+        defId: "villager.basic",
+        data: {
+          villagerId: villagerID,
+          name: "Pip",
+        },
+      },
+    },
+    meta: {
+      inventory: { coin: 0, gear: 0, ink: 0, paper: 0, parts: 0 },
+      metrics: { day_ticks: 0, overrun_level: 0, tasks_completed: 0, zombies_cleared: 0, zombies_seen: 0 },
+      villagers: {
+        [villagerID]: {
+          stamina,
+          xp: 0,
+          level: 1,
+          perks: [],
+        },
+      },
+    },
+  };
 }
 
 test.describe("Board UI interactions", () => {
@@ -556,6 +624,30 @@ test.describe("Board UI interactions", () => {
     await expect(stackByTitle(page, "Board Detail Save Check").first()).toBeVisible();
   });
 
+  test("parses quick-add syntax when saving board task detail title", async ({ page }) => {
+    const taskStack = await spawnBlankTaskStack(page);
+    await taskStack.click();
+    await expect(page.getByTestId("board-detail-modal")).toBeVisible();
+
+    await page.getByTestId("board-detail-title").fill("board parsed task p1 @home // board parsed description");
+    await page.getByTestId("board-detail-save").click();
+
+    const savedStack = stackByTitle(page, "board parsed task").first();
+    await expect(savedStack).toBeVisible();
+    await savedStack.click();
+    await page.getByRole("button", { name: "View in Tasks Page" }).click();
+    await expect(page).toHaveURL(/\/task\/project\/board$/);
+
+    const row = taskRowByContent(page, "board parsed task");
+    await expect(row).toBeVisible();
+    await row.hover();
+    await row.getByTestId("open-task-details").click();
+    await expect(page.getByTestId("task-detail-modal")).toBeVisible();
+    await expect(page.getByTestId("task-detail-description")).toHaveValue("board parsed description");
+    await expect(page.getByTestId("task-detail-tags")).toHaveValue("@home");
+    await expect(page.getByTestId("task-detail-priority")).toHaveValue("1");
+  });
+
   test("supports mobile map hub toggle", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/board");
@@ -566,5 +658,92 @@ test.describe("Board UI interactions", () => {
 
     await page.getByTestId("board-mobile-map-toggle").click();
     await expect(page.getByTestId("board-mobile-map-toggle")).toHaveText("Map");
+  });
+});
+
+test.describe("Board auto-mining regressions", () => {
+  test.beforeEach(async ({ request }) => {
+    await resetTasks(request);
+    await resetBoard(request);
+  });
+
+  test("does not start auto-gather for merged villager/resource stacks with zero stamina", async ({ page }) => {
+    let gatherCalls = 0;
+
+    await page.route("**/api/board/state**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mergedMiningBoardState(0)),
+      });
+    });
+
+    await page.route("**/api/board/cmd?board=**", async (route, request) => {
+      if (request.method() === "POST") {
+        const payload = request.postDataJSON() as { cmd?: string } | null;
+        if (payload?.cmd === "resource.gather") {
+          gatherCalls += 1;
+        }
+      }
+      await route.continue();
+    });
+
+    await page.goto("/board");
+    await expect(page.getByTestId("board-canvas")).toBeVisible();
+    await expect(page.getByTestId("board-stack")).toHaveCount(1);
+
+    await page.waitForTimeout(1400);
+    expect(gatherCalls).toBe(0);
+  });
+
+  test("refreshes after mining conflicts without retrying stale gather commands", async ({ page }) => {
+    let gatherCalls = 0;
+    let boardStateCalls = 0;
+
+    await page.route("**/api/board/state**", async (route) => {
+      boardStateCalls += 1;
+      const state = boardStateCalls === 1
+        ? mergedMiningBoardState(1, "52")
+        : mergedMiningBoardState(0, "53");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(state),
+      });
+    });
+
+    await page.route("**/api/board/cmd?board=**", async (route, request) => {
+      if (request.method() !== "POST") {
+        await route.continue();
+        return;
+      }
+
+      const payload = request.postDataJSON() as { cmd?: string } | null;
+      if (payload?.cmd !== "resource.gather") {
+        await route.continue();
+        return;
+      }
+
+      gatherCalls += 1;
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: false,
+          error: "board version conflict",
+          newVersion: "53",
+        }),
+      });
+    });
+
+    await page.goto("/board");
+    await expect(page.getByTestId("board-canvas")).toBeVisible();
+    await expect(page.getByTestId("board-stack")).toHaveCount(1);
+
+    await expect.poll(() => gatherCalls).toBe(1);
+    await expect.poll(() => boardStateCalls).toBeGreaterThanOrEqual(2);
+
+    await page.waitForTimeout(1400);
+    expect(gatherCalls).toBe(1);
   });
 });

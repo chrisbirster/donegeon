@@ -75,17 +75,18 @@ type projectLogSnapshot struct {
 }
 
 type API struct {
-	logger      *slog.Logger
-	cfg         config.Config
-	tasks       *task.Service
-	projects    *project.Service
-	boards      *board.Service
-	calendars   *calendar.Service
-	parser      *quickadd.Parser
-	taskManager *taskmanagercompat.Service
-	accounts    *account.Service
-	webHandler  http.Handler
-	cookies     *securecookie.SecureCookie
+	logger               *slog.Logger
+	cfg                  config.Config
+	tasks                *task.Service
+	projects             *project.Service
+	boards               *board.Service
+	calendars            *calendar.Service
+	parser               *quickadd.Parser
+	taskManager          *taskmanagercompat.Service
+	accounts             *account.Service
+	webHandler           http.Handler
+	cookies              *securecookie.SecureCookie
+	quickAddParseLimiter *tokenBucketLimiter
 }
 
 func New(
@@ -112,6 +113,11 @@ func New(
 		accounts:    accounts,
 		webHandler:  newSPAHandler(staticFS),
 		cookies:     securecookie.New([]byte(cfg.CookieSigningKey), nil),
+		quickAddParseLimiter: newTokenBucketLimiter(
+			quickAddParseLimitRatePerSecond,
+			quickAddParseLimitBurst,
+			quickAddParseLimiterTTL,
+		),
 	}
 
 	mux := http.NewServeMux()
@@ -867,6 +873,12 @@ func (a *API) handleBillingWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleParseQuickAdd(w http.ResponseWriter, r *http.Request) {
+	if a.quickAddParseLimiter != nil && !a.quickAddParseLimiter.Allow(quickAddParseLimiterKey(r), time.Now()) {
+		w.Header().Set("Retry-After", "1")
+		writeAPIError(w, apperrors.New(apperrors.CodeRateLimited, "quick-add parse rate limit exceeded"))
+		return
+	}
+
 	var req struct {
 		Text string `json:"text"`
 	}

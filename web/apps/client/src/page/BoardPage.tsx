@@ -4,6 +4,8 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, 
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
 import { getCachedBoardState, setCachedBoardState } from "../lib/boardCache";
+import { extractQuickAddLabels, mergeNormalizedLabels, parseQuickAddLabels } from "../lib/quickAddLabels";
+import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
 import {
   type BoardCard,
   type BoardCommandPayload,
@@ -181,6 +183,19 @@ function dataNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function dataStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function dataObject(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
 const QUICK_ADD_TOKEN_PATTERN =
   /(\{[^{}]+\}|#[A-Za-z][A-Za-z0-9_-]*|@[A-Za-z0-9][A-Za-z0-9_-]*|\+[A-Za-z][A-Za-z0-9_-]*|\bp[1-4]\b|\bevery\s+[A-Za-z0-9 ]+\b|\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b|\btomorrow\b)/gi;
 
@@ -336,6 +351,28 @@ function questRewardLabel(reward: BoardQuestReward): string {
   }
 }
 
+function taskCompletionToastMessage(patch: unknown): string {
+  const payload = dataObject(patch);
+  const reward = dataObject(payload?.reward);
+  const villagerProgress = dataObject(payload?.villagerProgress);
+
+  const parts = ["Task completed."];
+  const rewardType = dataString(reward?.type);
+  const rewardAmount = Math.max(0, Math.floor(dataNumber(reward?.amount) ?? 0));
+  const rewardMode = dataString(reward?.mode);
+  if (rewardType && rewardAmount > 0) {
+    const rewardLabel = `${humanizeToken(rewardType)} x${rewardAmount}`;
+    parts.push(rewardMode === "spawned" ? `Reward spawned: ${rewardLabel}.` : `Reward: ${rewardLabel}.`);
+  }
+
+  const xpGained = Math.max(0, Math.floor(dataNumber(villagerProgress?.xpGained) ?? 0));
+  if (xpGained > 0) {
+    parts.push(`Villager XP +${xpGained}.`);
+  }
+
+  return parts.join(" ");
+}
+
 function addChip(value: string | undefined, label: string): string | null {
   if (!value || !value.trim()) return null;
   return `${label}: ${value}`;
@@ -408,12 +445,6 @@ function scheduleValidationWarning(dueValue: string | undefined, deadlineValue: 
   const dueLabel = formatScheduleDateTime(dueValue) ?? (dueValue ?? "").trim();
   const deadlineLabel = formatScheduleDateTime(deadlineValue) ?? (deadlineValue ?? "").trim();
   return `Schedule check: deadline resolves before due (${deadlineLabel} < ${dueLabel}).`;
-}
-
-function extractTagsFromText(text: string): string[] {
-  const matches = text.match(/@[A-Za-z0-9][A-Za-z0-9_-]*/g) ?? [];
-  const unique = new Set(matches.map((item) => item.slice(1).toLowerCase()));
-  return Array.from(unique.values());
 }
 
 function cardKind(defID: string): string {
@@ -895,6 +926,30 @@ export default function BoardRoute() {
   let createBoardInputRef: HTMLInputElement | undefined;
   let composerParseTimer: number | undefined;
   let detailParseTimer: number | undefined;
+  let composerParseController: AbortController | undefined;
+  let detailParseController: AbortController | undefined;
+  let composerParseRequestSeq = 0;
+  let detailParseRequestSeq = 0;
+  let lastComposerParsedText = "";
+  let lastDetailParsedText = "";
+
+  function resetComposerPreview() {
+    composerParseRequestSeq += 1;
+    composerParseController?.abort();
+    composerParseController = undefined;
+    lastComposerParsedText = "";
+    setComposerParsed(null);
+    setComposerParsing(false);
+  }
+
+  function resetDetailPreview() {
+    detailParseRequestSeq += 1;
+    detailParseController?.abort();
+    detailParseController = undefined;
+    lastDetailParsedText = "";
+    setDetailParsed(null);
+    setDetailParsing(false);
+  }
 
   const activeBoardID = createMemo(() => boardIDFromSearch(location.search));
   const activeBoardProjectID = createMemo(() => boardProjectIDForBoard(activeBoardID()));
@@ -1359,6 +1414,12 @@ export default function BoardRoute() {
   const detailStoredDeadline = createMemo(() => dataString(selectedTaskCard()?.data?.dueDeadline));
   const detailDueInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleInput(), "due"));
   const detailDeadlineInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleInput(), "deadline"));
+  const detailVisibleLabels = createMemo(() =>
+    mergeNormalizedLabels(
+      dataStringArray(selectedTaskCard()?.data?.labels).filter((label) => !hasBoardLiveLabel([label])),
+      extractQuickAddLabels(detailTitle()),
+    ).filter((label) => !hasBoardLiveLabel([label])),
+  );
   const detailScheduleWarning = createMemo(() =>
     scheduleValidationWarning(detailStoredDue(), detailStoredDeadline()),
   );
@@ -1552,6 +1613,10 @@ export default function BoardRoute() {
         if (!stackHasKind(stack, "villager") || !stackHasKind(stack, "resource")) {
           continue;
         }
+        const villager = villagerStatusForStack(stack, current);
+        if (!villager || villager.stamina <= 0) {
+          continue;
+        }
 
         const durationMs = miningDurationMsForStack(stack);
         if (!durationMs) continue;
@@ -1620,16 +1685,24 @@ export default function BoardRoute() {
       void (async () => {
         let advanceCycle = false;
         try {
-          await sendCommand({
-            cmd: "resource.gather",
-            args: {
-              resourceStackId: stackID,
-              villagerStackId: stackID,
+          await sendCommand(
+            {
+              cmd: "resource.gather",
+              args: {
+                resourceStackId: stackID,
+                villagerStackId: stackID,
+              },
             },
-          });
+            { retryConflict: false },
+          );
           advanceCycle = true;
         } catch (err) {
-          const message = (err as Error).message.toLowerCase();
+          const apiError = err as ApiError;
+          if (apiError.status === 409) {
+            await loadBoard({ syncTasks: false, silent: true });
+            return;
+          }
+          const message = apiError.message.toLowerCase();
           if (message.includes("stamina too low") || message.includes("resource stack not found")) {
             setMiningSessionsByStackID((existing) => {
               const next = { ...existing };
@@ -2247,23 +2320,36 @@ export default function BoardRoute() {
     }
 
     const trimmed = value.trim();
-    if (!trimmed) {
-      setComposerParsed(null);
-      setComposerParsing(false);
+    if (!trimmed || !shouldPreviewQuickAdd(trimmed)) {
+      resetComposerPreview();
       return;
     }
 
     composerParseTimer = window.setTimeout(async () => {
+      if (trimmed === lastComposerParsedText) return;
+      lastComposerParsedText = trimmed;
+      composerParseRequestSeq += 1;
+      const requestSeq = composerParseRequestSeq;
+      composerParseController?.abort();
+      const controller = new AbortController();
+      composerParseController = controller;
       setComposerParsing(true);
       try {
-        const parsed = await api.parse.quickAdd(ensureBoardProjectToken(trimmed, activeBoardProjectID()));
+        const parsed = await api.parse.quickAdd(ensureBoardProjectToken(trimmed, activeBoardProjectID()), {
+          signal: controller.signal,
+        });
+        if (requestSeq !== composerParseRequestSeq) return;
         setComposerParsed(parsed.parsed);
-      } catch {
+      } catch (err) {
+        if (isAbortError(err) || requestSeq !== composerParseRequestSeq) return;
         setComposerParsed(null);
       } finally {
-        setComposerParsing(false);
+        if (requestSeq === composerParseRequestSeq) {
+          composerParseController = undefined;
+          setComposerParsing(false);
+        }
       }
-    }, 140);
+    }, 325);
   }
 
   function queueDetailParse(value: string) {
@@ -2273,28 +2359,53 @@ export default function BoardRoute() {
     }
 
     const trimmed = value.trim();
-    if (!trimmed) {
-      setDetailParsed(null);
-      setDetailParsing(false);
+    if (!trimmed || !shouldPreviewQuickAdd(trimmed)) {
+      resetDetailPreview();
       return;
     }
 
     detailParseTimer = window.setTimeout(async () => {
+      if (trimmed === lastDetailParsedText) return;
+      lastDetailParsedText = trimmed;
+      detailParseRequestSeq += 1;
+      const requestSeq = detailParseRequestSeq;
+      detailParseController?.abort();
+      const controller = new AbortController();
+      detailParseController = controller;
       setDetailParsing(true);
       try {
-        const parsed = await api.parse.quickAdd(trimmed);
+        const parsed = await api.parse.quickAdd(trimmed, { signal: controller.signal });
+        if (requestSeq !== detailParseRequestSeq) return;
         setDetailParsed(parsed.parsed);
-      } catch {
+      } catch (err) {
+        if (isAbortError(err) || requestSeq !== detailParseRequestSeq) return;
         setDetailParsed(null);
       } finally {
-        setDetailParsing(false);
+        if (requestSeq === detailParseRequestSeq) {
+          detailParseController = undefined;
+          setDetailParsing(false);
+        }
       }
-    }, 140);
+    }, 325);
   }
 
   function onDetailTitleInput(value: string) {
     setDetailTitle(value);
     queueDetailParse(value);
+  }
+
+  async function parseTaskTitleInput(value: string): Promise<QuickAddParsed | null> {
+    const trimmed = value.trim();
+    if (!trimmed || !shouldPreviewQuickAdd(trimmed)) {
+      return null;
+    }
+
+    const parsed = await api.parse.quickAdd(trimmed);
+    return parsed.parsed;
+  }
+
+  function hasParsedSchedule(parsed: QuickAddParsed | null): boolean {
+    return !!(parsed?.recurrenceRule || parsed?.dueText || parsed?.deadline);
   }
 
   async function createTaskStack() {
@@ -2327,7 +2438,7 @@ export default function BoardRoute() {
       });
 
       setComposerText("");
-      setComposerParsed(null);
+      resetComposerPreview();
       setError("");
     } catch (err) {
       setError((err as Error).message);
@@ -2357,8 +2468,7 @@ export default function BoardRoute() {
       window.clearTimeout(detailParseTimer);
       detailParseTimer = undefined;
     }
-    setDetailParsed(null);
-    setDetailParsing(false);
+    resetDetailPreview();
   }
 
   function openInTaskPage() {
@@ -2378,8 +2488,13 @@ export default function BoardRoute() {
       const recurrenceEnabled = recurringModifierEnabled();
       const deadlineEnabled = deadlineModifierEnabled();
       const rawTitle = detailTitle().trim();
-      let normalizedTitle = rawTitle;
-      const normalizedDescription = detailDescription().trim();
+      const parsed = await parseTaskTitleInput(rawTitle);
+      if (rawTitle && parsed && !parsed.content.trim()) {
+        setError("Task title cannot be empty");
+        return;
+      }
+      let normalizedTitle = (parsed?.content ?? rawTitle).trim();
+      const normalizedDescription = (parsed?.description || detailDescription()).trim();
       let normalizedContent = normalizedTitle || "Untitled task";
 
       let recurrenceRule: string | undefined;
@@ -2387,11 +2502,10 @@ export default function BoardRoute() {
       let dueText: string | undefined;
       let dueDeadline: string | undefined;
 
-      if ((recurrenceEnabled || deadlineEnabled) && rawTitle !== "") {
-        const parsed = await api.parse.quickAdd(rawTitle);
-        const parsedRecurrence = parsed.parsed.recurrenceRule;
-        const parsedDueText = parsed.parsed.dueText;
-        const parsedDeadline = parsed.parsed.deadline;
+      if ((recurrenceEnabled || deadlineEnabled) && parsed) {
+        const parsedRecurrence = parsed.recurrenceRule;
+        const parsedDueText = parsed.dueText;
+        const parsedDeadline = parsed.deadline;
 
         const recurrenceParsed = !!parsedRecurrence;
         const deadlineParsed = !!parsedDueText || !!parsedDeadline;
@@ -2453,7 +2567,7 @@ export default function BoardRoute() {
           cmd: "task.set_priority",
           args: {
             taskCardId: taskCard.id,
-            priority: detailPriority(),
+            priority: parsed?.priority ?? detailPriority(),
           },
         },
         { refresh: false },
@@ -2462,10 +2576,11 @@ export default function BoardRoute() {
       await api.tasks.update(taskID, {
         content: normalizedContent,
         description: normalizedDescription,
-        priority: detailPriority(),
+        priority: parsed?.priority ?? detailPriority(),
         projectId: activeBoardProjectID(),
+        labels: mergeNormalizedLabels(dataStringArray(taskCard.data?.labels), parsed?.labels),
         recurrenceRule,
-        scheduleInput,
+        scheduleInput: hasParsedSchedule(parsed) && (recurrenceEnabled || deadlineEnabled) ? scheduleInput : undefined,
         dueText,
         dueDeadline,
       });
@@ -2481,7 +2596,7 @@ export default function BoardRoute() {
 
   async function completeStack(stackID: string) {
     try {
-      await sendCommand({
+      const result = await sendCommand({
         cmd: "task.complete_stack",
         args: { stackId: stackID },
       });
@@ -2491,6 +2606,7 @@ export default function BoardRoute() {
       setInlineStackID(null);
       setInlineTitle("");
       setError("");
+      toast.success(taskCompletionToastMessage(result.patch));
     } catch {
       // Error state is set in sendCommand.
     }
@@ -3079,6 +3195,8 @@ export default function BoardRoute() {
       if (detailParseTimer !== undefined) {
         window.clearTimeout(detailParseTimer);
       }
+      composerParseController?.abort();
+      detailParseController?.abort();
     });
   });
 
@@ -3101,14 +3219,13 @@ export default function BoardRoute() {
       window.clearTimeout(detailParseTimer);
       detailParseTimer = undefined;
     }
-    setDetailParsed(null);
-    setDetailParsing(false);
+    resetDetailPreview();
     setInlineStackID(null);
     setInlineTitle("");
     setDeckHubOpen(false);
     setMobileMapHubOpen(false);
     setDeckHubDragDefID(null);
-    setComposerParsed(null);
+    resetComposerPreview();
     setComposerText("");
     setBoardMembers([]);
     void loadBoardMembers(boardID);
@@ -4518,9 +4635,9 @@ export default function BoardRoute() {
                   <span class="rounded-lg border border-[#4b5d8e] bg-[#1d2d4a] px-3 py-1 text-lg text-[#d8e5ff]">
                     #{activeBoardProjectID()}
                   </span>
-                  <For each={extractTagsFromText(detailTitle())}>
+                  <For each={detailVisibleLabels()}>
                     {(tag) => (
-                      <span class="rounded-lg border border-[#6243a4] bg-[#281a46] px-3 py-1 text-lg text-[#e4d7ff]">#{tag}</span>
+                      <span class="rounded-lg border border-[#6243a4] bg-[#281a46] px-3 py-1 text-lg text-[#e4d7ff]">@{tag}</span>
                     )}
                   </For>
                 </div>
