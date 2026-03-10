@@ -37,6 +37,7 @@ tasks:
         DONEGEON_APP_BASE_URL=http://localhost:5173
         DONEGEON_COOKIE_DOMAIN=
         DONEGEON_COOKIE_SECURE=false
+        DONEGEON_OPEN_BETA=true
         DONEGEON_AUTH_DEBUG_CODE=true
         DONEGEON_REQUIRE_AUTH=true
         EOF
@@ -65,14 +66,15 @@ tasks:
         set -a
         [ -f .env ] && . ./.env
         set +a
+        : "${DONEGEON_OPEN_BETA:=true}"
         : "${DONEGEON_AUTH_DEBUG_CODE:=true}"
         : "${DONEGEON_REQUIRE_AUTH:=true}"
         if [ "${DONEGEON_COOKIE_DOMAIN:-}" = "app.donegeon.com" ]; then
           echo "dev: overriding DONEGEON_COOKIE_DOMAIN=app.donegeon.com for localhost"
           export DONEGEON_COOKIE_DOMAIN=""
         fi
-        export DONEGEON_AUTH_DEBUG_CODE DONEGEON_REQUIRE_AUTH
-        echo "starting backend (DONEGEON_AUTH_DEBUG_CODE=${DONEGEON_AUTH_DEBUG_CODE})"
+        export DONEGEON_OPEN_BETA DONEGEON_AUTH_DEBUG_CODE DONEGEON_REQUIRE_AUTH
+        echo "starting backend (DONEGEON_OPEN_BETA=${DONEGEON_OPEN_BETA} DONEGEON_AUTH_DEBUG_CODE=${DONEGEON_AUTH_DEBUG_CODE})"
         air -c .air.toml
 
   dev:backend:sqlite:
@@ -93,6 +95,7 @@ tasks:
         : "${DONEGEON_APP_BASE_URL:=http://localhost:5173}"
         : "${DONEGEON_COOKIE_DOMAIN:=}"
         : "${DONEGEON_COOKIE_SECURE:=false}"
+        : "${DONEGEON_OPEN_BETA:=true}"
         : "${DONEGEON_AUTH_DEBUG_CODE:=true}"
         : "${DONEGEON_REQUIRE_AUTH:=true}"
         export \
@@ -101,6 +104,7 @@ tasks:
           DONEGEON_APP_BASE_URL \
           DONEGEON_COOKIE_DOMAIN \
           DONEGEON_COOKIE_SECURE \
+          DONEGEON_OPEN_BETA \
           DONEGEON_AUTH_DEBUG_CODE \
           DONEGEON_REQUIRE_AUTH
         echo "starting backend (db=${DONEGEON_DB_BACKEND} path=${DONEGEON_DB_PATH})"

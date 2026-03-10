@@ -112,12 +112,13 @@ type QuestState struct {
 }
 
 type BoardMeta struct {
-	Inventory    map[string]int               `json:"inventory,omitempty"`
-	Villagers    map[string]*VillagerProgress `json:"villagers,omitempty"`
-	Metrics      map[string]int               `json:"metrics,omitempty"`
-	DeckOpen     map[string]int               `json:"deckOpen,omitempty"`
-	DayTickCount int                          `json:"dayTickCount,omitempty"`
-	Quests       *QuestState                  `json:"quests,omitempty"`
+	Inventory     map[string]int               `json:"inventory,omitempty"`
+	Villagers     map[string]*VillagerProgress `json:"villagers,omitempty"`
+	Metrics       map[string]int               `json:"metrics,omitempty"`
+	DeckOpen      map[string]int               `json:"deckOpen,omitempty"`
+	StoreReceipts map[string]*StoreReceipt     `json:"storeReceipts,omitempty"`
+	DayTickCount  int                          `json:"dayTickCount,omitempty"`
+	Quests        *QuestState                  `json:"quests,omitempty"`
 }
 
 type Stack struct {
@@ -180,6 +181,9 @@ func (s *State) normalize() {
 	}
 	if s.Meta.DeckOpen == nil {
 		s.Meta.DeckOpen = map[string]int{}
+	}
+	if s.Meta.StoreReceipts == nil {
+		s.Meta.StoreReceipts = map[string]*StoreReceipt{}
 	}
 	if s.Meta.Quests == nil {
 		s.Meta.Quests = &QuestState{

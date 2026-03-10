@@ -1,0 +1,194 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+      - fly.toml
+      - main.go
+      - cmd/**
+      - internal/**
+      - go.mod
+      - go.sum
+      - donegeon_config.yml
+      - docs/quests.yaml
+      - web/apps/client/**
+      - web/apps/marketing/**
+      - web/package.json
+      - web/bun.lock
+      - web/turbo.json
+      - infra/**
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to deploy
+        required: true
+        default: changed
+        type: choice
+        options:
+          - changed
+          - app
+          - marketing
+          - all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect deploy targets
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_app: ${{ steps.detect.outputs.deploy_app }}
+      deploy_marketing: ${{ steps.detect.outputs.deploy_marketing }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed components
+        id: detect
+        shell: bash
+        env:
+          TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'changed' }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          deploy_app=false
+          deploy_marketing=false
+
+          case "$TARGET" in
+            all)
+              deploy_app=true
+              deploy_marketing=true
+              ;;
+            app)
+              deploy_app=true
+              ;;
+            marketing)
+              deploy_marketing=true
+              ;;
+            changed)
+              before="$BEFORE_SHA"
+              if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+                if git rev-parse HEAD^ >/dev/null 2>&1; then
+                  before="$(git rev-parse HEAD^)"
+                else
+                  before="$(git hash-object -t tree /dev/null)"
+                fi
+              fi
+
+              mapfile -t changed_files < <(git diff --name-only "$before" "$CURRENT_SHA")
+
+              echo "Changed files:"
+              if [ "${#changed_files[@]}" -eq 0 ]; then
+                echo "  <none>"
+              else
+                printf '  %s\n' "${changed_files[@]}"
+              fi
+
+              for file in "${changed_files[@]}"; do
+                case "$file" in
+                  web/package.json|web/bun.lock|web/turbo.json)
+                    deploy_app=true
+                    deploy_marketing=true
+                    ;;
+                  Dockerfile|fly.toml|main.go|go.mod|go.sum|donegeon_config.yml|docs/quests.yaml)
+                    deploy_app=true
+                    ;;
+                  cmd/*|internal/*|web/apps/client/*)
+                    deploy_app=true
+                    ;;
+                  infra/*|web/apps/marketing/*)
+                    deploy_marketing=true
+                    ;;
+                esac
+              done
+              ;;
+            *)
+              echo "Unsupported target: $TARGET" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "deploy_app=$deploy_app" >> "$GITHUB_OUTPUT"
+          echo "deploy_marketing=$deploy_marketing" >> "$GITHUB_OUTPUT"
+
+  deploy-app:
+    name: Deploy app to Fly
+    needs: detect-changes
+    if: needs.detect-changes.outputs.deploy_app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Build embedded client assets
+        working-directory: web
+        run: bun run build --filter=@donegeon/client
+
+      - name: Install flyctl
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> "$GITHUB_PATH"
+
+      - name: Deploy application
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --config fly.toml
+
+  deploy-marketing:
+    name: Deploy marketing and infra via SST
+    needs: detect-changes
+    if: needs.detect-changes.outputs.deploy_marketing == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Install web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: bun install --frozen-lockfile
+
+      - name: Deploy production SST stack
+        working-directory: infra
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+          DONEGEON_MARKETING_DOMAIN: ${{ vars.DONEGEON_MARKETING_DOMAIN }}
+          DONEGEON_EMAIL_SENDER: ${{ vars.DONEGEON_EMAIL_SENDER }}
+          DONEGEON_EMAIL_FROM: ${{ vars.DONEGEON_EMAIL_FROM }}
+          DONEGEON_EMAIL_API_AUTH_HEADER: ${{ vars.DONEGEON_EMAIL_API_AUTH_HEADER }}
+        run: bunx sst deploy --stage production

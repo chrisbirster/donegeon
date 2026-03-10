@@ -1702,6 +1702,127 @@ func TestTaskSetTitleCountsCreateTaskOnceBeforeLinking(t *testing.T) {
 	}
 }
 
+func TestGrantStorePurchaseCreditsCoinAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	first, err := env.boardSvc.GrantStorePurchase(env.ctx, DefaultBoardID, StorePurchaseGrant{
+		SessionID: "cs_test_store_coin",
+		ItemID:    storeItemCoinStash,
+	})
+	if err != nil {
+		t.Fatalf("grant coin stash: %v", err)
+	}
+	if first.AlreadyApplied {
+		t.Fatal("expected first store grant to apply")
+	}
+	if got := first.Inventory["coin"]; got != 25 {
+		t.Fatalf("expected coin stash to grant 25 coin, got=%d inventory=%+v", got, first.Inventory)
+	}
+
+	state := env.state(t)
+	if got := state.Meta.Inventory["coin"]; got != 25 {
+		t.Fatalf("expected board inventory coin=25 after store grant, got=%d inventory=%+v", got, state.Meta.Inventory)
+	}
+	if len(state.Stacks) == 0 {
+		t.Fatal("expected store grant to seed the board when empty")
+	}
+	receipt := state.Meta.StoreReceipts["cs_test_store_coin"]
+	if receipt == nil {
+		t.Fatalf("expected store receipt for session id, receipts=%+v", state.Meta.StoreReceipts)
+	}
+	if receipt.ItemID != storeItemCoinStash {
+		t.Fatalf("expected receipt item id=%s, got=%s", storeItemCoinStash, receipt.ItemID)
+	}
+
+	second, err := env.boardSvc.GrantStorePurchase(env.ctx, DefaultBoardID, StorePurchaseGrant{
+		SessionID: "cs_test_store_coin",
+		ItemID:    storeItemCoinStash,
+	})
+	if err != nil {
+		t.Fatalf("grant coin stash second time: %v", err)
+	}
+	if !second.AlreadyApplied {
+		t.Fatal("expected repeated session id to be idempotent")
+	}
+	if got := env.state(t).Meta.Inventory["coin"]; got != 25 {
+		t.Fatalf("expected idempotent store grant to keep coin at 25, got=%d", got)
+	}
+}
+
+func TestGrantStorePurchaseSpawnsBoardRewards(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	if _, err := env.boardSvc.GrantStorePurchase(env.ctx, DefaultBoardID, StorePurchaseGrant{
+		SessionID: "cs_test_store_pack",
+		ItemID:    storeItemOrganizationPack,
+	}); err != nil {
+		t.Fatalf("grant organization pack: %v", err)
+	}
+	if _, err := env.boardSvc.GrantStorePurchase(env.ctx, DefaultBoardID, StorePurchaseGrant{
+		SessionID: "cs_test_store_mods",
+		ItemID:    storeItemModifierBundle,
+	}); err != nil {
+		t.Fatalf("grant modifier bundle: %v", err)
+	}
+	if _, err := env.boardSvc.GrantStorePurchase(env.ctx, DefaultBoardID, StorePurchaseGrant{
+		SessionID: "cs_test_store_villager",
+		ItemID:    storeItemVillagerContract,
+	}); err != nil {
+		t.Fatalf("grant villager contract: %v", err)
+	}
+
+	state := env.state(t)
+	pack := findStackWithTopDef(state, "deck.organization_pack")
+	if pack == nil {
+		t.Fatalf("expected organization pack stack to spawn, stacks=%+v", state.Stacks)
+	}
+	top := state.Cards[pack.Cards[len(pack.Cards)-1]]
+	if top == nil {
+		t.Fatalf("expected top card for spawned organization pack stack %+v", pack)
+	}
+	if got := dataStringPatch(top.Data["deckId"]); got != "deck.organization" {
+		t.Fatalf("expected organization pack deckId=deck.organization, got=%q data=%+v", got, top.Data)
+	}
+
+	modifierCounts := map[string]int{}
+	foundRecruit := false
+	for _, stack := range state.Stacks {
+		if stack == nil {
+			continue
+		}
+		for _, cardID := range stack.Cards {
+			card := state.Cards[cardID]
+			if card == nil {
+				continue
+			}
+			switch card.DefID {
+			case "mod.next_action", "mod.deadline_pin", "mod.recurring":
+				modifierCounts[card.DefID] += 1
+			case "villager.basic":
+				if dataStringPatch(card.Data["title"]) == "Field Recruit" {
+					foundRecruit = true
+				}
+			}
+		}
+	}
+	if modifierCounts["mod.next_action"] != 2 {
+		t.Fatalf("expected 2 next action modifiers, got=%d counts=%+v", modifierCounts["mod.next_action"], modifierCounts)
+	}
+	if modifierCounts["mod.deadline_pin"] != 1 {
+		t.Fatalf("expected 1 deadline pin modifier, got=%d counts=%+v", modifierCounts["mod.deadline_pin"], modifierCounts)
+	}
+	if modifierCounts["mod.recurring"] != 1 {
+		t.Fatalf("expected 1 recurring modifier, got=%d counts=%+v", modifierCounts["mod.recurring"], modifierCounts)
+	}
+	if !foundRecruit {
+		t.Fatalf("expected villager contract to spawn the Field Recruit villager, state=%+v", state)
+	}
+}
+
 func findActiveQuestByID(active []*QuestRuntime, id string) *QuestRuntime {
 	for _, item := range active {
 		if item == nil {

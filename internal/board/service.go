@@ -3397,10 +3397,11 @@ func resourceDropDefID(resourceDefID string) string {
 func ensureMeta(state *State) *BoardMeta {
 	if state == nil {
 		return &BoardMeta{
-			Inventory: map[string]int{},
-			Villagers: map[string]*VillagerProgress{},
-			Metrics:   map[string]int{},
-			DeckOpen:  map[string]int{},
+			Inventory:     map[string]int{},
+			Villagers:     map[string]*VillagerProgress{},
+			Metrics:       map[string]int{},
+			DeckOpen:      map[string]int{},
+			StoreReceipts: map[string]*StoreReceipt{},
 		}
 	}
 	state.normalize()

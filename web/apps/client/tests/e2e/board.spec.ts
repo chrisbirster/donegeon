@@ -168,6 +168,61 @@ test.describe("Board stack flows", () => {
     await expect(access.locator("p", { hasText: invitedEmail })).toHaveCount(0);
   });
 
+  test("opens the board store and starts a Stripe checkout", async ({ page }) => {
+    await page.route("**/api/billing/store", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            {
+              id: "coin_stash",
+              name: "Quartermaster Coin Stash",
+              description: "Instantly credits extra coin to the selected board inventory.",
+              category: "Currency",
+              badge: "Best Value",
+              priceCents: 300,
+              currency: "usd",
+              contents: ["25 coin added directly to board inventory"],
+            },
+          ],
+          checkoutEnabled: true,
+        }),
+      });
+    });
+    await page.route("**/api/billing/store/checkout", async (route) => {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().postDataJSON()).toEqual({
+        itemId: "coin_stash",
+        board: "default",
+      });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          mode: "stripe_checkout",
+          checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_donegeon_store",
+        }),
+      });
+    });
+    await page.route("https://checkout.stripe.com/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<html><body>Mock Stripe Checkout</body></html>",
+      });
+    });
+
+    await page.getByTestId("board-open-store-header").click();
+    await expect(page).toHaveURL(/\/board\/store(?:\?.*)?$/);
+    await expect(page.getByTestId("board-store-page")).toBeVisible();
+    await expect(page.getByTestId("store-item-coin_stash")).toContainText("Quartermaster Coin Stash");
+
+    await page.getByTestId("store-buy-coin_stash").click();
+    await expect(page).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_donegeon_store");
+    await expect(page.locator("body")).toContainText("Mock Stripe Checkout");
+  });
+
   test("keeps stack state isolated across boards", async ({ page, request }) => {
     const nonce = Date.now();
     const boardAID = await createBoardFromHeaderPrompt(page, `Program Alpha Board ${nonce}`);

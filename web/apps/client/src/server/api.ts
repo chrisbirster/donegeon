@@ -272,6 +272,28 @@ export type BillingCheckoutResponse = {
   team?: AuthTeam;
 };
 
+export type StoreCatalogItem = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  badge?: string;
+  priceCents: number;
+  currency: string;
+  contents?: string[];
+};
+
+export type StoreCatalogResponse = {
+  items: StoreCatalogItem[];
+  checkoutEnabled: boolean;
+  configurationHint?: string;
+};
+
+export type StoreCheckoutResponse = {
+  mode: "stripe_checkout";
+  checkoutUrl?: string;
+};
+
 export type AuthSession = {
   user: AuthUser;
   team?: AuthTeam;
@@ -283,6 +305,30 @@ export type LoginCodeRequestResponse = {
   delivery: string;
   debugCode?: string;
   deliveryWarning?: string;
+};
+
+export type PublicConfig = {
+  openBeta: boolean;
+  openBetaStartsAt: string;
+  openBetaStartsLabel: string;
+};
+
+export type WaitlistSignup = {
+  id: string;
+  name: string;
+  email: string;
+  source: string;
+  requestedPlan: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WaitlistSignupResponse = {
+  signup: WaitlistSignup;
+  alreadyJoined: boolean;
+  deliveryWarning?: string;
+  openBetaStartsAt: string;
+  openBetaStartsLabel: string;
 };
 
 type UpdateTaskPayload = {
@@ -491,6 +537,18 @@ export const authApi = {
     }),
 };
 
+export const publicApi = {
+  config: () => apiDirect<{ config: PublicConfig }>("/api/public/config"),
+  joinWaitlist: (payload: { name: string; email: string; source?: string; requestedPlan?: string }) =>
+    apiDirect<WaitlistSignupResponse>("/api/public/waitlist", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+};
+
 export const teamApi = {
   getSettings: () => api<{ settings: TeamSettings }>("/api/team/settings"),
   updateSettings: (teamName: string) =>
@@ -529,6 +587,12 @@ export const billingApi = {
     api<BillingCheckoutResponse>("/api/billing/checkout", {
       method: "POST",
       body: JSON.stringify({ plan }),
+    }),
+  store: () => api<StoreCatalogResponse>("/api/billing/store"),
+  storeCheckout: (payload: { itemId: string; board?: string }) =>
+    api<StoreCheckoutResponse>("/api/billing/store/checkout", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };
 
@@ -658,6 +722,7 @@ export const calendarApi = {
 };
 
 export type ApiClient = {
+  public: typeof publicApi;
   auth: typeof authApi;
   team: typeof teamApi;
   billing: typeof billingApi;
@@ -670,6 +735,7 @@ export type ApiClient = {
 };
 
 export const apiClient: ApiClient = {
+  public: publicApi,
   auth: authApi,
   team: teamApi,
   billing: billingApi,

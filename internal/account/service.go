@@ -84,6 +84,16 @@ type InvitationForLogin struct {
 	Status         string `json:"status"`
 }
 
+type WaitlistSignup struct {
+	ID            string `db:"id" json:"id"`
+	Name          string `db:"name" json:"name"`
+	Email         string `db:"email" json:"email"`
+	Source        string `db:"source" json:"source"`
+	RequestedPlan string `db:"requested_plan" json:"requestedPlan"`
+	CreatedAt     string `db:"created_at" json:"createdAt"`
+	UpdatedAt     string `db:"updated_at" json:"updatedAt"`
+}
+
 const (
 	TeamRoleOwner  = "owner"
 	TeamRoleAdmin  = "admin"
@@ -187,6 +197,53 @@ func (s *Service) GetSession(ctx context.Context, userID string) (Session, error
 		User: user,
 		Team: team,
 	}, nil
+}
+
+func (s *Service) JoinWaitlist(ctx context.Context, name string, email string, source string, requestedPlan string) (WaitlistSignup, bool, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return WaitlistSignup{}, false, fmt.Errorf("name is required")
+	}
+
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !strings.Contains(email, "@") {
+		return WaitlistSignup{}, false, fmt.Errorf("a valid email is required")
+	}
+
+	existing, err := s.waitlistSignupByEmail(ctx, email)
+	if err == nil {
+		return existing, true, nil
+	}
+	if err != sql.ErrNoRows {
+		return WaitlistSignup{}, false, err
+	}
+
+	now := nowRFC3339()
+	signup := WaitlistSignup{
+		ID:            "W_" + uuid.NewString(),
+		Name:          name,
+		Email:         email,
+		Source:        strings.TrimSpace(source),
+		RequestedPlan: normalizeWaitlistPlan(requestedPlan),
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	if _, err := s.exec(
+		ctx,
+		"account_waitlist_signup_insert.sql",
+		signup.ID,
+		signup.Name,
+		signup.Email,
+		signup.Source,
+		signup.RequestedPlan,
+		signup.CreatedAt,
+		signup.UpdatedAt,
+	); err != nil {
+		return WaitlistSignup{}, false, err
+	}
+
+	return signup, false, nil
 }
 
 func (s *Service) CompleteOnboarding(ctx context.Context, userID string, personalBoardName string, teamBoardName string, displayName string, inviteEmails []string, plan string) (Session, []TeamInvite, error) {
@@ -1353,6 +1410,25 @@ func defaultNameFromEmail(email string) string {
 		return "New User"
 	}
 	return strings.TrimSpace(parts[0])
+}
+
+func normalizeWaitlistPlan(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case PlanPersonal:
+		return PlanPersonal
+	case PlanProTrial, PlanPro:
+		return PlanProTrial
+	case PlanEnterprise:
+		return PlanEnterprise
+	default:
+		return ""
+	}
+}
+
+func (s *Service) waitlistSignupByEmail(ctx context.Context, email string) (WaitlistSignup, error) {
+	var signup WaitlistSignup
+	err := s.get(ctx, &signup, "account_waitlist_signup_get_by_email.sql", strings.ToLower(strings.TrimSpace(email)))
+	return signup, err
 }
 
 func normalizeInviteEmails(raw []string, ownerEmail string) []string {

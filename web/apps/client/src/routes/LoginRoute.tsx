@@ -1,7 +1,9 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import { createMemo, createSignal, onMount } from "solid-js";
 
+import WaitlistCard from "../components/auth/WaitlistCard";
 import { useApi } from "../context/ApiContext";
+import { type PublicConfig } from "../server/api";
 
 function normalizePreferredPlan(raw: string): string {
   const value = raw.trim().toLowerCase();
@@ -14,10 +16,20 @@ function normalizePreferredPlan(raw: string): string {
   return "personal";
 }
 
+function defaultPublicConfig(): PublicConfig {
+  return {
+    openBeta: import.meta.env.DEV,
+    openBetaStartsAt: "2026-06-01",
+    openBetaStartsLabel: "June 1, 2026",
+  };
+}
+
 export default function LoginRoute() {
   const api = useApi();
   const location = useLocation();
   const navigate = useNavigate();
+  const [publicConfig, setPublicConfig] = createSignal<PublicConfig>(defaultPublicConfig());
+  const [loadingAccess, setLoadingAccess] = createSignal(true);
   const [email, setEmail] = createSignal("");
   const [code, setCode] = createSignal("");
   const [debugCode, setDebugCode] = createSignal("");
@@ -36,46 +48,60 @@ export default function LoginRoute() {
     return normalizePreferredPlan(params.get("plan") || "personal");
   });
   const onboardingHref = createMemo(() => `/onboarding?plan=${encodeURIComponent(preferredPlan())}`);
+  const waitlistSource = createMemo(() => (inviteCode() ? "app-login-invite" : "app-login"));
 
   onMount(async () => {
-    const code = inviteCode();
-    if (code) {
-      setResolvingInvite(true);
-      try {
-        const { invitation } = await api.auth.invitation(code);
-        setEmail(invitation.email);
-        setInviteEmailLocked(true);
-        setInviteTeamName(invitation.teamName || "");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load invitation");
-      } finally {
-        setResolvingInvite(false);
-      }
-    }
-
     try {
-      const { session: currentSession } = await api.auth.me();
+      const [{ config }, currentSessionResponse] = await Promise.all([
+        api.public.config().catch(() => ({ config: defaultPublicConfig() })),
+        api.auth.me().catch(() => null),
+      ]);
+      setPublicConfig(config);
+      const currentSession = currentSessionResponse?.session;
+      const code = inviteCode();
+
       if (code) {
-        try {
-          const accepted = await api.team.acceptInvitation(code);
-          if (accepted.session.user.showOnboarding) {
-            navigate(onboardingHref(), { replace: true });
+        if (currentSession) {
+          try {
+            const accepted = await api.team.acceptInvitation(code);
+            if (accepted.session.user.showOnboarding) {
+              navigate(onboardingHref(), { replace: true });
+              return;
+            }
+            navigate("/task/inbox", { replace: true });
+            return;
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to accept invitation");
             return;
           }
-          navigate("/task/inbox", { replace: true });
-          return;
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Failed to accept invitation");
-          return;
+        }
+        if (config.openBeta) {
+          setResolvingInvite(true);
+          try {
+            const { invitation } = await api.auth.invitation(code);
+            setEmail(invitation.email);
+            setInviteEmailLocked(true);
+            setInviteTeamName(invitation.teamName || "");
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to load invitation");
+          } finally {
+            setResolvingInvite(false);
+          }
         }
       }
-      if (currentSession.user.showOnboarding) {
-        navigate(onboardingHref(), { replace: true });
+
+      if (currentSession) {
+        if (currentSession.user.showOnboarding) {
+          navigate(onboardingHref(), { replace: true });
+          return;
+        }
+        navigate("/task/inbox", { replace: true });
         return;
       }
-      navigate("/task/inbox", { replace: true });
     } catch {
       // Not logged in yet.
+    } finally {
+      setLoadingAccess(false);
     }
   });
 
@@ -119,6 +145,22 @@ export default function LoginRoute() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (loadingAccess()) {
+    return <main class="flex h-screen items-center justify-center bg-[#0a0d12] text-[#c8d5eb]">Loading...</main>;
+  }
+
+  if (!publicConfig().openBeta) {
+    return (
+      <WaitlistCard
+        openBetaStartsLabel={publicConfig().openBetaStartsLabel}
+        requestedPlan={preferredPlan()}
+        source={waitlistSource()}
+        title="Donegeon is in closed beta"
+        description="Open beta has not started yet. Join the waitlist and we'll email you as soon as access opens."
+      />
+    );
   }
 
   return (

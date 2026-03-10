@@ -33,6 +33,7 @@ type Config struct {
 	AuthMaxCodeAttempts      int
 	AuthCodePepper           string
 	AuthDebugCode            bool
+	OpenBeta                 bool
 	AppBaseURL               string
 	EmailSendURL             string
 	EmailSendAuthHeader      string
@@ -119,6 +120,12 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("parse DONEGEON_AUTH_DEBUG_CODE: %w", err)
 	}
 	cfg.AuthDebugCode = authDebugCode
+
+	openBeta, err := envBoolFirst([]string{"DONEGEON_OPEN_BETA", "DONEGEON_OPTN_BETA"}, false)
+	if err != nil {
+		return Config{}, fmt.Errorf("parse DONEGEON_OPEN_BETA: %w", err)
+	}
+	cfg.OpenBeta = openBeta
 
 	logLevel := strings.ToLower(strings.TrimSpace(envOr("DONEGEON_LOG_LEVEL", "info")))
 	switch logLevel {
@@ -240,6 +247,17 @@ func envBoolOr(key string, fallback bool) (bool, error) {
 		return fallback, nil
 	}
 	return strconv.ParseBool(val)
+}
+
+func envBoolFirst(keys []string, fallback bool) (bool, error) {
+	for _, key := range keys {
+		val := strings.TrimSpace(os.Getenv(key))
+		if val == "" {
+			continue
+		}
+		return strconv.ParseBool(val)
+	}
+	return fallback, nil
 }
 
 func envDurationOr(key string, fallback time.Duration) time.Duration {

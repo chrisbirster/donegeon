@@ -39,6 +39,8 @@ import (
 
 const requestIDHeader = "X-Request-Id"
 const authSessionCookieName = "donegeon_auth_session"
+const openBetaStartsAt = "2026-06-01"
+const openBetaStartsLabel = "June 1, 2026"
 
 type ctxKey string
 
@@ -122,6 +124,8 @@ func New(
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", api.handleHealth)
+	mux.HandleFunc("GET /api/public/config", api.handlePublicConfig)
+	mux.HandleFunc("POST /api/public/waitlist", api.handlePublicWaitlist)
 	mux.HandleFunc("POST /api/auth/login", api.handleAuthLoginRequest)
 	mux.HandleFunc("POST /api/auth/login/request", api.handleAuthLoginRequest)
 	mux.HandleFunc("POST /api/auth/login/verify", api.handleAuthLoginVerify)
@@ -138,6 +142,8 @@ func New(
 	mux.HandleFunc("DELETE /api/team/members/{userId}", api.handleDeleteTeamMember)
 	mux.HandleFunc("GET /api/billing/status", api.handleBillingStatus)
 	mux.HandleFunc("POST /api/billing/checkout", api.handleCreateBillingCheckout)
+	mux.HandleFunc("GET /api/billing/store", api.handleBillingStoreCatalog)
+	mux.HandleFunc("POST /api/billing/store/checkout", api.handleCreateBillingStoreCheckout)
 	mux.HandleFunc("POST /api/billing/webhook", api.handleBillingWebhook)
 	mux.HandleFunc("POST /api/rrule/parse", api.handleParseRRule)
 	mux.HandleFunc("POST /api/quick-add/parse", api.handleParseQuickAdd)
@@ -188,6 +194,86 @@ func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"name":   "donegeon",
 		"time":   time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (a *API) handlePublicConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"config": map[string]any{
+			"openBeta":            a.cfg.OpenBeta,
+			"openBetaStartsAt":    openBetaStartsAt,
+			"openBetaStartsLabel": openBetaStartsLabel,
+		},
+	})
+}
+
+func (a *API) handlePublicWaitlist(w http.ResponseWriter, r *http.Request) {
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	var req struct {
+		Name          string `json:"name"`
+		Email         string `json:"email"`
+		Source        string `json:"source"`
+		RequestedPlan string `json:"requestedPlan"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	source := strings.TrimSpace(req.Source)
+	if source == "" {
+		source = "app"
+	}
+
+	signup, alreadyJoined, err := a.accounts.JoinWaitlist(
+		r.Context(),
+		strings.TrimSpace(req.Name),
+		strings.TrimSpace(req.Email),
+		source,
+		strings.TrimSpace(req.RequestedPlan),
+	)
+	if err != nil {
+		field := "email"
+		if strings.Contains(strings.ToLower(err.Error()), "name") {
+			field = "name"
+		}
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), field))
+		return
+	}
+
+	deliveryWarning := ""
+	if !alreadyJoined {
+		if err := a.sendWaitlistConfirmationEmail(r.Context(), signup.Email, signup.Name, signup.RequestedPlan); err != nil {
+			deliveryWarning = err.Error()
+			a.logError(r, "send_waitlist_confirmation_failed", err)
+		}
+	}
+
+	status := http.StatusCreated
+	if alreadyJoined {
+		status = http.StatusOK
+	}
+
+	a.logInfo(r, "waitlist_signup_recorded",
+		slog.String("waitlist_id", signup.ID),
+		slog.String("waitlist_email", signup.Email),
+		slog.String("waitlist_name", signup.Name),
+		slog.String("waitlist_source", signup.Source),
+		slog.String("waitlist_requested_plan", signup.RequestedPlan),
+		slog.Bool("already_joined", alreadyJoined),
+		slog.Bool("delivery_warning", deliveryWarning != ""),
+	)
+
+	writeJSON(w, status, map[string]any{
+		"signup":              signup,
+		"alreadyJoined":       alreadyJoined,
+		"deliveryWarning":     deliveryWarning,
+		"openBetaStartsAt":    openBetaStartsAt,
+		"openBetaStartsLabel": openBetaStartsLabel,
 	})
 }
 
@@ -841,9 +927,36 @@ func (a *API) handleBillingWebhook(w http.ResponseWriter, r *http.Request) {
 	case "checkout.session.completed":
 		obj := event.Data.Object
 		metadata := stripeObjectMap(obj, "metadata")
+		checkoutKind := strings.TrimSpace(stripeMapString(metadata, "checkout_kind"))
 		workspaceID := stripeObjectString(obj, "client_reference_id")
 		if workspaceID == "" {
 			workspaceID = stripeMapString(metadata, "workspace_id")
+		}
+		if checkoutKind == "board_store" {
+			if a.boards == nil {
+				writeAPIError(w, apperrors.New(apperrors.CodeInternal, "board service unavailable"))
+				return
+			}
+			boardID := stripeMapString(metadata, "board_id")
+			itemID := stripeMapString(metadata, "store_item_id")
+			sessionID := stripeObjectString(obj, "id")
+			if workspaceID == "" || boardID == "" || itemID == "" || sessionID == "" {
+				writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "missing store checkout metadata in checkout event"))
+				return
+			}
+			ctx := sessionctx.WithPrincipal(r.Context(), sessionctx.Principal{WorkspaceID: workspaceID})
+			if _, err := a.boards.GrantStorePurchase(ctx, boardID, board.StorePurchaseGrant{
+				SessionID:       sessionID,
+				ItemID:          itemID,
+				PaymentIntentID: stripeObjectString(obj, "payment_intent"),
+				CustomerID:      stripeObjectString(obj, "customer"),
+				GrantedAt:       time.Now().UTC(),
+			}); err != nil {
+				a.logError(r, "stripe_store_checkout_fulfillment_failed", err)
+				writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to grant store purchase"))
+				return
+			}
+			break
 		}
 		subscriptionID := stripeObjectString(obj, "subscription")
 		customerID := stripeObjectString(obj, "customer")
@@ -870,6 +983,80 @@ func (a *API) handleBillingWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"received": true})
+}
+
+func (a *API) handleBillingStoreCatalog(w http.ResponseWriter, r *http.Request) {
+	configured, message := a.storeCheckoutAvailability()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":             board.StoreCatalog(),
+		"checkoutEnabled":   configured,
+		"configurationHint": message,
+	})
+}
+
+func (a *API) handleCreateBillingStoreCheckout(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ItemID string `json:"itemId"`
+		Board  string `json:"board"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "invalid json body"))
+		return
+	}
+
+	item, ok := board.StoreItemByID(req.ItemID)
+	if !ok {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "unknown store item"), "itemId"))
+		return
+	}
+
+	boardID, err := board.NormalizeBoardID(req.Board)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
+
+	if configured, message := a.storeCheckoutAvailability(); !configured {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, message))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	workspaceName := principal.WorkspaceID
+	existingCustomer := ""
+	email := strings.TrimSpace(principal.Email)
+	if a.accounts != nil {
+		team, teamErr := a.accounts.GetWorkspace(r.Context(), principal.WorkspaceID)
+		if teamErr == nil {
+			if strings.TrimSpace(team.Name) != "" {
+				workspaceName = strings.TrimSpace(team.Name)
+			}
+			existingCustomer = strings.TrimSpace(ptrString(team.StripeCustomerID))
+		}
+		if email == "" {
+			if session, sessionErr := a.accounts.GetSession(r.Context(), principal.UserID); sessionErr == nil {
+				email = strings.TrimSpace(session.User.Email)
+			}
+		}
+	}
+
+	checkoutURL, err := a.createStripeStoreCheckoutSession(r.Context(), stripeStoreCheckoutInput{
+		WorkspaceID:      principal.WorkspaceID,
+		WorkspaceName:    workspaceName,
+		BoardID:          boardID,
+		Item:             item,
+		CustomerEmail:    email,
+		ExistingCustomer: existingCustomer,
+	})
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, err.Error()))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"mode":        "stripe_checkout",
+		"checkoutUrl": checkoutURL,
+	})
 }
 
 func (a *API) handleParseQuickAdd(w http.ResponseWriter, r *http.Request) {
@@ -1631,6 +1818,8 @@ func (a *API) authMiddleware(next http.Handler) http.Handler {
 			r.URL.Path == "/api/auth/login/verify" ||
 			r.URL.Path == "/api/auth/invitation" ||
 			r.URL.Path == "/api/auth/logout" ||
+			r.URL.Path == "/api/public/config" ||
+			r.URL.Path == "/api/public/waitlist" ||
 			r.URL.Path == "/api/billing/webhook" {
 			scope := ScopeWrite
 			if !isWriteRequest(r.Method) {
@@ -1922,58 +2111,15 @@ func clientIPFromRequest(r *http.Request) string {
 }
 
 func (a *API) sendLoginCodeEmail(ctx context.Context, to string, code string, expiresAt string) error {
-	sendURL := strings.TrimSpace(a.cfg.EmailSendURL)
-	if sendURL == "" {
-		return fmt.Errorf("email sender is not configured")
-	}
-
 	payload := map[string]string{
 		"to":        strings.TrimSpace(to),
 		"otpCode":   strings.TrimSpace(code),
 		"expiresAt": strings.TrimSpace(expiresAt),
 	}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sendURL, bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	authHeader := strings.TrimSpace(a.cfg.EmailSendAuthHeader)
-	authValue := strings.TrimSpace(a.cfg.EmailSendAuthValue)
-	if authHeader != "" && authValue != "" {
-		req.Header.Set(authHeader, authValue)
-	}
-
-	client := &http.Client{
-		Timeout: a.cfg.RequestTimeout,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return nil
-	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-	message := strings.TrimSpace(string(body))
-	if message == "" {
-		message = "unknown email send error"
-	}
-	return fmt.Errorf("email sender returned %d: %s", resp.StatusCode, message)
+	return a.sendEmailPayload(ctx, payload)
 }
 
 func (a *API) sendInviteEmail(ctx context.Context, to string, teamName string, invitationCode string) error {
-	sendURL := strings.TrimSpace(a.cfg.EmailSendURL)
-	if sendURL == "" {
-		return fmt.Errorf("email sender is not configured")
-	}
 	loginURL := strings.TrimSpace(a.cfg.AppBaseURL) + "/login"
 	if code := strings.TrimSpace(invitationCode); code != "" {
 		loginURL = loginURL + "?invite=" + url.QueryEscape(code)
@@ -1995,6 +2141,48 @@ func (a *API) sendInviteEmail(ctx context.Context, to string, teamName string, i
 		"to":      strings.TrimSpace(to),
 		"subject": subject,
 		"text":    body,
+	}
+	return a.sendEmailPayload(ctx, payload)
+}
+
+func (a *API) sendWaitlistConfirmationEmail(ctx context.Context, to string, name string, requestedPlan string) error {
+	planLine := ""
+	switch strings.TrimSpace(requestedPlan) {
+	case account.PlanEnterprise:
+		planLine = "\nYou asked about enterprise access, so we will keep that in mind when we follow up."
+	case account.PlanProTrial:
+		planLine = "\nYou asked about Pro access, so we will include team rollout details when beta opens."
+	}
+
+	subject := "You're on the Donegeon waitlist"
+	body := fmt.Sprintf(
+		"Hi %s,\n\n"+
+			"Thanks for joining the Donegeon waitlist.\n\n"+
+			"Open beta starts %s.\n"+
+			"We'll email you at this address when access opens.%s\n\n"+
+			"If you did not request this, you can ignore this email.\n\n"+
+			"– Donegeon",
+		strings.TrimSpace(name),
+		openBetaStartsLabel,
+		planLine,
+	)
+
+	return a.sendTextEmail(ctx, to, subject, body)
+}
+
+func (a *API) sendTextEmail(ctx context.Context, to string, subject string, body string) error {
+	payload := map[string]string{
+		"to":      strings.TrimSpace(to),
+		"subject": strings.TrimSpace(subject),
+		"text":    strings.TrimSpace(body),
+	}
+	return a.sendEmailPayload(ctx, payload)
+}
+
+func (a *API) sendEmailPayload(ctx context.Context, payload map[string]string) error {
+	sendURL := strings.TrimSpace(a.cfg.EmailSendURL)
+	if sendURL == "" {
+		return fmt.Errorf("email sender is not configured")
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -2409,6 +2597,15 @@ type stripeCheckoutInput struct {
 	ExistingCustomer string
 }
 
+type stripeStoreCheckoutInput struct {
+	WorkspaceID      string
+	WorkspaceName    string
+	BoardID          string
+	Item             board.StoreCatalogItem
+	CustomerEmail    string
+	ExistingCustomer string
+}
+
 func (a *API) createStripeCheckoutSession(ctx context.Context, in stripeCheckoutInput) (string, error) {
 	secret := strings.TrimSpace(a.cfg.StripeSecretKey)
 	if secret == "" {
@@ -2443,6 +2640,66 @@ func (a *API) createStripeCheckoutSession(ctx context.Context, in stripeCheckout
 		form.Set("customer_email", email)
 	}
 
+	return a.postStripeCheckoutSession(ctx, secret, form)
+}
+
+func (a *API) createStripeStoreCheckoutSession(ctx context.Context, in stripeStoreCheckoutInput) (string, error) {
+	secret := strings.TrimSpace(a.cfg.StripeSecretKey)
+	if secret == "" {
+		return "", fmt.Errorf("stripe secret key is not configured")
+	}
+	if strings.TrimSpace(in.WorkspaceID) == "" {
+		return "", fmt.Errorf("workspace id is required")
+	}
+	if strings.TrimSpace(in.BoardID) == "" {
+		return "", fmt.Errorf("board id is required")
+	}
+	if strings.TrimSpace(in.Item.ID) == "" {
+		return "", fmt.Errorf("store item id is required")
+	}
+	if in.Item.PriceCents <= 0 {
+		return "", fmt.Errorf("store item price is invalid")
+	}
+	currency := strings.ToLower(strings.TrimSpace(in.Item.Currency))
+	if currency == "" {
+		currency = "usd"
+	}
+
+	form := url.Values{}
+	form.Set("mode", "payment")
+	form.Set("success_url", a.boardStoreReturnURL(in.BoardID, map[string]string{
+		"store":      "success",
+		"item":       in.Item.ID,
+		"session_id": "{CHECKOUT_SESSION_ID}",
+	}))
+	form.Set("cancel_url", a.boardStoreReturnURL(in.BoardID, map[string]string{
+		"store": "canceled",
+		"item":  in.Item.ID,
+	}))
+	form.Set("client_reference_id", strings.TrimSpace(in.WorkspaceID))
+	form.Set("allow_promotion_codes", "true")
+	form.Set("line_items[0][quantity]", "1")
+	form.Set("line_items[0][price_data][currency]", currency)
+	form.Set("line_items[0][price_data][unit_amount]", strconv.Itoa(in.Item.PriceCents))
+	form.Set("line_items[0][price_data][product_data][name]", strings.TrimSpace(in.Item.Name))
+	if description := strings.TrimSpace(in.Item.Description); description != "" {
+		form.Set("line_items[0][price_data][product_data][description]", description)
+	}
+	form.Set("metadata[checkout_kind]", "board_store")
+	form.Set("metadata[workspace_id]", strings.TrimSpace(in.WorkspaceID))
+	form.Set("metadata[workspace_name]", strings.TrimSpace(in.WorkspaceName))
+	form.Set("metadata[board_id]", strings.TrimSpace(in.BoardID))
+	form.Set("metadata[store_item_id]", strings.TrimSpace(in.Item.ID))
+	if customer := strings.TrimSpace(in.ExistingCustomer); customer != "" {
+		form.Set("customer", customer)
+	} else if email := strings.TrimSpace(in.CustomerEmail); email != "" {
+		form.Set("customer_email", email)
+	}
+
+	return a.postStripeCheckoutSession(ctx, secret, form)
+}
+
+func (a *API) postStripeCheckoutSession(ctx context.Context, secret string, form url.Values) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.stripe.com/v1/checkout/sessions", strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", err
@@ -2481,6 +2738,36 @@ func (a *API) createStripeCheckoutSession(ctx context.Context, in stripeCheckout
 		return "", fmt.Errorf("stripe did not return checkout url")
 	}
 	return checkoutURL, nil
+}
+
+func (a *API) storeCheckoutAvailability() (bool, string) {
+	if strings.TrimSpace(a.cfg.StripeSecretKey) == "" {
+		return false, "stripe store checkout is not configured"
+	}
+	if strings.TrimSpace(a.cfg.StripeWebhookSecret) == "" {
+		return false, "stripe webhook secret is not configured"
+	}
+	return true, ""
+}
+
+func (a *API) boardStoreReturnURL(boardID string, params map[string]string) string {
+	base := strings.TrimRight(a.cfg.AppBaseURL, "/") + "/board/store"
+	values := url.Values{}
+	normalizedBoardID, err := board.NormalizeBoardID(boardID)
+	if err == nil && normalizedBoardID != board.DefaultBoardID {
+		values.Set("board", normalizedBoardID)
+	}
+	for key, value := range params {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		values.Set(key, value)
+	}
+	encoded := values.Encode()
+	if encoded == "" {
+		return base
+	}
+	return base + "?" + encoded
 }
 
 func normalizeBillingPlan(raw string) string {

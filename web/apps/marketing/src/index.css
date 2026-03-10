@@ -1,15 +1,196 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
 @import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --bg-base: #04070c;
+  --panel: rgba(11, 20, 30, 0.84);
+  --panel-soft: rgba(255, 255, 255, 0.04);
+  --border-strong: rgba(119, 155, 187, 0.22);
+  --text-main: #edf4ff;
+  --text-soft: #bfd1e3;
+  --text-muted: #89a0b6;
+  --accent: #ff8b50;
+  --accent-soft: #ffb27f;
+}
 
 * {
   box-sizing: border-box;
 }
 
 html,
-body {
+body,
+#root {
   margin: 0;
   min-height: 100%;
 }
 
 body {
-  font-family: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+  background: var(--bg-base);
+  color: var(--text-main);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(255, 139, 80, 0.28);
+  color: white;
+}
+
+.font-display {
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+}
+
+.section-label {
+  color: #9fe8b4;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  margin: 0 0 0.6rem;
+  text-transform: uppercase;
+}
+
+.surface-grid {
+  background-image:
+    radial-gradient(circle at top left, rgba(255, 139, 80, 0.12), transparent 32%),
+    radial-gradient(circle at top right, rgba(103, 187, 255, 0.1), transparent 30%),
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-position: 0 0, 100% 0, 0 0, 0 0;
+  background-size: auto, auto, 36px 36px, 36px 36px;
+}
+
+.table-scroll {
+  scrollbar-color: rgba(137, 160, 182, 0.5) transparent;
+}
+
+.markdown {
+  color: var(--text-soft);
+  font-size: 1rem;
+  line-height: 1.85;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  color: white;
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+  line-height: 1.15;
+  margin: 2.2rem 0 1rem;
+}
+
+.markdown h1 {
+  font-size: 2.4rem;
+}
+
+.markdown h2 {
+  font-size: 1.8rem;
+}
+
+.markdown h3 {
+  font-size: 1.35rem;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown blockquote,
+.markdown table {
+  margin: 1rem 0 1.2rem;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.35rem;
+}
+
+.markdown li + li {
+  margin-top: 0.45rem;
+}
+
+.markdown a {
+  color: #ffd4b5;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 212, 181, 0.4);
+  text-underline-offset: 0.18em;
+}
+
+.markdown strong {
+  color: white;
+}
+
+.markdown code {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.45rem;
+  color: #ffe0c4;
+  font-size: 0.92em;
+  padding: 0.12rem 0.4rem;
+}
+
+.markdown pre {
+  background: #07111a;
+  border: 1px solid rgba(119, 155, 187, 0.22);
+  border-radius: 1rem;
+  overflow-x: auto;
+  padding: 1rem 1.1rem;
+}
+
+.markdown pre code {
+  background: transparent;
+  border: 0;
+  color: #f2f7ff;
+  display: block;
+  padding: 0;
+}
+
+.markdown blockquote {
+  border-left: 3px solid rgba(255, 139, 80, 0.55);
+  color: #d6e4f2;
+  margin-left: 0;
+  padding-left: 1rem;
+}
+
+.markdown hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 2rem 0;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.75rem 0.85rem;
+  text-align: left;
+}
+
+.markdown thead {
+  background: rgba(255, 255, 255, 0.04);
 }

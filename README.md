@@ -30,6 +30,7 @@ task dev
 - backend with hot reload via `air` + `.air.toml`
 - frontend via `bun run dev` in `/web`
 - loads root `.env` for backend env vars
+- defaults `DONEGEON_OPEN_BETA=true` in local dev so auth stays available while you build
 - defaults `DONEGEON_AUTH_DEBUG_CODE=true` in local dev so OTP is visible in Login UI
 
 If needed:
@@ -45,6 +46,7 @@ Environment variables:
 - `DONEGEON_BOARD_CONFIG_PATH` (optional YAML gameplay tuning file; legacy alias `DONEGEON_CONFIG_PATH`)
   - if unset, server auto-loads `donegeon_config.yml` (or `donegeon_config.yaml`) when present in cwd
 - `DONEGEON_REQUIRE_AUTH` (default `true`)
+- `DONEGEON_OPEN_BETA` (default `false`; local dev tasks export `true`)
 - `DONEGEON_API_TOKEN` (default `TOKEN_VALID`)
 - `DONEGEON_READONLY_API_TOKEN` (default `TOKEN_READONLY`)
 - Production template: `.env.production.example` (includes Turso + Google Calendar OAuth settings)
@@ -105,6 +107,38 @@ task deploy:all
 # Full deploy + wipe Turso first
 task deploy:all:wipe-db
 ```
+
+## GitHub Actions Deploys
+
+`main` branch pushes now support selective deploys through [deploy.yml](/Users/gm/dev/personal/newtasks/.github/workflows/deploy.yml):
+
+- App changes deploy only the Fly app.
+  Includes Go backend, embedded client app, Fly config, and gameplay/runtime files.
+- Marketing or infra changes deploy only the SST production stack.
+  That updates the Cloudflare-hosted marketing site and any SST-managed infra changes without redeploying the Fly app.
+- Shared web workspace changes trigger both deploy jobs.
+
+You can also run the workflow manually from GitHub Actions with `target=changed`, `app`, `marketing`, or `all`.
+
+Required GitHub secrets/vars:
+
+- `FLY_API_TOKEN`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_DEFAULT_ACCOUNT_ID`
+- Optional repo variable: `AWS_REGION` (defaults to `us-east-1`)
+- Optional repo variables: `DONEGEON_MARKETING_DOMAIN`, `DONEGEON_EMAIL_SENDER`, `DONEGEON_EMAIL_FROM`, `DONEGEON_EMAIL_API_AUTH_HEADER`
+
+SST still requires the production `EmailApiKey` secret to already exist for the `production` stage, for example:
+
+```bash
+cd infra
+bun install
+bunx sst secret set EmailApiKey "<strong-random-token>" --stage production
+```
+
+The Fly deploy job assumes your production Fly secrets are already configured. This workflow deploys code/config to Fly; it does not rotate or repopulate Fly secrets on each push.
 
 ## Tests
 

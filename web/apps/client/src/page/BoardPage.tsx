@@ -774,6 +774,12 @@ function boardHref(boardID: string): string {
   return `/board?board=${encodeURIComponent(normalized)}`;
 }
 
+function boardStoreHref(boardID: string): string {
+  const normalized = normalizeBoardID(boardID);
+  if (normalized === DEFAULT_BOARD) return "/board/store";
+  return `/board/store?board=${encodeURIComponent(normalized)}`;
+}
+
 function isBoardProject(projectID: string | undefined): boolean {
   const slug = projectSlug(projectID);
   return slug === "board" || slug.startsWith("board-");
@@ -2098,6 +2104,10 @@ export default function BoardRoute() {
     navigate(boardHref(normalized));
   }
 
+  function openStorePage() {
+    navigate(boardStoreHref(activeBoardID()));
+  }
+
   async function createBoard(): Promise<boolean> {
     const rawName = newBoardName().trim();
     if (!rawName) {
@@ -3276,10 +3286,10 @@ export default function BoardRoute() {
                 Team board
               </p>
             </Show>
-            <div class="mt-3 flex gap-2">
+            <div class="mt-3 grid grid-cols-3 gap-2">
               <button
                 type="button"
-                class="flex-1 rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
                 onClick={openCreateBoardModal}
                 disabled={busy() || boardCrudBusy()}
                 data-testid="board-open-create-modal-mobile"
@@ -3288,7 +3298,16 @@ export default function BoardRoute() {
               </button>
               <button
                 type="button"
-                class="flex-1 rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
+                class="rounded-md border border-[#8b6a32] bg-[#2b2111] px-2 py-1 text-xs text-[#f0d7a4] transition hover:border-[#d3a75a] disabled:opacity-60"
+                onClick={openStorePage}
+                disabled={busy()}
+                data-testid="board-open-store-mobile"
+              >
+                Store
+              </button>
+              <button
+                type="button"
+                class="rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
                 onClick={() => void deleteActiveBoard()}
                 disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
               >
@@ -3548,6 +3567,15 @@ export default function BoardRoute() {
             </button>
             <button
               type="button"
+              class="rounded-md border border-[#8b6a32] bg-[#2b2111] px-2 py-1 text-[11px] text-[#f0d7a4] transition hover:border-[#d3a75a] disabled:opacity-60"
+              onClick={openStorePage}
+              disabled={busy()}
+              data-testid="board-open-store-header"
+            >
+              Store
+            </button>
+            <button
+              type="button"
               class="rounded-md border border-[#6f3c3c] bg-[#2a1416] px-2 py-1 text-[11px] text-[#ffb3ad] transition hover:border-[#a55e5a] disabled:opacity-60"
               onClick={() => void deleteActiveBoard()}
               disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
@@ -3628,10 +3656,10 @@ export default function BoardRoute() {
                 Team board
               </p>
             </Show>
-            <div class="mt-3 flex gap-2">
+            <div class="mt-3 grid grid-cols-3 gap-2">
               <button
                 type="button"
-                class="flex-1 rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
                 onClick={openCreateBoardModal}
                 disabled={busy() || boardCrudBusy()}
                 data-testid="board-open-create-modal-sidebar"
@@ -3640,7 +3668,16 @@ export default function BoardRoute() {
               </button>
               <button
                 type="button"
-                class="flex-1 rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
+                class="rounded-md border border-[#8b6a32] bg-[#2b2111] px-2 py-1 text-xs text-[#f0d7a4] transition hover:border-[#d3a75a] disabled:opacity-60"
+                onClick={openStorePage}
+                disabled={busy()}
+                data-testid="board-open-store-sidebar"
+              >
+                Store
+              </button>
+              <button
+                type="button"
+                class="rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
                 onClick={() => void deleteActiveBoard()}
                 disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
               >
