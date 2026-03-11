@@ -2,85 +2,135 @@ import { A } from "@solidjs/router";
 import { For } from "solid-js";
 
 import MarketingLayout from "../components/MarketingLayout";
+import { usePublicConfig } from "../context/PublicConfigContext";
 import { docs, formatPublishDate, posts } from "../lib/content";
-import { FEATURES, PLAN_LINKS, PLAN_SUMMARIES, TRUST_POINTS } from "../lib/site";
+import { FEATURES, PLAN_SUMMARIES, TRUST_POINTS, planHref, waitlistHref } from "../lib/site";
 
-const featureHighlights = FEATURES.slice(0, 4);
 const featuredDocs = docs.filter((entry) => entry.featured).slice(0, 3);
 const docHighlights = featuredDocs.length > 0 ? featuredDocs : docs.slice(0, 3);
 const postHighlights = posts.slice(0, 3);
+const homeFeatureHighlights = [
+  {
+    category: "Capture",
+    title: "Capture work without slowing down",
+    description: "Add tasks, priorities, dates, and repeat schedules in one quick step so work gets recorded before it gets forgotten.",
+    bullets: [
+      "Create tasks in seconds",
+      "Add due dates, deadlines, and repeat schedules",
+      "Keep structure without wrestling a long form",
+    ],
+  },
+  {
+    category: "Scheduling",
+    title: "Stay ahead of recurring work",
+    description: "Keep weekly routines, recurring responsibilities, and follow-ups visible so nothing slips through the cracks.",
+    bullets: [
+      "Flexible daily, weekly, and monthly repeats",
+      "A clearer view of what is coming next",
+      "Less manual re-entry for repeat work",
+    ],
+  },
+  {
+    category: "Execution",
+    title: "Move from list to action",
+    description: "Capture everything in one place, then shift active work onto a board your team can use to make faster decisions.",
+    bullets: [
+      "Task lists and board play in one workflow",
+      "Shared visibility into active work",
+      "A better way to decide what moves next",
+    ],
+  },
+  {
+    category: "Board",
+    title: "Make progress visible",
+    description: "Donegeon turns active work into a living board so priorities stay clear and progress is easy to spot at a glance.",
+    bullets: [
+      "Drag work across a shared map",
+      "Keep backlog pressure visible",
+      "Give the team a board worth checking",
+    ],
+  },
+];
 
-export default function HomeRoute() {
+function HomeContent() {
+  const publicConfig = usePublicConfig();
+  const heroPrimaryHref = () =>
+    publicConfig.openBeta ? planHref("personal") : waitlistHref({ source: "marketing-home-hero", plan: "personal" });
+
   return (
-    <MarketingLayout>
+    <>
       <section class="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_420px] lg:items-start">
         <div>
-          <p class="section-label">Donegeon marketing refresh</p>
+          <p class="section-label">Task management for teams that want clarity, momentum, and a little more fun.</p>
           <h1 class="font-display max-w-4xl text-5xl font-semibold leading-[1.02] text-white md:text-7xl">
-            The task system, board game, docs hub, and pricing story now live in one place.
+            Turn messy work into a game your team wants to win.
           </h1>
           <p class="mt-6 max-w-2xl text-lg leading-8 text-[var(--text-soft)] md:text-xl">
-            Donegeon turns task capture, recurrence, deadlines, quests, team roles, and board-state gameplay into a product
-            site that finally reflects what the app actually does.
+            Donegeon combines tasks, planning, and a shared strategy board so your team can stay focused, move faster, and
+            actually enjoy execution.
           </p>
 
           <div class="mt-8 flex flex-wrap gap-3">
             <a
-              href={PLAN_LINKS.personal}
+              href={heroPrimaryHref()}
               class="inline-flex rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
             >
-              Start Free
+              {publicConfig.openBeta ? "Start Free" : "Join waitlist"}
             </a>
             <A
-              href="/docs"
+              href="/features"
               class="inline-flex rounded-full border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] px-5 py-3 text-sm font-semibold text-[var(--text-main)] transition hover:border-[#4a6c8b] hover:bg-[rgba(255,255,255,0.08)]"
             >
-              Explore docs
+              See how it works
             </A>
           </div>
 
           <div class="mt-10 grid gap-4 sm:grid-cols-3">
             <div class="rounded-[1.6rem] border border-[var(--border-strong)] bg-[rgba(9,17,26,0.78)] p-5 shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
-              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Coverage</p>
+              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Built for planning</p>
               <p class="mt-2 font-display text-4xl font-semibold text-white">{FEATURES.length}</p>
-              <p class="mt-2 text-sm text-[var(--text-soft)]">Feature areas mapped to the real app and backend.</p>
+              <p class="mt-2 text-sm text-[var(--text-soft)]">
+                Feature areas covering capture, scheduling, boards, collaboration, and more.
+              </p>
             </div>
 
             <div class="rounded-[1.6rem] border border-[var(--border-strong)] bg-[rgba(9,17,26,0.78)] p-5 shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
-              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Docs</p>
+              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Built for teamwork</p>
               <p class="mt-2 font-display text-4xl font-semibold text-white">{docs.length}</p>
-              <p class="mt-2 text-sm text-[var(--text-soft)]">Markdown-driven guides with optional inline feature videos.</p>
+              <p class="mt-2 text-sm text-[var(--text-soft)]">Guides and walkthroughs to help your team get started faster.</p>
             </div>
 
             <div class="rounded-[1.6rem] border border-[var(--border-strong)] bg-[rgba(9,17,26,0.78)] p-5 shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
-              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Updates</p>
+              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Built for momentum</p>
               <p class="mt-2 font-display text-4xl font-semibold text-white">{posts.length}</p>
-              <p class="mt-2 text-sm text-[var(--text-soft)]">Blog posts loaded from markdown instead of hardcoded JSX.</p>
+              <p class="mt-2 text-sm text-[var(--text-soft)]">
+                Product updates and ideas to keep teams learning as Donegeon grows.
+              </p>
             </div>
           </div>
         </div>
 
         <aside class="rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(18,34,51,0.95),rgba(10,18,28,0.95))] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.3)]">
-          <p class="section-label">What ships now</p>
+          <p class="section-label">Why teams try Donegeon</p>
           <div class="mt-5 space-y-5">
             <div class="rounded-[1.3rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-              <p class="text-sm font-semibold text-white">Product narrative</p>
+              <p class="text-sm font-semibold text-white">Clear planning</p>
               <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
-                Task capture, recurrence, board gameplay, team collaboration, and compatibility surfaces are all represented.
+                Capture work quickly, organize what matters, and keep recurring responsibilities from disappearing into the backlog.
               </p>
             </div>
 
             <div class="rounded-[1.3rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-              <p class="text-sm font-semibold text-white">Professional pages</p>
+              <p class="text-sm font-semibold text-white">Shared visibility</p>
               <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
-                Features, pricing, docs, blog, FAQ, support contacts, and enterprise conversion paths are all wired into navigation.
+                Lists, boards, guides, pricing, and team flows are easy to understand whether you are evaluating for yourself or a group.
               </p>
             </div>
 
             <div class="rounded-[1.3rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-              <p class="text-sm font-semibold text-white">Content workflow</p>
+              <p class="text-sm font-semibold text-white">More engaging execution</p>
               <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
-                Docs and blog pages are generated from markdown files, with frontmatter for metadata, sorting, and optional video embeds.
+                Work feels less like maintaining a spreadsheet and more like moving a team toward a shared objective.
               </p>
             </div>
           </div>
@@ -90,16 +140,16 @@ export default function HomeRoute() {
       <section class="mt-20">
         <div class="flex items-end justify-between gap-4">
           <div>
-            <p class="section-label">Feature surface</p>
-            <h2 class="font-display text-3xl font-semibold text-white md:text-4xl">Donegeon now markets the whole product.</h2>
+            <p class="section-label">Everything your team needs</p>
+            <h2 class="font-display text-3xl font-semibold text-white md:text-4xl">Everything your team needs to plan and execute.</h2>
           </div>
           <A href="/features" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
-            View every feature
+            Explore features
           </A>
         </div>
 
         <div class="mt-8 grid gap-5 md:grid-cols-2">
-          <For each={featureHighlights}>
+          <For each={homeFeatureHighlights}>
             {(feature) => (
               <article class="rounded-[1.8rem] border border-[var(--border-strong)] bg-[rgba(11,19,29,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
                 <div class="flex items-center justify-between gap-4">
@@ -122,8 +172,8 @@ export default function HomeRoute() {
         <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
           <div class="flex items-end justify-between gap-4">
             <div>
-              <p class="section-label">Knowledge base</p>
-              <h2 class="font-display text-3xl font-semibold text-white">Docs are now first-class site content.</h2>
+              <p class="section-label">Learn the essentials</p>
+              <h2 class="font-display text-3xl font-semibold text-white">Guides that help your team get started quickly.</h2>
             </div>
             <A href="/docs" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
               Browse docs
@@ -153,8 +203,8 @@ export default function HomeRoute() {
         <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
           <div class="flex items-end justify-between gap-4">
             <div>
-              <p class="section-label">Publishing</p>
-              <h2 class="font-display text-3xl font-semibold text-white">Blog posts now have a real content path.</h2>
+              <p class="section-label">Tips, updates, and product news</p>
+              <h2 class="font-display text-3xl font-semibold text-white">Stay in the loop as the product grows.</h2>
             </div>
             <A href="/blog" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
               Visit blog
@@ -184,10 +234,10 @@ export default function HomeRoute() {
 
       <section class="mt-20 grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
         <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(135deg,rgba(255,139,80,0.1),rgba(82,142,196,0.08)_58%,rgba(138,228,163,0.08))] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-          <p class="section-label">Pricing and trust</p>
-          <h2 class="font-display text-3xl font-semibold text-white">Professional app basics are now covered.</h2>
+          <p class="section-label">Simple pricing as you grow</p>
+          <h2 class="font-display text-3xl font-semibold text-white">Start simple and add more when your team is ready.</h2>
           <p class="mt-3 max-w-2xl text-base leading-7 text-[var(--text-soft)]">
-            Pricing explanations, plan-specific CTA flows, docs, support, and an enterprise path are now part of the same marketing surface.
+            Start free, add collaboration when it matters, and talk to us when rollout needs more support.
           </p>
 
           <div class="mt-7 grid gap-4 md:grid-cols-3">
@@ -211,7 +261,7 @@ export default function HomeRoute() {
         </div>
 
         <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-          <p class="section-label">Why it feels complete</p>
+          <p class="section-label">Why teams stick with it</p>
           <ul class="mt-5 space-y-4">
             <For each={TRUST_POINTS}>
               {(item) => (
@@ -223,6 +273,14 @@ export default function HomeRoute() {
           </ul>
         </div>
       </section>
+    </>
+  );
+}
+
+export default function HomeRoute() {
+  return (
+    <MarketingLayout>
+      <HomeContent />
     </MarketingLayout>
   );
 }

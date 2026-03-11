@@ -43,7 +43,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `sh -c "mkdir -p '${dbDir}' && rm -f '${dbPath}' && DONEGEON_HTTP_PORT=${apiPort} DONEGEON_DB_PATH='${dbPath}' DONEGEON_REQUIRE_AUTH=false DONEGEON_AUTH_DEBUG_CODE=true go run ."`,
+      command: `sh -c "mkdir -p '${dbDir}' && rm -f '${dbPath}' && DONEGEON_HTTP_PORT=${apiPort} DONEGEON_DB_PATH='${dbPath}' DONEGEON_REQUIRE_AUTH=false DONEGEON_AUTH_DEBUG_CODE=true DONEGEON_OPEN_BETA=true go run ."`,
       cwd: repoRoot,
       port: apiPort,
       timeout: 120_000,

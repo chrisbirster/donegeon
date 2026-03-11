@@ -2,11 +2,14 @@ import { A } from "@solidjs/router";
 import { For } from "solid-js";
 
 import MarketingLayout from "../components/MarketingLayout";
-import { FAQS, PLAN_SUMMARIES, PRICING_MATRIX } from "../lib/site";
+import { usePublicConfig } from "../context/PublicConfigContext";
+import { FAQS, PLAN_SUMMARIES, PRICING_MATRIX, planHref, waitlistHref } from "../lib/site";
 
-export default function PricingRoute() {
+function PricingContent() {
+  const publicConfig = usePublicConfig();
+
   return (
-    <MarketingLayout>
+    <>
       <section class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         <div>
           <p class="section-label">Pricing</p>
@@ -44,14 +47,29 @@ export default function PricingRoute() {
                 <For each={plan.bullets}>{(bullet) => <li>• {bullet}</li>}</For>
               </ul>
               <a
-                href={plan.href}
+                href={
+                  publicConfig.openBeta || plan.name === "Enterprise"
+                    ? plan.name === "Pro"
+                      ? planHref("pro_trial")
+                      : plan.name === "Personal"
+                        ? planHref("personal")
+                        : plan.href
+                    : waitlistHref({
+                        source: "marketing-pricing",
+                        plan: plan.name === "Pro" ? "pro_trial" : "personal",
+                      })
+                }
                 class={`mt-7 inline-flex rounded-full px-5 py-3 text-sm font-semibold transition ${
                   plan.featured
                     ? "bg-[var(--accent)] text-[#1d1108] hover:bg-[#ff9f6d]"
                     : "border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] text-[var(--text-main)] hover:border-[#4a6c8b] hover:bg-[rgba(255,255,255,0.08)]"
                 }`}
               >
-                {plan.ctaLabel}
+                {publicConfig.openBeta || plan.name === "Enterprise"
+                  ? plan.ctaLabel
+                  : plan.name === "Pro"
+                    ? "Join Pro waitlist"
+                    : "Join waitlist"}
               </a>
             </article>
           )}
@@ -134,6 +152,14 @@ export default function PricingRoute() {
           </div>
         </div>
       </section>
+    </>
+  );
+}
+
+export default function PricingRoute() {
+  return (
+    <MarketingLayout>
+      <PricingContent />
     </MarketingLayout>
   );
 }

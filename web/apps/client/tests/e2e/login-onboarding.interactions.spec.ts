@@ -76,6 +76,63 @@ async function mockOnboardingAuth(
 }
 
 test.describe("Login + onboarding interactions", () => {
+  test("local beta toggle switches login into waitlist mode and submits signup", async ({ page }) => {
+    await mockAuthMeLoggedOut(page);
+
+    await page.route("**/api/public/config", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          config: {
+            openBeta: true,
+            openBetaStartsAt: "2026-06-01",
+            openBetaStartsLabel: "June 1, 2026",
+          },
+        }),
+      });
+    });
+
+    let payload: Record<string, string> | null = null;
+    await page.route("**/api/public/waitlist", async (route) => {
+      payload = route.request().postDataJSON() as Record<string, string>;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          signup: {
+            id: "W_test",
+            name: payload?.name || "",
+            email: payload?.email || "",
+            source: payload?.source || "",
+            requestedPlan: payload?.requestedPlan || "",
+            createdAt: "2026-03-10T00:00:00Z",
+            updatedAt: "2026-03-10T00:00:00Z",
+          },
+          alreadyJoined: false,
+          openBetaStartsAt: "2026-06-01",
+          openBetaStartsLabel: "June 1, 2026",
+        }),
+      });
+    });
+
+    await gotoLogin(page);
+    await page.getByRole("button", { name: "Waitlist" }).click();
+
+    await expect(page.getByRole("heading", { name: "Donegeon is in closed beta" })).toBeVisible();
+    await page.getByPlaceholder("Your name").fill("Local Tester");
+    await page.getByPlaceholder("you@company.com").fill("local@example.com");
+    await page.getByRole("button", { name: "Join the waitlist" }).click();
+
+    expect(payload).toMatchObject({
+      name: "Local Tester",
+      email: "local@example.com",
+      source: "app-login",
+      requestedPlan: "personal",
+    });
+    await expect(page.getByText(/You're on the Donegeon waitlist/)).toBeVisible();
+  });
+
   test("submits login request form with typed email and enters verify step", async ({ page }) => {
     await mockAuthMeLoggedOut(page);
 

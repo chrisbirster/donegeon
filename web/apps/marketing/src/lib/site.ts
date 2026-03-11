@@ -24,17 +24,50 @@ export function defaultPublicConfig(): MarketingPublicConfig {
   };
 }
 
+function localOverrideQueryValue(): "open" | "closed" | null {
+  if (typeof window === "undefined") return null;
+
+  const host = window.location.hostname.trim().toLowerCase();
+  const isLocal =
+    host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
+  if (!isLocal) return null;
+
+  const stored = (window.localStorage.getItem("donegeon.local-open-beta") || "").trim().toLowerCase();
+  if (stored === "true") return "open";
+  if (stored === "false") return "closed";
+  return null;
+}
+
+function withLocalOverride(url: string): string {
+  const override = localOverrideQueryValue();
+  if (!override) return url;
+
+  const next = new URL(url);
+  next.searchParams.set("local_beta", override);
+  return next.toString();
+}
+
+export function loginHref(options?: { plan?: string }): string {
+  const next = new URL(LOGIN_URL);
+  if (options?.plan?.trim()) {
+    next.searchParams.set("plan", options.plan.trim());
+  }
+  return withLocalOverride(next.toString());
+}
+
+export function planHref(plan: "personal" | "pro_trial"): string {
+  return loginHref({ plan });
+}
+
 export function waitlistHref(options?: { source?: string; plan?: string }): string {
-  const params = new URLSearchParams();
+  const next = new URL(WAITLIST_URL);
   if (options?.source?.trim()) {
-    params.set("source", options.source.trim());
+    next.searchParams.set("source", options.source.trim());
   }
   if (options?.plan?.trim()) {
-    params.set("plan", options.plan.trim());
+    next.searchParams.set("plan", options.plan.trim());
   }
-
-  const query = params.toString();
-  return query ? `${WAITLIST_URL}?${query}` : WAITLIST_URL;
+  return withLocalOverride(next.toString());
 }
 
 export type SiteFeature = {
@@ -138,10 +171,10 @@ export const FEATURES: SiteFeature[] = [
 ];
 
 export const TRUST_POINTS = [
-  "Markdown-driven docs and blog content for fast publishing",
-  "Built-in onboarding, team setup, and invite flows",
-  "Professional pricing, support, and enterprise handoff paths",
-  "Feature coverage grounded in the real product, not placeholder marketing copy",
+  "Fast setup for solo work or team onboarding",
+  "Shared boards, invites, and roles when you need to collaborate",
+  "Clear pricing, support, and an enterprise path as you grow",
+  "A workflow that feels more engaging than another flat task list",
 ];
 
 export type PlanSummary = {
@@ -160,7 +193,7 @@ export const PLAN_SUMMARIES: PlanSummary[] = [
     name: "Personal",
     price: "$0",
     cadence: "forever",
-    description: "For solo operators who want Donegeon’s task capture, quick add, recurrence, and personal board loop.",
+    description: "For individuals who want faster task capture, recurring work, and a personal board that keeps priorities visible.",
     ctaLabel: "Start Free",
     href: PLAN_LINKS.personal,
     bullets: [
@@ -173,7 +206,7 @@ export const PLAN_SUMMARIES: PlanSummary[] = [
     name: "Pro",
     price: "$12",
     cadence: "per user / month",
-    description: "For teams that need shared boards, roles, invite flows, calendar sync, and advanced gameplay operations.",
+    description: "For teams that need shared boards, roles, invites, calendar sync, and a more collaborative workflow.",
     ctaLabel: "Start Pro Trial",
     href: PLAN_LINKS.proTrial,
     featured: true,
@@ -187,7 +220,7 @@ export const PLAN_SUMMARIES: PlanSummary[] = [
     name: "Enterprise",
     price: "Custom",
     cadence: "annual",
-    description: "For larger organizations that need rollout help, access policy design, procurement support, and a tighter migration plan.",
+    description: "For larger organizations that need rollout help, procurement support, and a smoother path to adoption.",
     ctaLabel: "Talk to Sales",
     href: PLAN_LINKS.enterprise,
     bullets: [

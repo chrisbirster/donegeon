@@ -1,6 +1,6 @@
 ---
-title: Refreshing the marketing site so it matches the product
-description: The marketing app now covers the real Donegeon feature set, plus docs, blog, pricing, and enterprise-ready support surfaces.
+title: A clearer home for teams using Donegeon
+description: The Donegeon site now makes it easier to understand features, pricing, docs, and how teams can get started.
 category: Product
 publishedAt: 2026-03-09
 author: Donegeon team
@@ -8,9 +8,9 @@ featured: true
 tags: marketing, launch
 ---
 
-# The marketing site finally reflects the real product
+# A clearer home for teams using Donegeon
 
-For a while, the marketing surface lagged behind the app. Donegeon had real depth in quick add parsing, recurrence, board gameplay, quests, team roles, onboarding, and calendar connections, but the site was still telling a much smaller story.
+For a while, the product had more depth than the site around it. Donegeon already supported fast capture, recurring work, shared boards, team roles, onboarding, and calendar connections, but new visitors had to work too hard to understand that.
 
 That mismatch creates friction:
 
@@ -18,7 +18,7 @@ That mismatch creates friction:
 - Team buyers cannot easily evaluate the collaboration model.
 - There is no durable place for docs, launch notes, or pricing context.
 
-The refreshed site fixes that.
+The refreshed site fixes that by making the product easier to evaluate and easier to trust.
 
 ## What changed
 

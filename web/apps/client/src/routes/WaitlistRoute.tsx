@@ -1,8 +1,10 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import { createMemo, createSignal, onMount } from "solid-js";
 
+import LocalBetaToggle from "../components/auth/LocalBetaToggle";
 import WaitlistCard from "../components/auth/WaitlistCard";
 import { useApi } from "../context/ApiContext";
+import { applyLocalOpenBetaOverride, withTimeout, writeLocalOpenBetaOverride } from "../lib/openBeta";
 import { type PublicConfig } from "../server/api";
 
 function defaultPublicConfig(): PublicConfig {
@@ -28,8 +30,7 @@ export default function WaitlistRoute() {
   const api = useApi();
   const location = useLocation();
   const navigate = useNavigate();
-  const [config, setConfig] = createSignal<PublicConfig>(defaultPublicConfig());
-  const [loading, setLoading] = createSignal(true);
+  const [config, setConfig] = createSignal<PublicConfig>(applyLocalOpenBetaOverride(defaultPublicConfig(), location.search));
 
   const preferredPlan = createMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -41,42 +42,47 @@ export default function WaitlistRoute() {
     return (params.get("source") || "app-waitlist").trim();
   });
 
+  function setLocalOpenBeta(next: boolean) {
+    writeLocalOpenBetaOverride(next);
+    setConfig((current) => ({
+      ...current,
+      openBeta: next,
+    }));
+    if (next) {
+      navigate(`/login${location.search}`, { replace: true });
+    }
+  }
+
   onMount(async () => {
-    try {
-      const [{ config: publicConfig }, currentSession] = await Promise.all([
-        api.public.config().catch(() => ({ config: defaultPublicConfig() })),
-        api.auth.me().catch(() => null),
-      ]);
+    const configResponse = await withTimeout(api.public.config(), 1500, { config: defaultPublicConfig() });
+    const publicConfig = applyLocalOpenBetaOverride(configResponse.config, location.search);
+    const currentSession = await withTimeout(api.auth.me(), 1500, null);
 
-      setConfig(publicConfig);
+    setConfig(publicConfig);
 
-      if (currentSession?.session) {
-        if (currentSession.session.user.showOnboarding) {
-          navigate("/onboarding", { replace: true });
-          return;
-        }
-        navigate("/task/inbox", { replace: true });
+    if (currentSession?.session) {
+      if (currentSession.session.user.showOnboarding) {
+        navigate("/onboarding", { replace: true });
         return;
       }
+      navigate("/task/inbox", { replace: true });
+      return;
+    }
 
-      if (publicConfig.openBeta) {
-        navigate(`/login${location.search}`, { replace: true });
-        return;
-      }
-    } finally {
-      setLoading(false);
+    if (publicConfig.openBeta) {
+      navigate(`/login${location.search}`, { replace: true });
+      return;
     }
   });
 
-  if (loading()) {
-    return <main class="flex h-screen items-center justify-center bg-[#0a0d12] text-[#c8d5eb]">Loading...</main>;
-  }
-
   return (
-    <WaitlistCard
-      openBetaStartsLabel={config().openBetaStartsLabel}
-      requestedPlan={preferredPlan()}
-      source={source()}
-    />
+    <>
+      <WaitlistCard
+        openBetaStartsLabel={config().openBetaStartsLabel}
+        requestedPlan={preferredPlan()}
+        source={source()}
+      />
+      <LocalBetaToggle openBeta={config().openBeta} onToggle={setLocalOpenBeta} />
+    </>
   );
 }
