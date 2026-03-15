@@ -58,6 +58,13 @@ cd infra
 npx sst deploy --stage production
 ```
 
+If Cloudflare throttles KV asset uploads during the marketing deploy, use the repo wrapper instead of raw `sst deploy`:
+
+```bash
+cd infra
+bun ../scripts/sst-deploy-with-retry.mjs --stage production
+```
+
 Capture outputs:
 - `emailApiBaseUrl`
 - `authHeaderName`

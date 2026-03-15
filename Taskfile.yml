@@ -279,13 +279,20 @@ tasks:
     cmds:
       - task: env:ensure
       - |
+        set -euo pipefail
+        set --
         while IFS='=' read -r key value; do
           [ -z "$key" ] && continue
           case "$key" in \#*) continue ;; esac
           [ -z "$value" ] && continue
-          flyctl secrets set "$key=$value" >/dev/null || true
+          set -- "$@" "$key=$value"
         done < .env
-        echo "done: attempted to sync non-empty .env keys to Fly secrets"
+        if [ "$#" -eq 0 ]; then
+          echo "done: no non-empty .env keys to sync"
+          exit 0
+        fi
+        flyctl secrets set "$@"
+        echo "done: synced non-empty .env keys to Fly secrets"
 
   deploy:app:secrets:from-infra:
     desc: Sync SST email outputs into Fly secrets (reads infra/.sst/outputs.json)
@@ -338,7 +345,7 @@ tasks:
         msg: infra/.env not found. Copy from .env.example and fill in values.
     cmds:
       - bun install
-      - bunx sst deploy --stage production
+      - bun ../scripts/sst-deploy-with-retry.mjs --stage production
 
   deploy:infra:dev:
     desc: Deploy SST infra to dev stage (email API + marketing site)
@@ -352,7 +359,7 @@ tasks:
         msg: infra/.env not found. Copy from .env.example and fill in values.
     cmds:
       - bun install
-      - bunx sst deploy --stage dev
+      - bun ../scripts/sst-deploy-with-retry.mjs --stage dev
 
   deploy:infra:remove:
     desc: Remove SST infra stack
@@ -370,10 +377,22 @@ tasks:
     cmds:
       - task: deploy:infra
 
+  deploy:marketing-only:
+    desc: Deploy only the production SST stack (marketing site + email API infra)
+    cmds:
+      - task: deploy:infra
+
   deploy:marketing:dev:
     desc: Deploy marketing site via SST (dev stage)
     cmds:
       - task: deploy:infra:dev
+
+  deploy:app-only:
+    desc: Refresh production env, sync Fly secrets, then deploy only the app
+    cmds:
+      - task: deploy:env
+      - task: deploy:app:secrets
+      - task: deploy:app
 
   deploy:all:
     desc: Build all, deploy infra, generate env, sync Fly secrets, then deploy app

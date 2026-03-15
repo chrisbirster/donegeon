@@ -191,4 +191,4 @@ jobs:
           DONEGEON_EMAIL_SENDER: ${{ vars.DONEGEON_EMAIL_SENDER }}
           DONEGEON_EMAIL_FROM: ${{ vars.DONEGEON_EMAIL_FROM }}
           DONEGEON_EMAIL_API_AUTH_HEADER: ${{ vars.DONEGEON_EMAIL_API_AUTH_HEADER }}
-        run: bunx sst deploy --stage production
+        run: bun ../scripts/sst-deploy-with-retry.mjs --stage production

@@ -117,6 +117,7 @@ task deploy:all:wipe-db
 - Marketing or infra changes deploy only the SST production stack.
   That updates the Cloudflare-hosted marketing site and any SST-managed infra changes without redeploying the Fly app.
 - Shared web workspace changes trigger both deploy jobs.
+- SST marketing deploys automatically retry Cloudflare `10429`/`429` asset-upload throttling before failing.
 
 You can also run the workflow manually from GitHub Actions with `target=changed`, `app`, `marketing`, or `all`.
 
