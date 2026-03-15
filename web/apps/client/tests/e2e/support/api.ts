@@ -1,13 +1,64 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
-type TaskListResponse = {
-  items: Array<{ id: string }>;
+const TASK_TIMEZONE_HEADERS = {
+  "X-Timezone": "America/New_York",
 };
 
-type BoardStateResponse = {
-  version: string;
-  stacks: Record<string, { id: string }>;
+export type TaskRecord = {
+  id: string;
+  content: string;
+  description?: string;
+  projectId?: string;
+  dueText?: string;
+  dueDeadline?: string;
+  recurrenceRule?: string;
+  priority?: number;
+  checked: boolean;
+  isDeleted?: boolean;
+  labels: string[];
 };
+
+type TaskListResponse = {
+  items: TaskRecord[];
+  nextCursor?: number | null;
+};
+
+export type BoardStateResponse = {
+  version: string;
+  stacks: Record<string, { id: string; cards: string[]; pos?: { x: number; y: number }; z?: number }>;
+  cards: Record<string, { id: string; defId: string; data?: Record<string, unknown> }>;
+  meta?: {
+    dayTickCount?: number;
+    metrics?: Record<string, number>;
+    quests?: {
+      currentDay?: number;
+      currentWeek?: number;
+    };
+    villagers?: Record<
+      string,
+      {
+        stamina?: number;
+        xp?: number;
+        level?: number;
+        perks?: string[];
+      }
+    >;
+  };
+};
+
+type TaskCreateInput = {
+  content: string;
+  description?: string;
+  projectId?: string;
+  recurrenceRule?: string;
+  priority?: number;
+  dueText?: string;
+  dueDeadline?: string;
+  scheduleInput?: string;
+  labels?: string[];
+};
+
+type TaskUpdateInput = Partial<TaskCreateInput>;
 
 type TeamInvitationResponse = {
   invitation: {
@@ -31,10 +82,45 @@ export async function resetTasks(request: APIRequestContext) {
   }
 }
 
-async function getBoardState(request: APIRequestContext): Promise<BoardStateResponse> {
-  const response = await request.get("/api/board/state?board=default");
+export async function getBoardState(
+  request: APIRequestContext,
+  boardID = "default",
+): Promise<BoardStateResponse> {
+  const response = await request.get(`/api/board/state?board=${encodeURIComponent(boardID)}`);
   expect(response.ok()).toBeTruthy();
   return (await response.json()) as BoardStateResponse;
+}
+
+export async function seedDefaultBoard(request: APIRequestContext, boardID = "default") {
+  await runBoardCommand(request, "board.seed_default", {}, boardID);
+  return getBoardState(request, boardID);
+}
+
+export async function runBoardCommand(
+  request: APIRequestContext,
+  cmd: string,
+  args: Record<string, unknown> = {},
+  boardID = "default",
+) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const state = await getBoardState(request, boardID);
+    const response = await request.post(`/api/board/cmd?board=${encodeURIComponent(boardID)}`, {
+      data: {
+        cmd,
+        args,
+        clientVersion: state.version,
+      },
+    });
+
+    if (response.status() === 409) {
+      continue;
+    }
+
+    expect(response.ok()).toBeTruthy();
+    return response;
+  }
+
+  throw new Error(`failed to run board command "${cmd}" after 10 retries`);
 }
 
 export async function resetBoard(request: APIRequestContext) {
@@ -58,6 +144,59 @@ export async function resetBoard(request: APIRequestContext) {
   }
 
   throw new Error("failed to clear board stacks within 200 iterations");
+}
+
+export async function advanceBoardDays(
+  request: APIRequestContext,
+  days: number,
+  boardID = "default",
+): Promise<BoardStateResponse> {
+  const wholeDays = Math.max(0, Math.trunc(days));
+  for (let day = 0; day < wholeDays; day += 1) {
+    await runBoardCommand(request, "world.end_day", {}, boardID);
+  }
+  return getBoardState(request, boardID);
+}
+
+export async function listTasks(
+  request: APIRequestContext,
+  options: { limit?: number; projectId?: string } = {},
+) {
+  const searchParams = new URLSearchParams();
+  if (options.limit) searchParams.set("limit", String(options.limit));
+  if (options.projectId) searchParams.set("projectId", options.projectId);
+
+  const suffix = searchParams.toString();
+  const response = await request.get(`/api/tasks${suffix ? `?${suffix}` : ""}`, {
+    headers: TASK_TIMEZONE_HEADERS,
+  });
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()) as TaskListResponse;
+}
+
+export async function createTask(request: APIRequestContext, input: TaskCreateInput) {
+  const response = await request.post("/api/tasks", {
+    data: input,
+    headers: TASK_TIMEZONE_HEADERS,
+  });
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()) as TaskRecord;
+}
+
+export async function updateTask(request: APIRequestContext, taskID: string, input: TaskUpdateInput) {
+  const response = await request.patch(`/api/tasks/${taskID}`, {
+    data: input,
+    headers: TASK_TIMEZONE_HEADERS,
+  });
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()) as TaskRecord;
+}
+
+export async function closeTask(request: APIRequestContext, taskID: string) {
+  const response = await request.post(`/api/tasks/${taskID}/close`, {
+    headers: TASK_TIMEZONE_HEADERS,
+  });
+  expect(response.ok()).toBeTruthy();
 }
 
 export async function inviteTeamMemberAndAccept(

@@ -22,9 +22,7 @@ export default function DocRoute() {
           <section class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-8 text-center shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
             <p class="section-label">Documentation</p>
             <h1 class="font-display text-4xl font-semibold text-white">Guide not found</h1>
-            <p class="mt-4 text-base leading-7 text-[var(--text-soft)]">
-              That doc slug does not exist in the current markdown collection.
-            </p>
+            <p class="mt-4 text-base leading-7 text-[var(--text-soft)]">That guide is not available right now.</p>
             <A
               href="/docs"
               class="mt-6 inline-flex rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
@@ -85,7 +83,7 @@ export default function DocRoute() {
 
             <aside class="space-y-5">
               <div class="rounded-[1.7rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-                <p class="section-label">Article metadata</p>
+                <p class="section-label">Guide details</p>
                 <div class="mt-4 space-y-3 text-sm leading-7 text-[var(--text-soft)]">
                   <p>
                     <span class="font-semibold text-white">Category:</span> {entry().category}
@@ -95,7 +93,7 @@ export default function DocRoute() {
                   </p>
                   <Show when={entry().video}>
                     <p>
-                      <span class="font-semibold text-white">Media:</span> Inline feature walkthrough enabled
+                      <span class="font-semibold text-white">Media:</span> Video walkthrough included
                     </p>
                   </Show>
                 </div>

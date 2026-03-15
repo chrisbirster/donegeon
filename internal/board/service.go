@@ -396,6 +396,7 @@ func (s *Service) cmdStackMerge(ctx context.Context, state *State, args map[stri
 		return nil, err
 	}
 	ensurePriorityFaceCard(state, target)
+	ensureVillagerLeadsResourceStack(state, target)
 
 	return map[string]any{
 		"target":        target,
@@ -1824,6 +1825,9 @@ func (s *Service) cmdResourceGather(state *State, args map[string]any) (any, err
 	if !stackHasKind(state, villagerStack, "villager") {
 		return nil, fmt.Errorf("stack is not a villager stack: %s", villagerStackID)
 	}
+	if resourceMergeWouldCreateMultipleVillagers(state, resourceStack, villagerStack) {
+		return nil, ErrInvalidStackPair
+	}
 
 	meta := ensureMeta(state)
 	actualVillagerID := firstVillagerIDFromStack(state, villagerStack)
@@ -1849,6 +1853,7 @@ func (s *Service) cmdResourceGather(state *State, args map[string]any) (any, err
 		}
 		ensurePriorityFaceCard(state, resourceStack)
 	}
+	ensureVillagerLeadsResourceStack(state, resourceStack)
 
 	resourceCard := firstCardByKind(state, resourceStack, "resource")
 	if resourceCard == nil {
@@ -1884,6 +1889,7 @@ func (s *Service) cmdResourceGather(state *State, args map[string]any) (any, err
 		X: resourceStack.Pos.X + 98,
 		Y: resourceStack.Pos.Y + 28,
 	}, map[string]any{"amount": 1})
+	dropStack = s.finalizeSpawnedStack(state, dropStack)
 
 	xpGained := s.gatherResourceXP()
 	updatedVillager, newPerks := s.awardVillagerXP(meta, actualVillagerID, xpGained)
@@ -2134,6 +2140,67 @@ func createSingleCardStack(state *State, defID string, pos Point, data map[strin
 	return stack
 }
 
+func (s *Service) finalizeSpawnedStack(state *State, spawned *Stack) *Stack {
+	if state == nil || spawned == nil {
+		return spawned
+	}
+
+	for _, candidate := range stacksAtExactPosition(state, spawned.ID, spawned.Pos) {
+		if s.validator != nil {
+			if err := s.validator.ValidateStackMerge(state, candidate.ID, spawned.ID); err != nil {
+				continue
+			}
+		}
+		if err := state.MergeStacks(candidate.ID, spawned.ID); err != nil {
+			continue
+		}
+		ensurePriorityFaceCard(state, candidate)
+		ensureVillagerLeadsResourceStack(state, candidate)
+		return candidate
+	}
+
+	if len(stacksAtExactPosition(state, spawned.ID, spawned.Pos)) == 0 {
+		return spawned
+	}
+
+	for step := 1; step <= 12; step++ {
+		candidate := Point{
+			X: spawned.Pos.X + step*18,
+			Y: spawned.Pos.Y + ((step % 2) * 12),
+		}
+		if len(stacksAtExactPosition(state, spawned.ID, candidate)) > 0 {
+			continue
+		}
+		spawned.Pos = candidate
+		break
+	}
+
+	return spawned
+}
+
+func stacksAtExactPosition(state *State, excludedID string, pos Point) []*Stack {
+	if state == nil {
+		return nil
+	}
+
+	stacks := make([]*Stack, 0)
+	for _, stack := range state.Stacks {
+		if stack == nil || stack.ID == excludedID {
+			continue
+		}
+		if stack.Pos != pos {
+			continue
+		}
+		stacks = append(stacks, stack)
+	}
+
+	sort.Slice(stacks, func(i, j int) bool {
+		return stacks[i].Z > stacks[j].Z
+	})
+
+	return stacks
+}
+
 func topCard(state *State, stack *Stack) *Card {
 	if state == nil || stack == nil || len(stack.Cards) == 0 {
 		return nil
@@ -2264,6 +2331,62 @@ func ensurePriorityFaceCard(state *State, stack *Stack) {
 	faceCardID := stack.Cards[targetIndex]
 	stack.Cards = append(stack.Cards[:targetIndex], stack.Cards[targetIndex+1:]...)
 	stack.Cards = append(stack.Cards, faceCardID)
+}
+
+func ensureVillagerLeadsResourceStack(state *State, stack *Stack) {
+	if state == nil || stack == nil || len(stack.Cards) <= 1 {
+		return
+	}
+
+	faceResourceIndex := -1
+	hasVillager := false
+	hasResource := false
+	for i, cardID := range stack.Cards {
+		card := state.GetCard(cardID)
+		if card == nil {
+			continue
+		}
+		switch cardKind(card.DefID) {
+		case "villager":
+			hasVillager = true
+		case "resource":
+			hasResource = true
+			faceResourceIndex = i
+		}
+	}
+
+	if !hasVillager || !hasResource || faceResourceIndex < 0 {
+		return
+	}
+
+	ordered := make([]string, 0, len(stack.Cards))
+	middle := make([]string, 0, len(stack.Cards))
+
+	for i, cardID := range stack.Cards {
+		card := state.GetCard(cardID)
+		if card == nil {
+			continue
+		}
+		if i == faceResourceIndex {
+			continue
+		}
+		if cardKind(card.DefID) == "villager" {
+			ordered = append(ordered, cardID)
+			continue
+		}
+		middle = append(middle, cardID)
+	}
+
+	if len(ordered) == 0 {
+		return
+	}
+
+	ordered = append(ordered, middle...)
+	ordered = append(ordered, stack.Cards[faceResourceIndex])
+	if len(ordered) != len(stack.Cards) {
+		return
+	}
+	stack.Cards = ordered
 }
 
 func removeCardFromStack(state *State, stackID string, cardID string) {

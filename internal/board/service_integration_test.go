@@ -1156,6 +1156,269 @@ func TestMergePrioritizesTaskResourceFoodAsFaceCards(t *testing.T) {
 	}
 }
 
+func TestMergePlacesVillagerOnTopOfMultiResourceStack(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.tree",
+		"x":     560,
+		"y":     240,
+	}), "stack")
+	secondResource := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.tree",
+		"x":     620,
+		"y":     240,
+	}), "stack")
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     680,
+		"y":     240,
+	}), "stack")
+
+	env.command(t, "stack.merge", map[string]any{
+		"targetId": resourceStack.ID,
+		"sourceId": secondResource.ID,
+	})
+	env.command(t, "stack.merge", map[string]any{
+		"targetId": resourceStack.ID,
+		"sourceId": villagerStack.ID,
+	})
+
+	after := env.state(t)
+	merged := after.Stacks[resourceStack.ID]
+	if merged == nil {
+		t.Fatal("expected merged resource stack")
+	}
+	if len(merged.Cards) != 3 {
+		t.Fatalf("expected 3 cards after merge, got %d", len(merged.Cards))
+	}
+
+	kinds := make([]string, 0, len(merged.Cards))
+	resourceCount := 0
+	for _, cardID := range merged.Cards {
+		card := after.Cards[cardID]
+		if card == nil {
+			t.Fatalf("expected card %s to exist", cardID)
+		}
+		kind := cardKind(card.DefID)
+		kinds = append(kinds, kind)
+		if kind == "resource" {
+			resourceCount++
+		}
+	}
+
+	if kinds[0] != "villager" {
+		t.Fatalf("expected villager to render on top of multi-resource stack, got order %v", kinds)
+	}
+	if kinds[len(kinds)-1] != "resource" {
+		t.Fatalf("expected resource to remain face card, got order %v", kinds)
+	}
+	if resourceCount != 2 {
+		t.Fatalf("expected two resources in merged stack, got order %v", kinds)
+	}
+}
+
+func TestStackMergeRejectsSecondVillagerOnAssignedResourceStack(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.tree",
+		"x":     560,
+		"y":     280,
+	}), "stack")
+	firstVillager := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     620,
+		"y":     280,
+	}), "stack")
+	secondVillager := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     680,
+		"y":     280,
+	}), "stack")
+
+	env.command(t, "stack.merge", map[string]any{
+		"targetId": resourceStack.ID,
+		"sourceId": firstVillager.ID,
+	})
+
+	err := env.commandExpectError(t, "stack.merge", map[string]any{
+		"targetId": resourceStack.ID,
+		"sourceId": secondVillager.ID,
+	})
+	lower := strings.ToLower(err.Error())
+	if !strings.Contains(lower, "cannot") && !strings.Contains(lower, "invalid") {
+		t.Fatalf("expected invalid merge rejection for second villager on assigned resource stack, got: %v", err)
+	}
+
+	after := env.state(t)
+	assigned := after.Stacks[resourceStack.ID]
+	if assigned == nil {
+		t.Fatalf("expected assigned resource stack %s to remain", resourceStack.ID)
+	}
+	villagerCount := 0
+	for _, cardID := range assigned.Cards {
+		card := after.Cards[cardID]
+		if card != nil && cardKind(card.DefID) == "villager" {
+			villagerCount++
+		}
+	}
+	if villagerCount != 1 {
+		t.Fatalf("expected assigned resource stack to keep exactly one villager, got=%d cards=%v", villagerCount, assigned.Cards)
+	}
+	if after.Stacks[secondVillager.ID] == nil || !stackHasKindFromResponse(after, after.Stacks[secondVillager.ID], "villager") {
+		t.Fatalf("expected second villager stack %s to remain unchanged after rejected merge", secondVillager.ID)
+	}
+}
+
+func TestResourceGatherMergesRepeatedDropsAtSamePosition(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.tree",
+		"x":     760,
+		"y":     320,
+		"data": map[string]any{
+			"charges": 2,
+		},
+	}), "stack")
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     820,
+		"y":     320,
+	}), "stack")
+
+	env.command(t, "resource.gather", map[string]any{
+		"resourceStackId": resourceStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+	env.command(t, "resource.gather", map[string]any{
+		"resourceStackId": resourceStack.ID,
+		"villagerStackId": resourceStack.ID,
+	})
+
+	after := env.state(t)
+	lootPartStacks := 0
+	lootPartCards := 0
+	for _, stack := range after.Stacks {
+		stackLootParts := 0
+		for _, cardID := range stack.Cards {
+			card := after.Cards[cardID]
+			if card == nil || card.DefID != "loot.parts" {
+				continue
+			}
+			stackLootParts++
+			lootPartCards++
+		}
+		if stackLootParts > 0 {
+			lootPartStacks++
+			if stackLootParts != 2 {
+				t.Fatalf("expected repeated loot drops to stack together, got %d loot.parts cards in one stack", stackLootParts)
+			}
+		}
+	}
+
+	if lootPartStacks != 1 {
+		t.Fatalf("expected one loot.parts stack after repeated gathers, got %d", lootPartStacks)
+	}
+	if lootPartCards != 2 {
+		t.Fatalf("expected two loot.parts cards after repeated gathers, got %d", lootPartCards)
+	}
+}
+
+func TestResourceGatherRejectsSecondVillagerOnAssignedResourceStack(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	env.command(t, "board.seed_default", map[string]any{})
+
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.tree",
+		"x":     760,
+		"y":     360,
+		"data": map[string]any{
+			"charges": 3,
+		},
+	}), "stack")
+	firstVillager := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     820,
+		"y":     360,
+	}), "stack")
+	secondVillager := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     880,
+		"y":     360,
+	}), "stack")
+
+	env.command(t, "resource.gather", map[string]any{
+		"resourceStackId": resourceStack.ID,
+		"villagerStackId": firstVillager.ID,
+	})
+
+	rawState, err := env.boardSvc.repo.Load(env.ctx, DefaultBoardID)
+	if err != nil {
+		t.Fatalf("load raw state: %v", err)
+	}
+	rawSecondVillager := rawState.GetStack(secondVillager.ID)
+	if rawSecondVillager == nil {
+		t.Fatalf("expected second villager stack %s in raw state", secondVillager.ID)
+	}
+	secondVillagerID := firstVillagerIDFromStack(rawState, rawSecondVillager)
+	if secondVillagerID == "" {
+		t.Fatalf("expected villager id for secondary villager stack %s", secondVillager.ID)
+	}
+	beforeStamina := 5
+	ensureVillager(&rawState.Meta, secondVillagerID).Stamina = beforeStamina
+	if err := env.boardSvc.repo.Save(env.ctx, DefaultBoardID, rawState); err != nil {
+		t.Fatalf("save second villager stamina fixture: %v", err)
+	}
+
+	err = env.commandExpectError(t, "resource.gather", map[string]any{
+		"resourceStackId": resourceStack.ID,
+		"villagerStackId": secondVillager.ID,
+	})
+	lower := strings.ToLower(err.Error())
+	if !strings.Contains(lower, "cannot") && !strings.Contains(lower, "invalid") {
+		t.Fatalf("expected invalid gather rejection for second villager on assigned resource stack, got: %v", err)
+	}
+
+	after := env.state(t)
+	assigned := after.Stacks[resourceStack.ID]
+	if assigned == nil {
+		t.Fatalf("expected assigned resource stack %s to remain", resourceStack.ID)
+	}
+	villagerCount := 0
+	for _, cardID := range assigned.Cards {
+		card := after.Cards[cardID]
+		if card != nil && cardKind(card.DefID) == "villager" {
+			villagerCount++
+		}
+	}
+	if villagerCount != 1 {
+		t.Fatalf("expected assigned resource stack to keep exactly one villager after rejected gather, got=%d cards=%v", villagerCount, assigned.Cards)
+	}
+	if after.Stacks[secondVillager.ID] == nil || !stackHasKindFromResponse(after, after.Stacks[secondVillager.ID], "villager") {
+		t.Fatalf("expected second villager stack %s to remain after rejected gather", secondVillager.ID)
+	}
+	progress := after.Meta.Villagers[secondVillagerID]
+	if progress == nil {
+		t.Fatalf("expected villager progress for second villager id=%s", secondVillagerID)
+	}
+	if progress.Stamina != beforeStamina {
+		t.Fatalf("expected rejected gather not to spend second villager stamina, before=%d after=%d", beforeStamina, progress.Stamina)
+	}
+}
+
 func TestQuestWeekOneStoryCanBeClaimed(t *testing.T) {
 	t.Parallel()
 

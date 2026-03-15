@@ -15,11 +15,11 @@ export default function FeaturesRoute() {
   return (
     <MarketingLayout>
       <section>
-        <p class="section-label">Feature inventory</p>
-        <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">Every meaningful Donegeon capability now has a place on the site.</h1>
+        <p class="section-label">Features</p>
+        <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">See how Donegeon helps teams plan, prioritize, and move work.</h1>
         <p class="mt-5 max-w-3xl text-lg leading-8 text-[var(--text-soft)]">
-          This page maps the shipped product into a cleaner marketing structure: capture, scheduling, board gameplay, collaboration,
-          integrations, and rollout support.
+          From fast capture to recurring schedules to shared board play, Donegeon is built to help teams stay organized and keep
+          momentum.
         </p>
       </section>
 
@@ -33,7 +33,7 @@ export default function FeaturesRoute() {
                   <h2 class="font-display text-3xl font-semibold text-white">{category} features</h2>
                 </div>
                 <p class="max-w-sm text-sm leading-7 text-[var(--text-muted)]">
-                  Structured so buyers, evaluators, and current users can see how each product surface fits together.
+                  Explore the parts of the product that help teams capture work, stay aligned, and follow through.
                 </p>
               </div>
 
@@ -56,8 +56,8 @@ export default function FeaturesRoute() {
       </section>
 
       <section class="mt-16 rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(135deg,rgba(255,139,80,0.1),rgba(82,142,196,0.08)_58%,rgba(138,228,163,0.08))] p-8 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-        <p class="section-label">What makes it professional</p>
-        <h2 class="font-display text-3xl font-semibold text-white">The marketing site now carries the supporting surfaces buyers expect.</h2>
+        <p class="section-label">Why teams can rely on it</p>
+        <h2 class="font-display text-3xl font-semibold text-white">Donegeon covers the essentials teams expect as they grow.</h2>
         <div class="mt-6 grid gap-4 md:grid-cols-2">
           <For each={TRUST_POINTS}>
             {(item) => (

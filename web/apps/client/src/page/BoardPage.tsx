@@ -373,6 +373,28 @@ function taskCompletionToastMessage(patch: unknown): string {
   return parts.join(" ");
 }
 
+function notificationToneClass(tone: string | undefined): string {
+  switch ((tone ?? "").trim().toLowerCase()) {
+    case "success":
+      return "border-[#3d6b4e] bg-[#12281d] text-[#baf2cd]";
+    case "error":
+      return "border-[#734040] bg-[#2b1717] text-[#ffbaba]";
+    default:
+      return "border-[#415779] bg-[#152238] text-[#d6e6ff]";
+  }
+}
+
+function notificationToneLabel(tone: string | undefined): string {
+  switch ((tone ?? "").trim().toLowerCase()) {
+    case "success":
+      return "Success";
+    case "error":
+      return "Alert";
+    default:
+      return "Info";
+  }
+}
+
 function addChip(value: string | undefined, label: string): string | null {
   if (!value || !value.trim()) return null;
   return `${label}: ${value}`;
@@ -382,6 +404,11 @@ const scheduleDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
   month: "short",
   day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+const notificationTimeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
   minute: "2-digit",
 });
@@ -402,6 +429,11 @@ function formatScheduleDateTime(value: string | undefined): string | undefined {
     return raw;
   }
   return scheduleDateTimeFormatter.format(parsed);
+}
+
+function formatNotificationTime(value: number | undefined): string {
+  if (!value || !Number.isFinite(value)) return "";
+  return notificationTimeFormatter.format(new Date(value));
 }
 
 function scheduleTokenFromInput(
@@ -921,12 +953,15 @@ export default function BoardRoute() {
   const [questClaimingID, setQuestClaimingID] = createSignal<string | null>(null);
   const [newBoardName, setNewBoardName] = createSignal("");
   const [createBoardModalOpen, setCreateBoardModalOpen] = createSignal(false);
+  const [notificationHistoryOpen, setNotificationHistoryOpen] = createSignal(false);
   const [boardCrudBusy, setBoardCrudBusy] = createSignal(false);
   const [teamSettings, setTeamSettings] = createSignal<TeamSettings | null>(null);
   const [boardMembers, setBoardMembers] = createSignal<BoardMember[]>([]);
   const [boardMembersLoading, setBoardMembersLoading] = createSignal(false);
   const [boardMembersBusy, setBoardMembersBusy] = createSignal(false);
   const [pendingBoardMemberID, setPendingBoardMemberID] = createSignal("");
+  const [exhaustedVillagerIDs, setExhaustedVillagerIDs] = createSignal<string[]>([]);
+  const [exhaustedResourceAssignmentKeys, setExhaustedResourceAssignmentKeys] = createSignal<string[]>([]);
 
   let boardRef: HTMLDivElement | undefined;
   let createBoardInputRef: HTMLInputElement | undefined;
@@ -938,6 +973,7 @@ export default function BoardRoute() {
   let detailParseRequestSeq = 0;
   let lastComposerParsedText = "";
   let lastDetailParsedText = "";
+  let hasPrimedExhaustedVillagers = false;
 
   function resetComposerPreview() {
     composerParseRequestSeq += 1;
@@ -1325,6 +1361,52 @@ export default function BoardRoute() {
     return [...byID.values()].sort((a, b) => a.name.localeCompare(b.name));
   });
 
+  createEffect(() => {
+    activeBoardID();
+    hasPrimedExhaustedVillagers = false;
+    setExhaustedVillagerIDs([]);
+    setExhaustedResourceAssignmentKeys([]);
+    setNotificationHistoryOpen(false);
+  });
+
+  createEffect(() => {
+    const currentState = state();
+    if (!currentState) {
+      hasPrimedExhaustedVillagers = false;
+      setExhaustedVillagerIDs([]);
+      setExhaustedResourceAssignmentKeys([]);
+      return;
+    }
+
+    const statuses = villagerStatuses();
+    const nextExhausted = statuses.filter((status) => status.stamina <= 0);
+    const previous = new Set(exhaustedVillagerIDs());
+    const previousAssignments = new Set(exhaustedResourceAssignmentKeys());
+    const nextAssignments: string[] = [];
+
+    for (const stack of Object.values(currentState.stacks)) {
+      const status = villagerStatusForStack(stack, currentState);
+      if (!status || status.stamina > 0 || !stackHasKind(stack, "resource")) continue;
+      const assignmentKey = `${status.villagerID}:${stack.id}`;
+      nextAssignments.push(assignmentKey);
+      if (hasPrimedExhaustedVillagers && !previousAssignments.has(assignmentKey) && previous.has(status.villagerID)) {
+        toast.error(`${status.name} is assigned but out of stamina.`, 4800);
+      }
+    }
+
+    if (hasPrimedExhaustedVillagers) {
+      for (const status of nextExhausted) {
+        if (previous.has(status.villagerID)) continue;
+        toast.error(`${status.name} ran out of stamina.`, 4800);
+      }
+    } else {
+      hasPrimedExhaustedVillagers = true;
+    }
+
+    setExhaustedVillagerIDs(nextExhausted.map((status) => status.villagerID));
+    setExhaustedResourceAssignmentKeys(nextAssignments);
+  });
+
   const composerTokens = createMemo(() => tokenizeQuickAdd(composerText()));
   const detailTokens = createMemo(() => tokenizeQuickAdd(detailTitle()));
 
@@ -1709,6 +1791,10 @@ export default function BoardRoute() {
             return;
           }
           const message = apiError.message.toLowerCase();
+          if (message.includes("stamina too low")) {
+            const status = villagerStatusForStack(state()?.stacks[stackID] ?? null, state());
+            toast.error(`${status?.name ?? "Villager"} ran out of stamina.`, 4800);
+          }
           if (message.includes("stamina too low") || message.includes("resource stack not found")) {
             setMiningSessionsByStackID((existing) => {
               const next = { ...existing };
@@ -1783,6 +1869,7 @@ export default function BoardRoute() {
       maxX = Math.max(maxX, bounds.right);
       maxY = Math.max(maxY, bounds.bottom);
       const top = cardFromStack(stack, state());
+      const villager = villagerStatusForStack(stack, state());
       return {
         id: stack.id,
         kind: top ? cardKind(top.defId) : "unknown",
@@ -1790,6 +1877,7 @@ export default function BoardRoute() {
         centerX: bounds.left + CARD_WIDTH / 2,
         centerY: bounds.top + stackHeightPx(stack.cards.length) / 2,
         isSelected: selectedStackID() === stack.id,
+        isExhausted: !!villager && villager.stamina <= 0,
         isNextAction: stackHasKind(stack, "task") && stackHasCardDefID(stack, "mod.next_action"),
       };
     });
@@ -1816,6 +1904,7 @@ export default function BoardRoute() {
       x: toMapX(entry.centerX),
       y: toMapY(entry.centerY),
       isSelected: entry.isSelected,
+      isExhausted: entry.isExhausted,
       isNextAction: entry.isNextAction,
     }));
 
@@ -1847,7 +1936,8 @@ export default function BoardRoute() {
     };
   });
 
-  function minimapDotClass(kind: string, isNextAction: boolean): string {
+  function minimapDotClass(kind: string, isNextAction: boolean, isExhausted: boolean): string {
+    if (isExhausted) return "bg-[#f87171] shadow-[0_0_8px_rgba(248,113,113,0.9)]";
     if (isNextAction) return "bg-[#facc15] shadow-[0_0_8px_rgba(250,204,21,0.9)]";
     switch (kind) {
       case "task":
@@ -3307,6 +3397,14 @@ export default function BoardRoute() {
               </button>
               <button
                 type="button"
+                class="rounded-md border border-[#4d5f87] bg-[#122038] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)]"
+                onClick={() => setNotificationHistoryOpen(true)}
+                data-testid="board-open-notifications-mobile"
+              >
+                Notes {toast.history().length}
+              </button>
+              <button
+                type="button"
                 class="rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
                 onClick={() => void deleteActiveBoard()}
                 disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
@@ -3419,11 +3517,14 @@ export default function BoardRoute() {
                     <div class="rounded-md border border-[#304767] bg-[#101f35] px-2 py-1.5 text-xs text-[#dce8ff]">
                       <div class="flex items-center justify-between gap-2">
                         <span class="truncate font-semibold">{villager.name}</span>
-                        <span class="text-[#f4d8a1]">STA {villager.stamina}</span>
+                        <span class={villager.stamina <= 0 ? "text-[#ff9b9b]" : "text-[#f4d8a1]"}>STA {villager.stamina}</span>
                       </div>
                       <p class="mt-0.5 text-[11px] text-[#9cb2d6]">
                         Lv {villager.level} · XP {villager.xp}
                       </p>
+                      <Show when={villager.stamina <= 0}>
+                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ff9b9b]">Needs action</p>
+                      </Show>
                     </div>
                   )}
                 </For>
@@ -3609,6 +3710,14 @@ export default function BoardRoute() {
 
           <button
             type="button"
+            class="rounded-md border border-[#445f86] bg-[#122038] px-3 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)]"
+            onClick={() => setNotificationHistoryOpen(true)}
+            data-testid="board-open-notifications"
+          >
+            Notifications {toast.history().length}
+          </button>
+          <button
+            type="button"
             class="rounded-md border border-[#7c3737] bg-[#2a1416] px-3 py-1 text-xs text-[#ff857f] transition hover:bg-[#37181b] disabled:opacity-50"
             onClick={() => void endDay()}
             disabled={busy()}
@@ -3790,11 +3899,14 @@ export default function BoardRoute() {
                     <div class="rounded-md border border-[#304767] bg-[#111e30] px-2.5 py-2">
                       <div class="flex items-center justify-between gap-2 text-xs">
                         <span class="truncate font-semibold text-[#dce9ff]">{villager.name}</span>
-                        <span class="text-[#ebcf8b]">STA {villager.stamina}</span>
+                        <span class={villager.stamina <= 0 ? "text-[#ff9b9b]" : "text-[#ebcf8b]"}>STA {villager.stamina}</span>
                       </div>
                       <p class="mt-1 text-[11px] text-[#97a9c7]">
                         Lv {villager.level} · XP {villager.xp}
                       </p>
+                      <Show when={villager.stamina <= 0}>
+                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ff9b9b]">Needs action</p>
+                      </Show>
                     </div>
                   )}
                 </For>
@@ -3935,7 +4047,7 @@ export default function BoardRoute() {
                             <div
                               class={`pointer-events-none absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full ${
                                 dot.isSelected ? "ring-2 ring-[#e6edf9]" : ""
-                              } ${minimapDotClass(dot.kind, dot.isNextAction)}`}
+                              } ${minimapDotClass(dot.kind, dot.isNextAction, dot.isExhausted)}`}
                               style={{
                                 left: `${dot.x}px`,
                                 top: `${dot.y}px`,
@@ -3983,7 +4095,7 @@ export default function BoardRoute() {
                           <div
                             class={`pointer-events-none absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full ${
                               dot.isSelected ? "ring-2 ring-[#e6edf9]" : ""
-                            } ${minimapDotClass(dot.kind, dot.isNextAction)}`}
+                            } ${minimapDotClass(dot.kind, dot.isNextAction, dot.isExhausted)}`}
                             style={{
                               left: `${dot.x}px`,
                               top: `${dot.y}px`,
@@ -4178,6 +4290,7 @@ export default function BoardRoute() {
                   const hasNextActionModifier = createMemo(
                     () => stackHasKind(stack, "task") && stackHasCardDefID(stack, "mod.next_action"),
                   );
+                  const isExhaustedVillager = createMemo(() => (villagerStatus()?.stamina ?? 1) <= 0);
                   const miningProgress = createMemo(() => {
                     const session = miningSessionsByStackID()[stack.id];
                     if (!session) return null;
@@ -4208,7 +4321,9 @@ export default function BoardRoute() {
                         } ${
                           isMergeTarget()
                             ? "ring-2 ring-[#efb05f] ring-offset-2 ring-offset-[#07090f]"
-                            : hasNextActionModifier()
+                            : isExhaustedVillager()
+                              ? "ring-2 ring-[#f87171] ring-offset-2 ring-offset-[#07090f] shadow-[0_0_0_1px_rgba(248,113,113,0.34),0_0_26px_rgba(248,113,113,0.28)]"
+                              : hasNextActionModifier()
                               ? "ring-2 ring-[#facc15]/90 ring-offset-2 ring-offset-[#07090f] shadow-[0_0_0_1px_rgba(250,204,21,0.36),0_0_26px_rgba(250,204,21,0.34)]"
                               : ""
                         }`}
@@ -4233,6 +4348,15 @@ export default function BoardRoute() {
                           void activateDeckOrPack(stack);
                         }}
                       >
+                        <Show when={isExhaustedVillager()}>
+                          <div
+                            class="pointer-events-none absolute -top-3 left-0 rounded-md border border-[#7d3f3f] bg-[#311617]/96 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ffb3ad] shadow-[0_10px_20px_rgba(0,0,0,0.35)]"
+                            data-testid="board-stack-exhausted"
+                          >
+                            No stamina
+                          </div>
+                        </Show>
+
                         <Show when={miningProgress() !== null}>
                           <div class="pointer-events-none absolute -bottom-3 left-0 right-0 rounded-md border border-[#335244] bg-[#0c1b14]/92 px-1 py-0.5">
                             <div class="h-1.5 w-full overflow-hidden rounded-full border border-[#2f4a3f] bg-[#13291f]">
@@ -4442,6 +4566,71 @@ export default function BoardRoute() {
           </Show>
         </section>
       </div>
+
+      <Show when={notificationHistoryOpen()}>
+        <div
+          class="fixed inset-0 z-[78] flex items-center justify-center bg-[#05070fcc]/90 p-3 md:p-4"
+          onClick={() => setNotificationHistoryOpen(false)}
+        >
+          <div
+            class="w-full max-w-lg rounded-2xl border border-[#2b3c57] bg-[linear-gradient(180deg,#101a2c,#0d1523)] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.55)]"
+            onClick={(event) => event.stopPropagation()}
+            data-testid="board-notification-history"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Recent Notifications</p>
+                <p class="mt-1 text-sm text-[#b5c7e6]">Recent board alerts and status messages for this session.</p>
+              </div>
+              <button
+                type="button"
+                class="rounded-md border border-[#435c84] px-2 py-1 text-xs text-[#d5e4ff] hover:border-[var(--accent)]"
+                onClick={() => setNotificationHistoryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div class="mt-4 space-y-2" data-testid="board-notification-history-list">
+              <Show
+                when={toast.history().length > 0}
+                fallback={
+                  <p class="rounded-lg border border-[#304867] bg-[#101f35]/85 px-3 py-3 text-sm text-[#a8bddf]">
+                    No notifications yet.
+                  </p>
+                }
+              >
+                <For each={toast.history()}>
+                  {(entry) => (
+                    <article class={`rounded-lg border px-3 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.25)] ${notificationToneClass(entry.tone)}`}>
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <p class="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-80">
+                            {notificationToneLabel(entry.tone)}
+                          </p>
+                          <p class="mt-1 text-sm leading-snug">{entry.message}</p>
+                        </div>
+                        <span class="shrink-0 text-[11px] opacity-75">{formatNotificationTime(entry.createdAt)}</span>
+                      </div>
+                    </article>
+                  )}
+                </For>
+              </Show>
+            </div>
+
+            <div class="mt-4 flex justify-end">
+              <button
+                type="button"
+                class="rounded-md border border-[#3f567c] bg-[#16253f] px-3 py-1.5 text-sm text-[#dbe8ff] transition hover:border-[var(--accent)]"
+                onClick={() => toast.clearHistory()}
+                disabled={toast.history().length === 0}
+              >
+                Clear history
+              </button>
+            </div>
+          </div>
+        </div>
+      </Show>
 
       <Show when={createBoardModalOpen()}>
         <div

@@ -1,14 +1,14 @@
 ---
-title: Calendar sync and recurrence engine
-description: Donegeon combines human-friendly scheduling with calendar connections and a deeper recurrence layer.
+title: Calendar sync and recurring schedules
+description: Donegeon combines human-friendly scheduling with calendar connections and flexible recurring work.
 category: Operations
 order: 40
 tags: calendar, recurrence, operations
 ---
 
-# Scheduling depth without calendar chaos
+# Scheduling depth without calendar overload
 
-The product has two scheduling stories that need to be presented together: fast natural-language capture and deeper recurrence support for operational reliability.
+Donegeon brings together two parts of scheduling that teams usually need at the same time: fast task capture and reliable recurring work.
 
 ## Calendar connections
 
@@ -21,9 +21,9 @@ Users can connect Google Calendar from the profile area and manage the connectio
 
 This gives teams a path to line up task commitments with the rest of their operating calendar.
 
-## RRULE support
+## Advanced schedule rules
 
-Donegeon also includes an RFC 5545 recurrence parser. That means it can work with more than casual repeating reminders.
+Donegeon also supports advanced recurrence rules, so it can handle more than casual repeating reminders.
 
 Supported rule parts include:
 
@@ -37,6 +37,6 @@ Supported rule parts include:
 - `BYSETPOS`
 - Additional IANA-style extension fields
 
-## Why this matters in marketing
+## Why this matters
 
-If someone is evaluating Donegeon against mature task software, this is the kind of depth they expect to find documented. The updated site now gives that level of detail a place to live.
+If a team is comparing Donegeon with more established task tools, this is the kind of scheduling depth they expect to see.

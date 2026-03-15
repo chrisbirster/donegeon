@@ -410,9 +410,18 @@ export default function ProfileRoute() {
     const calendarStatus = (params.get("calendar") || "").trim().toLowerCase();
     const calendarProvider = (params.get("provider") || "").trim().toLowerCase();
     const calendarMessage = (params.get("message") || "").trim();
+    const cleanProfileRoute = profileHref(boardIDFromSearch(location.search));
+    if (calendarStatus || calendarProvider || calendarMessage) {
+      navigate(cleanProfileRoute, { replace: true });
+    }
     if (calendarStatus === "connected") {
       const label = calendarProvider ? calendarProviderLabel(calendarProvider) : "Calendar";
-      setCalendarNotice(`${label} connected.`);
+      setCalendarNotice(calendarMessage || `${label} connected. Syncing upcoming events...`);
+      void (async () => {
+        await loadBase();
+        await syncCalendar();
+      })();
+      return;
     } else if (calendarStatus === "error") {
       setCalendarError(calendarMessage || "Calendar connection failed. Try again.");
     }
@@ -592,20 +601,10 @@ export default function ProfileRoute() {
                           </div>
 
                           <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                            <span class="rounded border border-[#3f6a4d] bg-[#17301f] px-2 py-0.5 text-[#bff5cb]">Connected</span>
                             <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
-                              Expires: {formatOptionalDate(connection.expiresAt)}
+                              {connection.lastSyncAt ? `Last sync ${formatOptionalDate(connection.lastSyncAt)}` : "Ready to sync upcoming events."}
                             </span>
-                            <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
-                              Last sync: {formatOptionalDate(connection.lastSyncAt)}
-                            </span>
-                            <Show when={connection.hasRefreshToken}>
-                              <span class="rounded border border-[#3f6a4d] bg-[#17301f] px-2 py-0.5 text-[#bff5cb]">Refresh token set</span>
-                            </Show>
-                            <Show when={connection.scope}>
-                              <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
-                                Scope: {connection.scope}
-                              </span>
-                            </Show>
                           </div>
                         </article>
                       )}

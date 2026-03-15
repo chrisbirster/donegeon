@@ -1,5 +1,5 @@
 ---
-title: Quick add and scheduling
+title: Quick add and smart scheduling
 description: Capture tasks with projects, labels, assignees, priority, due dates, deadlines, and recurrence in a single input.
 category: Capture
 order: 10
@@ -43,4 +43,4 @@ Quick add is the fastest way into the Donegeon workflow:
 2. Confirm schedule and metadata in the parser preview.
 3. Move it into board gameplay when the work becomes active.
 
-This is one of the most important product surfaces to show clearly on the marketing site because it explains how Donegeon can stay powerful without feeling slow.
+This is one of the clearest examples of how Donegeon stays powerful without feeling slow.

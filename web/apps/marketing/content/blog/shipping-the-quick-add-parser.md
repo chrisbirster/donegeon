@@ -1,7 +1,7 @@
 ---
-title: Shipping a quick add parser that understands more than dates
-description: Quick add is one of the clearest examples of Donegeon favoring speed without sacrificing structure.
-category: Engineering
+title: A faster way to capture tasks
+description: Quick add shows how Donegeon keeps task capture fast without giving up structure.
+category: Product
 publishedAt: 2026-02-28
 author: Donegeon team
 tags: engineering, quick-add, parser
@@ -33,4 +33,4 @@ Preview is not a nice-to-have. It is what makes a more expressive parser safe to
 
 When the system shows how it interpreted the command before the task is saved, users can correct a token immediately instead of cleaning up malformed tasks later.
 
-That interaction is important enough that the marketing site now calls it out as a distinct part of the product story.
+That interaction matters because it helps people move quickly without creating cleanup work later.

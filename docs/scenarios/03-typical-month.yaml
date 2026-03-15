@@ -1,0 +1,128 @@
+schema_version: "0.1"
+meta:
+  scenario_id: SCENARIO_MONTH_001
+  title: Typical 30-day month with planning cycles, deadline pressure, and recovery loops
+  anchor_start: "2026-03-15"
+  anchor_end: "2026-04-13"
+  timezone: America/New_York
+  source_of_truth: docs/scenarios/03-typical-month.yaml
+  intended_runner: Future Playwright E2E + API assertions
+  notes:
+    - The month is modeled as 30 simulated days, not a calendar month feature.
+    - This file defines the default long-run rhythm for future E2E simulation.
+
+persona:
+  archetype: solo knowledge worker
+  monthly_goals:
+    - Keep backlog growth controlled.
+    - Finish due-dated work without letting zombie pressure compound.
+    - Use weekends to stabilize resources and prepare for the next week.
+
+monthly_targets:
+  tasks_created:
+    task_view: 24
+    board_view: 14
+    total: 38
+  tasks_completed: 24
+  tasks_rescheduled: 6
+  overdue_tasks: 3
+  zombie_events:
+    spawned: 3
+    cleared: 3
+  resource_actions:
+    food_gather_sessions: 8
+    material_gather_sessions: 3
+  planning_sessions:
+    sundays: 5
+    friday_closeouts: 4
+
+phase_schedule:
+  - phase_id: PHASE_1
+    date_range: "2026-03-15..2026-03-21"
+    theme: setup and planning
+    week_pattern: docs/scenarios/02-typical-week.yaml
+    expectations:
+      - Establish the Sunday-planning pattern.
+      - Exercise all three due-date branches at least once.
+      - Finish the week with zero open zombies.
+  - phase_id: PHASE_2
+    date_range: "2026-03-22..2026-03-28"
+    theme: execution peak
+    expectations:
+      - Reduce task creation slightly and increase completions.
+      - Keep food above the minimum floor so villagers stay available for task execution.
+      - No more than one reschedule is allowed this week.
+    sample_tasks:
+      - title: "Record sprint review notes"
+        description: "Capture wins, misses, and next actions from the weekly review."
+        due_at: "2026-03-27T16:00:00-04:00"
+      - title: "Refine roadmap dependency map"
+        description: "Document blocked items and identify which items can move independently."
+        due_at: "2026-03-26T13:00:00-04:00"
+  - phase_id: PHASE_3
+    date_range: "2026-03-29..2026-04-04"
+    theme: deadline pressure and zombie risk
+    expectations:
+      - Intake rises again on Sunday, but weekdays should favor execution.
+      - At least one task misses its due date and becomes a zombie.
+      - A stamina failure path must be exercised before the zombie is cleared.
+    sample_tasks:
+      - title: "Finalize stakeholder update"
+        description: "Publish the weekly update with risks, wins, and outstanding asks."
+        due_at: "2026-04-02T15:00:00-04:00"
+      - title: "Clean stale task labels"
+        description: "Normalize stale labels and remove duplicates before backlog review."
+        due_at: "2026-04-03T11:00:00-04:00"
+  - phase_id: PHASE_4
+    date_range: "2026-04-05..2026-04-11"
+    theme: recovery and cleanup
+    expectations:
+      - Fewer new tasks than PHASE_3.
+      - Clear any leftover zombies quickly and rebuild food reserves.
+      - Friday closeout should leave the board ready for another planning Sunday.
+    sample_tasks:
+      - title: "Close loop on deferred bugs"
+        description: "Decide which deferred issues return to active planning and which stay parked."
+        due_at: "2026-04-09T14:00:00-04:00"
+      - title: "Prepare next sprint candidate list"
+        description: "Pull the likely next tasks into a reviewable shortlist."
+        due_at: "2026-04-10T12:00:00-04:00"
+  - phase_id: PHASE_5
+    date_range: "2026-04-12..2026-04-13"
+    theme: rollover planning
+    expectations:
+      - Sunday acts as a fresh planning day.
+      - The final Monday verifies the next cycle starts from a stable state.
+      - No zombie should carry into the next 30-day window.
+
+branch_distribution:
+  minimums:
+    complete_on_time: 10
+    reschedule_due_date: 6
+    missed_due_becomes_zombie: 3
+    zombie_cleared_after_recovery: 3
+  rules:
+    - Every zombie event must tie back to an identifiable overdue task.
+    - At least one zombie clear must require food gathering before combat can succeed.
+    - Weekends should contribute more stabilization than new intake.
+
+month_shape_assertions:
+  cadence:
+    - Each Sunday creates more tasks than the Saturday immediately before it.
+    - Saturdays create little or no new project work.
+    - At least two midweek days in the month complete more tasks than they create.
+  task_and_board_sync:
+    - Task-view-created and board-view-created tasks stay synchronized for the full 30-day window.
+    - Due-date edits made before deadline stop zombie conversion.
+  board_health:
+    - The board never carries more than one unresolved zombie into a new Sunday planning block.
+    - Low-stamina villagers always surface a visible board marker and notification.
+    - Notification history preserves past stamina failures during the full simulation window.
+
+future_playwright_slices:
+  - "month_phase_1_baseline_week"
+  - "month_phase_2_execution_peak"
+  - "month_phase_3_deadline_pressure"
+  - "month_phase_3_stamina_block_and_recovery"
+  - "month_phase_4_cleanup"
+  - "month_phase_5_rollover_readiness"

@@ -1,0 +1,166 @@
+schema_version: "0.1"
+meta:
+  scenario_id: SCENARIO_WEEK_001
+  title: Typical week with Sunday planning, weekday execution, and Saturday maintenance
+  anchor_start: "2026-03-15"
+  anchor_end: "2026-03-21"
+  timezone: America/New_York
+  source_of_truth: docs/scenarios/02-typical-week.yaml
+  intended_runner: Future Playwright E2E + API assertions
+  notes:
+    - This is the baseline week pattern to use before adding persona variants.
+    - Sunday is planning-heavy, weekdays are execution-heavy, and Saturday is low-intake maintenance.
+
+persona:
+  archetype: solo knowledge worker
+  operating_rules:
+    - Sunday is used to plan the week and pre-seed due dates.
+    - Monday through Thursday bias toward doing work, not just defining it.
+    - Friday closes loops and reduces risk before the weekend.
+    - Saturday is reserved for light cleanup, resource recovery, and backlog trimming.
+
+weekly_targets:
+  tasks_created:
+    task_view: 11
+    board_view: 7
+    total: 18
+  tasks_completed: 10
+  tasks_rescheduled: 2
+  overdue_tasks: 1
+  zombie_events:
+    spawned: 1
+    cleared: 1
+  resource_actions:
+    food_gather_sessions: 3
+    material_gather_sessions: 1
+
+daily_rhythm:
+  - date: "2026-03-15"
+    weekday: Sunday
+    theme: weekly planning
+    creation_mix:
+      task_view: 3
+      board_view: 2
+    completion_target: 0
+    board_focus:
+      - Review backlog and set due dates for the workweek.
+      - Gather food once so Monday does not start resource-starved.
+    sample_tasks:
+      - title: "Plan sprint board for week 12"
+        description: "Break the week into three must-finish outcomes and two stretch goals."
+        due_at: "2026-03-15T18:00:00-04:00"
+      - title: "Schedule customer follow-up emails"
+        description: "Create the email follow-ups and assign them across Tuesday and Thursday."
+        due_at: "2026-03-16T10:00:00-04:00"
+  - date: "2026-03-16"
+    weekday: Monday
+    theme: high capture and initial execution
+    creation_mix:
+      task_view: 2
+      board_view: 1
+    completion_target: 2
+    board_focus:
+      - Finish quick wins created on Sunday.
+      - Keep one villager free for interruptions.
+    sample_tasks:
+      - title: "Ship onboarding copy fixes"
+        description: "Apply the agreed text changes and verify the empty states."
+        due_at: "2026-03-16T16:00:00-04:00"
+  - date: "2026-03-17"
+    weekday: Tuesday
+    theme: balanced capture and execution
+    creation_mix:
+      task_view: 3
+      board_view: 2
+    completion_target: 2
+    board_focus:
+      - Run the single-day scenario from SCENARIO_DAY_001.
+      - Expect one reschedule and one missed due-date branch.
+    sample_tasks:
+      - title: "Review zombie alert UX copy"
+        description: "Refine overdue messaging and stamina-failure wording."
+        due_at: "2026-03-17T15:00:00-04:00"
+  - date: "2026-03-18"
+    weekday: Wednesday
+    theme: execution-heavy with low intake
+    creation_mix:
+      task_view: 1
+      board_view: 1
+    completion_target: 3
+    board_focus:
+      - Complete work that was rescheduled on Tuesday.
+      - Gather food only if combat or task work drained stamina below the preferred floor.
+    sample_tasks:
+      - title: "Draft sprint goals for platform team"
+        description: "Finish the draft that slipped from Tuesday and circulate it."
+        due_at: "2026-03-18T10:00:00-04:00"
+  - date: "2026-03-19"
+    weekday: Thursday
+    theme: deadline pressure
+    creation_mix:
+      task_view: 1
+      board_view: 0
+    completion_target: 2
+    board_focus:
+      - Prioritize due-today work over new capture.
+      - Clear any zombie that survived Tuesday.
+    sample_tasks:
+      - title: "Send customer summary notes"
+        description: "Write the action summary and confirm the next milestone."
+        due_at: "2026-03-19T14:00:00-04:00"
+  - date: "2026-03-20"
+    weekday: Friday
+    theme: closeout and risk reduction
+    creation_mix:
+      task_view: 1
+      board_view: 1
+    completion_target: 1
+    board_focus:
+      - Leave the board stable before the weekend.
+      - Refill food if villagers will start the weekend below the stamina safety floor.
+    sample_tasks:
+      - title: "Prepare Friday demo checklist"
+        description: "Confirm the walkthrough, owner, and known risks."
+        due_at: "2026-03-20T15:00:00-04:00"
+  - date: "2026-03-21"
+    weekday: Saturday
+    theme: light maintenance
+    creation_mix:
+      task_view: 0
+      board_view: 0
+    completion_target: 0
+    board_focus:
+      - Do not create net-new project work unless truly necessary.
+      - Gather food or materials, tidy backlog, and clear any leftover zombie state.
+    sample_tasks: []
+
+required_branch_coverage:
+  - branch: complete_on_time
+    must_occur_on_or_before: "2026-03-16"
+  - branch: reschedule_due_date
+    must_occur_on: "2026-03-17"
+  - branch: missed_due_becomes_zombie
+    must_occur_on: "2026-03-17"
+  - branch: zombie_cleared_after_recovery
+    must_occur_between: "2026-03-17..2026-03-19"
+
+weekly_assertions:
+  workload_shape:
+    - Sunday creates more tasks than Saturday.
+    - Monday through Thursday complete more work than they create.
+    - Saturday is the lightest intake day of the week.
+  board_state:
+    - At least one food-gathering action happens before or during a stamina recovery flow.
+    - No zombie remains open by Saturday close.
+    - Villager exhaustion, if triggered, is visible in UI and notification history.
+  task_state:
+    - Task-view-created and board-view-created tasks stay synchronized all week.
+    - Due-date edits prevent zombie conversion when made before the deadline.
+
+future_playwright_slices:
+  - "sunday_planning_seed"
+  - "monday_execute_quick_wins"
+  - "tuesday_branch_coverage"
+  - "midweek_reschedule_recovery"
+  - "friday_closeout_and_food_refill"
+  - "saturday_low_activity_maintenance"

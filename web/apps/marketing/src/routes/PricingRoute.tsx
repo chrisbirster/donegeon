@@ -13,18 +13,18 @@ function PricingContent() {
       <section class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         <div>
           <p class="section-label">Pricing</p>
-          <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">Clear pricing, an actual plan story, and a credible enterprise path.</h1>
+          <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">Pricing that stays simple as your team grows.</h1>
           <p class="mt-5 max-w-3xl text-lg leading-8 text-[var(--text-soft)]">
-            The site now explains how Personal, Pro, and Enterprise map to the product: solo task flow, shared team boards, and support-heavy rollouts.
+            Start free for solo use, add collaboration when you need it, and talk to us when rollout needs more support.
           </p>
         </div>
 
         <aside class="rounded-[1.8rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-          <p class="section-label">What buyers need</p>
+          <p class="section-label">What to expect</p>
           <ul class="mt-4 space-y-3 text-sm leading-7 text-[var(--text-soft)]">
-            <li>• Public pricing page and plan-specific calls to action</li>
-            <li>• Feature comparison table tied to the real product</li>
-            <li>• FAQ, support contacts, docs, and enterprise escalation path</li>
+            <li>• A free path for personal use</li>
+            <li>• Team features when collaboration matters</li>
+            <li>• Support for larger rollouts and enterprise questions</li>
           </ul>
         </aside>
       </section>
@@ -79,8 +79,8 @@ function PricingContent() {
       <section class="mt-14 rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
         <div class="flex items-end justify-between gap-4">
           <div>
-            <p class="section-label">Comparison</p>
-            <h2 class="font-display text-3xl font-semibold text-white">Feature matrix</h2>
+            <p class="section-label">Compare plans</p>
+            <h2 class="font-display text-3xl font-semibold text-white">Choose the plan that fits your team.</h2>
           </div>
           <div class="flex gap-3 text-sm text-[var(--text-muted)]">
             <A href="/features" class="transition hover:text-white">
@@ -132,9 +132,9 @@ function PricingContent() {
       <section class="mt-14 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(135deg,rgba(255,139,80,0.1),rgba(82,142,196,0.08)_58%,rgba(138,228,163,0.08))] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
           <p class="section-label">Rollout support</p>
-          <h2 class="font-display text-3xl font-semibold text-white">This now reads like software a team can actually buy.</h2>
+          <h2 class="font-display text-3xl font-semibold text-white">Get more help when your rollout goes beyond self-serve.</h2>
           <p class="mt-4 max-w-2xl text-base leading-7 text-[var(--text-soft)]">
-            Pricing is no longer just a hero card. Buyers can compare plans, validate support options, jump into docs, and contact sales when rollout needs exceed self-serve.
+            Compare plans, learn the product through docs, and reach out when setup, procurement, or migration needs a closer hand.
           </p>
         </div>
 

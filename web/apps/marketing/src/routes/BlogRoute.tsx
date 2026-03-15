@@ -12,9 +12,9 @@ export default function BlogRoute() {
     <MarketingLayout>
       <section>
         <p class="section-label">Blog</p>
-        <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">Product updates and operational writing, also from markdown.</h1>
+        <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">Ideas, updates, and lessons from building Donegeon.</h1>
         <p class="mt-5 max-w-3xl text-lg leading-8 text-[var(--text-soft)]">
-          Use this space for launches, release context, migration stories, and deeper explainers around how Donegeon works.
+          Read product announcements, workflow ideas, and practical notes on how teams can get more out of Donegeon.
         </p>
       </section>
 

@@ -1,6 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 import {
+  advanceBoardDays,
+  getBoardState,
   inviteTeamMemberAndAccept,
   parseCounterValue,
   resetBoard,
@@ -45,17 +47,6 @@ async function createBoardFromHeaderPrompt(page: Page, boardName: string) {
   expect(boardIDValue).toBeTruthy();
   const boardID = boardIDValue as string;
   return boardID;
-}
-
-type BoardState = {
-  version: string;
-  stacks: Record<string, { id: string }>;
-};
-
-async function getBoardState(request: APIRequestContext, boardID: string): Promise<BoardState> {
-  const response = await request.get(`/api/board/state?board=${encodeURIComponent(boardID)}`);
-  expect(response.ok()).toBeTruthy();
-  return (await response.json()) as BoardState;
 }
 
 async function createBlankTaskViaApi(request: APIRequestContext, boardID: string) {
@@ -238,4 +229,37 @@ test.describe("Board stack flows", () => {
     expect(Object.keys(afterA.stacks)).toHaveLength(Object.keys(beforeA.stacks).length + 1);
     expect(Object.keys(afterB.stacks)).toHaveLength(Object.keys(beforeB.stacks).length);
   });
+});
+
+test.describe("Board time simulation", () => {
+  test.beforeEach(async ({ request }) => {
+    await resetTasks(request);
+    await resetBoard(request);
+  });
+
+  const scenarios = [
+    { label: "1 day", days: 1 },
+    { label: "1 week", days: 7 },
+    { label: "30-day month", days: 30 },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    test(`simulates ${scenario.label} through repeated world.end_day ticks`, async ({ page, request }) => {
+      const before = await getBoardState(request);
+      const beforeTicks = before.meta?.dayTickCount ?? 0;
+      const beforeDay = before.meta?.quests?.currentDay ?? beforeTicks + 1;
+      const state = await advanceBoardDays(request, scenario.days);
+      const expectedTicks = beforeTicks + scenario.days;
+      const expectedDay = beforeDay + scenario.days;
+      const expectedWeek = Math.floor((expectedDay - 1) / 7) + 1;
+
+      expect(state.meta?.dayTickCount).toBe(expectedTicks);
+      expect(state.meta?.quests?.currentDay).toBe(expectedDay);
+      expect(state.meta?.quests?.currentWeek).toBe(expectedWeek);
+
+      await page.goto("/board");
+      await expect(page.getByRole("link", { name: "Board" })).toBeVisible();
+      await expect.poll(() => parseCounterValue(page.getByTestId("board-day-ticks"))).toBe(expectedTicks);
+    });
+  }
 });

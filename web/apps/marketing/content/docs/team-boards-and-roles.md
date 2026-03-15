@@ -1,15 +1,15 @@
 ---
-title: Team boards and roles
-description: Shared boards, invitations, and role-based controls are what move Donegeon from personal tooling into team software.
+title: Team boards, invites, and roles
+description: Shared boards, invitations, and role-based controls help teams collaborate with clarity.
 category: Collaboration
 order: 30
 featured: true
 tags: teams, roles, invites
 ---
 
-# Shared boards with role control
+# Shared boards with clear role control
 
-Pro and Enterprise plans are not just billing states. They unlock the collaboration model that turns Donegeon into team software.
+Pro and Enterprise plans add the collaboration features that help teams work together without losing structure.
 
 ## Roles
 
@@ -40,4 +40,4 @@ The onboarding experience already understands the difference between:
 - Pro trial setup with a team board
 - Enterprise setup with a sales-oriented rollout path
 
-That relationship between onboarding, pricing, and role controls is part of what the marketing site now explains more clearly.
+That relationship between onboarding, pricing, and role controls helps teams choose the right setup from the start.

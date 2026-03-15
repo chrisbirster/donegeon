@@ -16,6 +16,7 @@ This repo now keeps large YAML specs split by domain. Use this page as the entry
 | Board command / game rules | Go tests | `internal/board/service_integration_test.go` | Command matrix, merge rules, quests, persistence, economy, zombie pipeline |
 | Board UI and task UI | Playwright | `web/apps/client/tests/e2e/board.spec.ts` and related e2e specs | User-facing board and task interactions |
 | Board spec draft | `docs/test-case-board.yaml` | Not wired to a runner today | Keep only as a readable checklist until it becomes executable |
+| Typical user behavior scenarios | `docs/scenarios/00-manifest.yaml` | Not wired to a runner today | Day, week, and 30-day usage models for future Playwright journey coverage |
 
 ## Split spec layout
 
@@ -44,3 +45,4 @@ This repo now keeps large YAML specs split by domain. Use this page as the entry
 - Board collect-deck loot flow is still called out as not covered in `web/apps/client/tests/e2e/FEATURE_COVERAGE.md`.
 - Error-path UX assertions are still called out as not covered in `web/apps/client/tests/e2e/FEATURE_COVERAGE.md`.
 - `docs/test-case-board.yaml` is descriptive only until a runner is added.
+- `docs/scenarios/*.yaml` are descriptive only until a scenario runner is added.

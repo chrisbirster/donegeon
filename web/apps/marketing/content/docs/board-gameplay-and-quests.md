@@ -1,5 +1,5 @@
 ---
-title: Board gameplay and quests
+title: Board play, quests, and progress
 description: Understand how Donegeon turns active work into stacks, decks, quests, rewards, and survival pressure.
 category: Board
 order: 20
@@ -40,4 +40,4 @@ The board runtime includes:
 - Zombie pressure to keep backlog visible
 - Collect, survival, and progression deck behavior
 
-This matters on the marketing site because “gamified tasks” is too vague. Buyers need to see that the mechanics are grounded in real execution and not cosmetic points.
+This matters because “gamified tasks” can mean almost anything. In Donegeon, the mechanics are tied to real execution so the board feels useful, not cosmetic.

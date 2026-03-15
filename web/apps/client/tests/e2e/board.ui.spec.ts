@@ -747,3 +747,48 @@ test.describe("Board auto-mining regressions", () => {
     expect(gatherCalls).toBe(1);
   });
 });
+
+test.describe("Board villager exhaustion UI", () => {
+  test.beforeEach(async ({ request }) => {
+    await resetTasks(request);
+    await resetBoard(request);
+  });
+
+  test("shows an exhausted villager badge on zero-stamina worker stacks", async ({ page }) => {
+    await page.route("**/api/board/state**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mergedMiningBoardState(0)),
+      });
+    });
+
+    await page.goto("/board");
+    await expect(page.getByTestId("board-canvas")).toBeVisible();
+    await expect(page.getByTestId("board-stack-exhausted")).toHaveText(/no stamina/i);
+  });
+
+  test("keeps stamina alerts in notification history", async ({ page }) => {
+    let boardStateCalls = 0;
+
+    await page.route("**/api/board/state**", async (route) => {
+      boardStateCalls += 1;
+      const stamina = boardStateCalls <= 2 ? 1 : 0;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mergedMiningBoardState(stamina)),
+      });
+    });
+
+    await page.goto("/board");
+    await expect(page.getByTestId("board-canvas")).toBeVisible();
+
+    await page.getByTestId("board-refresh").click();
+    await expect(page.getByTestId("app-toast")).toContainText("ran out of stamina");
+
+    await page.getByTestId("board-open-notifications").click();
+    await expect(page.getByTestId("board-notification-history")).toBeVisible();
+    await expect(page.getByTestId("board-notification-history-list")).toContainText("ran out of stamina");
+  });
+});

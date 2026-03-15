@@ -1,5 +1,5 @@
 ---
-title: Why Donegeon is a board-first task product
+title: Why Donegeon uses a shared strategy board
 description: The board is not decoration. It is the operating model for active work.
 category: Strategy
 publishedAt: 2026-03-05
@@ -34,6 +34,6 @@ That makes the board operational, not decorative.
 Teams often need two things at the same time:
 
 - Simple capture so nothing gets lost
-- High-signal execution surfaces once the work matters
+- Clearer execution views once the work matters
 
-That is the tension Donegeon is built around. The updated marketing site now explains that more directly so the product does not get mistaken for a theme layer on top of a plain task app.
+That is the tension Donegeon is built around. The board is meant to change how teams work, not just make the interface look more playful.

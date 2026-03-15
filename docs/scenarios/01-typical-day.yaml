@@ -1,0 +1,172 @@
+schema_version: "0.1"
+meta:
+  scenario_id: SCENARIO_DAY_001
+  title: Typical weekday with capture, due dates, and zombie recovery
+  anchor_date: "2026-03-17"
+  timezone: America/New_York
+  source_of_truth: docs/scenarios/01-typical-day.yaml
+  intended_runner: Future Playwright E2E + API assertions
+  notes:
+    - This is the default single-day behavior model.
+    - It intentionally exercises one on-time finish, one reschedule, and one missed due date.
+
+persona:
+  archetype: solo knowledge worker
+  habits:
+    - Captures most incoming work from the task view.
+    - Uses the board view for tactical work and villager assignment.
+    - Prefers clearing zombies the same day they appear.
+
+starting_state:
+  board_id: default
+  routes:
+    task_view: /task/project/board
+    board_view: /board
+  board_seed: default
+  villagers:
+    available: 2
+    expected_start_stamina_each: 4
+  resource_expectations:
+    food_stacks_minimum: 1
+    gatherable_resource_stacks_minimum: 2
+  backlog:
+    open_tasks_before_start: 3
+    zombies_before_start: 0
+
+workload_targets:
+  tasks_created:
+    task_view: 3
+    board_view: 2
+    total: 5
+  tasks_completed: 2
+  tasks_rescheduled: 1
+  missed_due_tasks: 1
+  zombie_events:
+    spawned: 1
+    cleared: 1
+
+task_examples:
+  task_view:
+    - title: "Send vendor invoice approval"
+      description: "Review the March invoice, add approval notes, and reply in the finance thread."
+      due_at: "2026-03-17T11:30:00-04:00"
+      branch: complete_on_time
+    - title: "Draft sprint goals for platform team"
+      description: "Write the top five goals, note dependencies, and share the draft with engineering leadership."
+      due_at: "2026-03-17T16:00:00-04:00"
+      branch: reschedule_due_date
+    - title: "Backlog tidy for onboarding bugs"
+      description: "Group duplicate onboarding issues and label the stale reports for follow-up."
+      due_at: null
+      branch: stays_open
+  board_view:
+    - title: "Review zombie alert UX copy"
+      description: "Refine the overdue-task message and the villager out-of-stamina wording."
+      due_at: "2026-03-17T15:00:00-04:00"
+      branch: missed_due_becomes_zombie
+    - title: "Prepare Friday demo checklist"
+      description: "List the demo steps, confirm the owner, and record any missing assets."
+      due_at: "2026-03-18T12:00:00-04:00"
+      branch: stays_open
+
+timeline:
+  - at: "2026-03-17T08:30:00-04:00"
+    focus: morning capture
+    actions:
+      - Open task view and create the three task-view tasks.
+      - Open board view and create the two board-view tasks.
+      - Verify the five new tasks are visible across task and board surfaces.
+    expected_state:
+      open_tasks: 8
+      zombies: 0
+      notifications: 0
+  - at: "2026-03-17T10:00:00-04:00"
+    focus: first completion
+    actions:
+      - Complete "Send vendor invoice approval" before its due time.
+      - Keep one villager available for combat or task assignment.
+      - Assign the other villager to food if the board is already at the food floor.
+    expected_state:
+      tasks_completed_today: 1
+      zombies: 0
+  - at: "2026-03-17T13:30:00-04:00"
+    focus: tactical mid-day adjustment
+    actions:
+      - Decide "Draft sprint goals for platform team" will not finish today.
+      - Reassign its due date from "2026-03-17 16:00" to "2026-03-18 10:00".
+      - Create no new work during this block.
+    expected_state:
+      tasks_rescheduled_today: 1
+      zombies: 0
+  - at: "2026-03-17T16:30:00-04:00"
+    focus: missed due-date branch
+    actions:
+      - Leave "Review zombie alert UX copy" incomplete after its due time passes.
+      - Advance to end-of-day processing.
+    expected_state:
+      overdue_tasks_pending_conversion: 1
+  - at: "2026-03-17T17:15:00-04:00"
+    focus: zombie recovery
+    actions:
+      - Observe the overdue board task become a zombie.
+      - Attempt zombie clear with the primary villager.
+      - If the villager has no stamina, gather food first, restore stamina, then clear the zombie.
+    expected_state:
+      zombies_spawned_today: 1
+      zombies_cleared_today: 1
+      open_zombies_after_recovery: 0
+
+decision_branches:
+  - id: complete_on_time
+    task_title: "Send vendor invoice approval"
+    trigger: "The task is marked done before 2026-03-17T11:30:00-04:00."
+    expected_outcomes:
+      - Task is completed with no due-date change.
+      - No zombie is created from this task.
+      - Completion counts toward the day's completed-task total.
+  - id: reschedule_due_date
+    task_title: "Draft sprint goals for platform team"
+    trigger: "The user decides the task will slip before the current due time."
+    expected_outcomes:
+      - Due date changes to 2026-03-18T10:00:00-04:00.
+      - Task remains open and does not become a zombie on 2026-03-17.
+      - Reschedule appears in history or activity surfaces if available.
+  - id: missed_due_becomes_zombie
+    task_title: "Review zombie alert UX copy"
+    trigger: "The task remains open after 2026-03-17T15:00:00-04:00 and the day ends."
+    expected_outcomes:
+      - A zombie stack is created from the overdue task.
+      - The overdue task is traceable from the zombie state.
+      - Clearing the zombie requires villager stamina and may require food recovery first.
+
+resource_and_stamina_recovery:
+  purpose: "Make sure overdue recovery is blocked visibly, not silently, when villagers are exhausted."
+  trigger_conditions:
+    - A zombie stack exists.
+    - The preferred villager has stamina <= 1 before or during zombie-clear flow.
+  expected_recovery_steps:
+    - Attempting a blocked action shows a notification in the bottom-left corner.
+    - The blocked villager shows a red "No stamina" style marker on the board.
+    - The notification remains available in notification history.
+    - Another villager can gather food from a valid resource stack.
+    - After food is gathered and stamina is restored, zombie clear succeeds.
+
+minimum_assertions:
+  api:
+    - Five tasks are created during the day.
+    - One task is completed on time.
+    - One task is rescheduled before becoming overdue.
+    - One overdue task becomes a zombie.
+    - The zombie is cleared by end of day.
+  ui:
+    - Task view and board view stay in sync for all five created tasks.
+    - The overdue task visually changes into a zombie state.
+    - Zero-stamina villagers show a red board marker.
+    - Stamina failure creates a visible notification and stores it in history.
+
+future_playwright_slices:
+  - "capture_tasks_in_both_views"
+  - "complete_due_task_before_deadline"
+  - "reschedule_due_task_before_overdue"
+  - "end_day_and_spawn_zombie"
+  - "stamina_block_then_food_recovery_then_clear_zombie"

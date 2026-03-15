@@ -1,4 +1,4 @@
-import { For, ParentProps, createContext, createSignal, useContext } from "solid-js";
+import { Accessor, For, ParentProps, createContext, createSignal, useContext } from "solid-js";
 
 type ToastTone = "success" | "error" | "info";
 
@@ -6,6 +6,7 @@ type ToastRecord = {
   id: number;
   message: string;
   tone: ToastTone;
+  createdAt: number;
 };
 
 type ToastAPI = {
@@ -14,6 +15,8 @@ type ToastAPI = {
   error: (message: string, durationMs?: number) => number;
   info: (message: string, durationMs?: number) => number;
   dismiss: (id: number) => void;
+  history: Accessor<ToastRecord[]>;
+  clearHistory: () => void;
 };
 
 const ToastContext = createContext<ToastAPI>();
@@ -32,6 +35,7 @@ function toastToneClass(tone: ToastTone): string {
 
 export function ToastProvider(props: ParentProps) {
   const [toasts, setToasts] = createSignal<ToastRecord[]>([]);
+  const [history, setHistory] = createSignal<ToastRecord[]>([]);
   const timers = new Map<number, number>();
 
   function dismiss(id: number) {
@@ -47,7 +51,14 @@ export function ToastProvider(props: ParentProps) {
     const trimmed = message.trim();
     if (!trimmed) return -1;
     const id = nextToastID++;
-    setToasts((current) => [...current, { id, message: trimmed, tone }]);
+    const record: ToastRecord = {
+      id,
+      message: trimmed,
+      tone,
+      createdAt: Date.now(),
+    };
+    setToasts((current) => [...current, record]);
+    setHistory((current) => [record, ...current].slice(0, 40));
 
     const timer = window.setTimeout(() => {
       dismiss(id);
@@ -62,12 +73,14 @@ export function ToastProvider(props: ParentProps) {
     error: (message, durationMs) => show(message, "error", durationMs),
     info: (message, durationMs) => show(message, "info", durationMs),
     dismiss,
+    history,
+    clearHistory: () => setHistory([]),
   };
 
   return (
     <ToastContext.Provider value={api}>
       {props.children}
-      <div class="pointer-events-none fixed bottom-[max(14px,env(safe-area-inset-bottom))] right-3 z-[140] flex w-[min(360px,calc(100vw-1.5rem))] flex-col gap-2 md:right-4">
+      <div class="pointer-events-none fixed bottom-[max(14px,env(safe-area-inset-bottom))] left-3 z-[140] flex w-[min(360px,calc(100vw-1.5rem))] flex-col gap-2 md:left-4">
         <For each={toasts()}>
           {(toast) => (
             <div

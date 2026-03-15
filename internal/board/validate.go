@@ -190,6 +190,12 @@ func (v *Validator) ValidateStackMerge(state *State, targetID, sourceID string) 
 		}
 	}
 
+	// Resource stacks model a single worker assignment. Adding a second villager
+	// would create ambiguous gather ownership and a visually nonsensical stack.
+	if resourceMergeWouldCreateMultipleVillagers(state, target, source) {
+		return ErrInvalidStackPair
+	}
+
 	for _, pair := range v.rules.DisallowedPairs {
 		if hasTaskAcrossMerge &&
 			((pair[0] == "modifier" && pair[1] == "villager") || (pair[0] == "villager" && pair[1] == "modifier")) {
@@ -214,6 +220,40 @@ func (v *Validator) ValidateStackMerge(state *State, targetID, sourceID string) 
 	}
 
 	return nil
+}
+
+func resourceMergeWouldCreateMultipleVillagers(state *State, target *Stack, source *Stack) bool {
+	if state == nil || target == nil || source == nil {
+		return false
+	}
+
+	hasResource := false
+	villagerCount := 0
+	seenStacks := map[string]struct{}{}
+
+	for _, stack := range []*Stack{target, source} {
+		if stack == nil {
+			continue
+		}
+		if _, seen := seenStacks[stack.ID]; seen {
+			continue
+		}
+		seenStacks[stack.ID] = struct{}{}
+		for _, cardID := range stack.Cards {
+			card := state.GetCard(cardID)
+			if card == nil {
+				continue
+			}
+			switch validationKind(card.DefID) {
+			case "resource":
+				hasResource = true
+			case "villager":
+				villagerCount++
+			}
+		}
+	}
+
+	return hasResource && villagerCount > 1
 }
 
 func (v *Validator) stackCardKinds(state *State, stack *Stack) map[string]bool {

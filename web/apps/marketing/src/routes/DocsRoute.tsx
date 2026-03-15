@@ -18,18 +18,18 @@ export default function DocsRoute() {
       <section class="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_360px] lg:items-start">
         <div>
           <p class="section-label">Documentation</p>
-          <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">Docs now come from markdown, not hardcoded components.</h1>
+          <h1 class="font-display text-5xl font-semibold text-white md:text-6xl">Guides that help your team get productive faster.</h1>
           <p class="mt-5 max-w-3xl text-lg leading-8 text-[var(--text-soft)]">
-            Guides are grouped by workflow so product updates can land in marketing content without touching route JSX each time.
+            Start with capture, scheduling, boards, and collaboration. These guides explain how Donegeon works in day-to-day use.
           </p>
         </div>
 
         <aside class="rounded-[1.8rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-          <p class="section-label">Content model</p>
+          <p class="section-label">What you'll find</p>
           <ul class="mt-4 space-y-3 text-sm leading-7 text-[var(--text-soft)]">
-            <li>• Markdown file per guide</li>
-            <li>• Frontmatter for title, category, ordering, and featured state</li>
-            <li>• Optional inline video support for selected feature walkthroughs</li>
+            <li>• Quick-start guides by workflow</li>
+            <li>• Explanations for key features and team setup</li>
+            <li>• Video walkthroughs on selected guides</li>
           </ul>
         </aside>
       </section>

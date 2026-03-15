@@ -89,13 +89,13 @@ export const FEATURES: SiteFeature[] = [
     ],
   },
   {
-    title: "Recurring work backed by an RRULE parser",
+    title: "Recurring schedules for real-world routines",
     category: "Scheduling",
-    description: "Donegeon supports recurring schedules from simple daily repeats to advanced RFC 5545 recurrence rules.",
+    description: "Set up daily, weekly, monthly, and more advanced repeating work without rebuilding the same tasks over and over.",
     bullets: [
-      "Daily, weekly, monthly, and relative recurrence",
-      "Dedicated RRULE parsing endpoint",
-      "Supports BYDAY, BYMONTHDAY, INTERVAL, COUNT, UNTIL, and more",
+      "Daily, weekly, monthly, and flexible repeat options",
+      "Handles more advanced schedule rules when you need them",
+      "Keeps recurring work visible and consistent",
     ],
   },
   {
@@ -109,7 +109,7 @@ export const FEATURES: SiteFeature[] = [
     ],
   },
   {
-    title: "A real game board instead of another Kanban clone",
+    title: "A shared board that makes priorities visible",
     category: "Board",
     description: "Drag stacks around a world map, split decks, manage collect piles, and keep backlog pressure visible.",
     bullets: [
@@ -119,7 +119,7 @@ export const FEATURES: SiteFeature[] = [
     ],
   },
   {
-    title: "Quests, rewards, modifiers, and survival loops",
+    title: "Quests and rewards that keep teams engaged",
     category: "Board",
     description: "Board gameplay turns work into progression with daily, story, seasonal, boss, and failure quest types.",
     bullets: [
@@ -139,9 +139,9 @@ export const FEATURES: SiteFeature[] = [
     ],
   },
   {
-    title: "Calendar connections and profile visibility",
+    title: "Calendar sync and personal activity history",
     category: "Operations",
-    description: "Users can connect calendars, sync workflows, and inspect quest history and board state from profile surfaces.",
+    description: "Users can connect calendars, sync their schedules, and review quest history and board progress from their profile.",
     bullets: [
       "Google Calendar connection flow",
       "Manual sync and disconnect controls",
@@ -149,7 +149,7 @@ export const FEATURES: SiteFeature[] = [
     ],
   },
   {
-    title: "Billing-aware plans and enterprise path",
+    title: "Plans that support solo use, teams, and larger rollouts",
     category: "Operations",
     description: "Marketing, onboarding, and workspace settings already account for personal, pro trial, pro, and enterprise states.",
     bullets: [
@@ -159,13 +159,13 @@ export const FEATURES: SiteFeature[] = [
     ],
   },
   {
-    title: "TaskManager compatibility where it matters",
+    title: "Migration help when you're moving from another tool",
     category: "Integrations",
-    description: "Donegeon includes a compatibility action endpoint and parity specs to ease migrations from task-focused tools.",
+    description: "Donegeon includes compatibility support for teams that need a smoother move from another task-focused product.",
     bullets: [
-      "Action-based compatibility endpoint",
-      "Coverage specs for implemented parity flows",
-      "Focused support for imports and operational continuity",
+      "Support for key compatibility flows",
+      "Migration-friendly product coverage",
+      "Help preserving continuity during rollout",
     ],
   },
 ];
@@ -252,7 +252,7 @@ export const PRICING_MATRIX: PricingMatrixGroup[] = [
         enterprise: "Included",
       },
       {
-        label: "Recurring tasks and RRULE parsing",
+        label: "Recurring tasks and advanced schedules",
         personal: "Included",
         pro: "Included",
         enterprise: "Included",
@@ -292,13 +292,13 @@ export const PRICING_MATRIX: PricingMatrixGroup[] = [
     title: "Launch and support",
     rows: [
       {
-        label: "Docs and blog knowledge base",
+        label: "Guides and product updates",
         personal: "Included",
         pro: "Included",
         enterprise: "Included",
       },
       {
-        label: "Migration and compatibility help",
+        label: "Migration help",
         personal: "Self-serve",
         pro: "Guided",
         enterprise: "Priority",
@@ -315,23 +315,23 @@ export const PRICING_MATRIX: PricingMatrixGroup[] = [
 
 export const FAQS = [
   {
-    question: "Does the marketing site reflect the actual product?",
+    question: "What is included today?",
     answer:
-      "Yes. The sections here map directly to shipped Donegeon capabilities, including quick add parsing, board gameplay, quests, team roles, calendar connections, and plan-aware onboarding.",
+      "Donegeon includes fast task capture, recurring schedules, a shared board experience, collaboration features, calendar connections, and onboarding paths for solo users and teams.",
   },
   {
-    question: "How do docs and blog updates work?",
+    question: "Can we learn the product before signing up?",
     answer:
-      "Both sections are driven by markdown files in the marketing app. Add a new markdown file, include frontmatter, and the site automatically picks it up in the relevant listing and detail page.",
+      "Yes. The docs and blog cover core workflows, feature walkthroughs, and product updates so teams can understand how Donegeon works before they commit.",
   },
   {
-    question: "Can selected docs include videos?",
+    question: "Are walkthrough videos available?",
     answer:
-      "Yes. Doc frontmatter supports a video URL so feature walkthroughs can appear inline on article pages alongside the markdown content.",
+      "Yes. Selected guides can include videos so new users can see features in action instead of relying on screenshots and text alone.",
   },
   {
     question: "What is the difference between Personal and Pro?",
     answer:
-      "Personal is focused on solo use and the core board loop. Pro adds team boards, invitations, role controls, and more operational collaboration features, with a 14-day trial path already wired into onboarding.",
+      "Personal is designed for solo use and the core board workflow. Pro adds shared boards, invitations, role controls, and stronger team collaboration, with a 14-day trial to get started.",
   },
 ];
