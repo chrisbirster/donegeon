@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
 import { Show, createMemo, createSignal } from "solid-js";
 
+import { workspacePlanLabel } from "../../../../shared/pricing/catalog";
 import { useApi } from "../context/ApiContext";
 import { type AuthSession } from "../server/api";
 
@@ -37,11 +38,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
     return session()?.user.email?.trim() || "Donegeon User";
   });
   const accountPlan = createMemo(() => {
-    const raw = session()?.team?.plan?.trim().toLowerCase() || "personal";
-    if (raw === "pro_trial") return "Pro Trial";
-    if (raw === "pro") return "Pro";
-    if (raw === "enterprise") return "Enterprise";
-    return "Free";
+    return workspacePlanLabel(session()?.team?.plan || "personal");
   });
   const accountInitials = createMemo(() => {
     const source = accountName().trim();
@@ -57,30 +54,30 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
       <div class={props.class}>
         <button
           type="button"
-          class="flex w-full items-center gap-2 rounded-xl border border-[#32445f] bg-[#121a28]/95 px-2.5 py-2 text-left shadow-[0_16px_32px_rgba(0,0,0,0.45)] transition hover:border-[#4b648a]"
+          class="flex w-full items-center gap-2 rounded-xl border border-[var(--border-strong)] bg-[rgba(9,17,26,0.92)] px-2.5 py-2 text-left shadow-[0_16px_32px_rgba(0,0,0,0.38)] backdrop-blur transition hover:border-[#466684]"
           onClick={() => setAccountMenuOpen((open) => !open)}
           data-testid="appshell-account-toggle"
         >
-          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-[#48608a] bg-[#1a2a43] text-xs font-semibold text-[#e3eeff]">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(119,155,187,0.32)] bg-[rgba(255,139,80,0.14)] text-xs font-semibold text-[var(--accent-text)]">
             {accountInitials()}
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-semibold text-[#edf4ff]">{accountName()}</span>
-            <span class="mt-0.5 inline-flex rounded border border-[#455d82] bg-[#182b45] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d4e4ff]">
+            <span class="block truncate text-sm font-semibold text-white">{accountName()}</span>
+            <span class="mt-0.5 inline-flex rounded border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--accent-text)]">
               {accountPlan()}
             </span>
           </span>
-          <span class="text-xs text-[#93a8c8]">{accountMenuOpen() ? "▲" : "▼"}</span>
+          <span class="text-xs text-[var(--text-muted)]">{accountMenuOpen() ? "▲" : "▼"}</span>
         </button>
 
         <Show when={accountMenuOpen()}>
           <div
-            class="mt-2 overflow-hidden rounded-xl border border-[#344a6b] bg-[#111b2b]/98 shadow-[0_20px_42px_rgba(0,0,0,0.5)]"
+            class="mt-2 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[rgba(6,10,16,0.96)] shadow-[0_20px_42px_rgba(0,0,0,0.5)] backdrop-blur"
             data-testid="appshell-account-menu"
           >
             <A
               href="/settings"
-              class="block border-b border-[#273449] px-3 py-2 text-sm text-[#dce8ff] transition hover:bg-[#17263f]"
+              class="block border-b border-[var(--border-strong)] px-3 py-2 text-sm text-[var(--text-main)] transition hover:bg-[rgba(255,255,255,0.04)]"
               onClick={() => {
                 setAccountMenuOpen(false);
                 props.onNavigate?.();
@@ -91,7 +88,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
             </A>
             <A
               href="/profile"
-              class="block border-b border-[#273449] px-3 py-2 text-sm text-[#dce8ff] transition hover:bg-[#17263f]"
+              class="block border-b border-[var(--border-strong)] px-3 py-2 text-sm text-[var(--text-main)] transition hover:bg-[rgba(255,255,255,0.04)]"
               onClick={() => {
                 setAccountMenuOpen(false);
                 props.onNavigate?.();
@@ -102,7 +99,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
             </A>
             <button
               type="button"
-              class="block w-full px-3 py-2 text-left text-sm text-[#ffb5ad] transition hover:bg-[#2a1719]"
+              class="block w-full px-3 py-2 text-left text-sm text-[var(--danger)] transition hover:bg-[var(--danger-bg)]"
               onClick={() => logout.mutate()}
               data-testid="appshell-account-signout"
             >

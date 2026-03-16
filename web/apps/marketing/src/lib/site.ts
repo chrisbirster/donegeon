@@ -1,3 +1,11 @@
+import {
+  pricingCatalog,
+  publicPlanDefinitions,
+  type FAQ,
+  type PlanFamily,
+  type PricingMatrixGroup as SharedPricingMatrixGroup,
+} from "../../../../shared/pricing/catalog";
+
 const DEFAULT_APP_URL = import.meta.env.DEV ? "http://localhost:5173" : "https://app.donegeon.com";
 
 export const APP_URL = (import.meta.env.VITE_DONEGEON_APP_URL || DEFAULT_APP_URL).replace(/\/+$/, "");
@@ -151,21 +159,21 @@ export const FEATURES: SiteFeature[] = [
   {
     title: "Plans that support solo use, teams, and larger rollouts",
     category: "Operations",
-    description: "Marketing, onboarding, and workspace settings already account for personal, pro trial, pro, and enterprise states.",
+    description: "Marketing, onboarding, and workspace settings now align around Free, Pro, and Enterprise packaging.",
     bullets: [
-      "14-day pro trial path",
-      "Workspace plan visibility in team settings",
-      "Enterprise sales and support handoff",
+      "Free for solo use and personal board workflow",
+      "Pro trial and paid Pro states for team operations",
+      "Enterprise sales and support handoff for larger rollouts",
     ],
   },
   {
-    title: "Migration help when you're moving from another tool",
-    category: "Integrations",
-    description: "Donegeon includes compatibility support for teams that need a smoother move from another task-focused product.",
+    title: "Migration planning when your team is switching tools",
+    category: "Support",
+    description: "Donegeon can support rollouts with guided migration planning without pretending there is already a one-click import product.",
     bullets: [
-      "Support for key compatibility flows",
-      "Migration-friendly product coverage",
-      "Help preserving continuity during rollout",
+      "Guided rollout help for Pro teams",
+      "Priority migration planning for Enterprise customers",
+      "Clear separation between shipped product and support-led services",
     ],
   },
 ];
@@ -178,160 +186,41 @@ export const TRUST_POINTS = [
 ];
 
 export type PlanSummary = {
+  id: PlanFamily;
   name: string;
   price: string;
   cadence: string;
   description: string;
   ctaLabel: string;
+  waitlistLabel: string;
   href: string;
+  loginPlan?: "personal" | "pro_trial";
   featured?: boolean;
   bullets: string[];
 };
 
-export const PLAN_SUMMARIES: PlanSummary[] = [
-  {
-    name: "Personal",
-    price: "$0",
-    cadence: "forever",
-    description: "For individuals who want faster task capture, recurring work, and a personal board that keeps priorities visible.",
-    ctaLabel: "Start Free",
-    href: PLAN_LINKS.personal,
-    bullets: [
-      "Single workspace and personal board",
-      "Quick add parsing and scheduling controls",
-      "Core quests, decks, and board progression",
-    ],
-  },
-  {
-    name: "Pro",
-    price: "$12",
-    cadence: "per user / month",
-    description: "For teams that need shared boards, roles, invites, calendar sync, and a more collaborative workflow.",
-    ctaLabel: "Start Pro Trial",
-    href: PLAN_LINKS.proTrial,
-    featured: true,
-    bullets: [
-      "14-day trial before billing",
-      "Shared team boards and role management",
-      "Advanced board operations and collaboration",
-    ],
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    cadence: "annual",
-    description: "For larger organizations that need rollout help, procurement support, and a smoother path to adoption.",
-    ctaLabel: "Talk to Sales",
-    href: PLAN_LINKS.enterprise,
-    bullets: [
-      "Security and admin review support",
-      "Priority onboarding and migration planning",
-      "Procurement, invoicing, and custom rollout",
-    ],
-  },
-];
+export const PLAN_SUMMARIES: PlanSummary[] = publicPlanDefinitions().map((plan) => {
+  const loginPlan = plan.loginPlan === "pro_trial" || plan.loginPlan === "personal" ? plan.loginPlan : undefined;
+  return {
+    id: plan.id,
+    name: plan.label,
+    price: plan.price,
+    cadence: plan.cadence,
+    description: plan.description,
+    ctaLabel: plan.ctaLabel,
+    waitlistLabel: plan.waitlistLabel,
+    href: plan.contactHref || (loginPlan ? planHref(loginPlan) : PLAN_LINKS.enterprise),
+    loginPlan,
+    featured: plan.featured,
+    bullets: [...plan.bullets],
+  };
+});
 
-export type PricingMatrixGroup = {
-  title: string;
-  rows: Array<{
-    label: string;
-    personal: string;
-    pro: string;
-    enterprise: string;
-  }>;
-};
+export type PricingMatrixGroup = SharedPricingMatrixGroup;
 
-export const PRICING_MATRIX: PricingMatrixGroup[] = [
-  {
-    title: "Core workflow",
-    rows: [
-      {
-        label: "Quick add parser with schedule tokens",
-        personal: "Included",
-        pro: "Included",
-        enterprise: "Included",
-      },
-      {
-        label: "Recurring tasks and advanced schedules",
-        personal: "Included",
-        pro: "Included",
-        enterprise: "Included",
-      },
-      {
-        label: "Personal board gameplay",
-        personal: "Included",
-        pro: "Included",
-        enterprise: "Included",
-      },
-    ],
-  },
-  {
-    title: "Team operations",
-    rows: [
-      {
-        label: "Shared team board",
-        personal: "No",
-        pro: "Included",
-        enterprise: "Included",
-      },
-      {
-        label: "Invites and role management",
-        personal: "No",
-        pro: "Included",
-        enterprise: "Included",
-      },
-      {
-        label: "Calendar connections and sync",
-        personal: "Optional",
-        pro: "Included",
-        enterprise: "Included",
-      },
-    ],
-  },
-  {
-    title: "Launch and support",
-    rows: [
-      {
-        label: "Guides and product updates",
-        personal: "Included",
-        pro: "Included",
-        enterprise: "Included",
-      },
-      {
-        label: "Migration help",
-        personal: "Self-serve",
-        pro: "Guided",
-        enterprise: "Priority",
-      },
-      {
-        label: "Security review and procurement",
-        personal: "No",
-        pro: "Lightweight",
-        enterprise: "Full support",
-      },
-    ],
-  },
-];
+export const PRICING_MATRIX: PricingMatrixGroup[] = pricingCatalog.pricingMatrix.map((group) => ({
+  title: group.title,
+  rows: group.rows.map((row) => ({ ...row })),
+}));
 
-export const FAQS = [
-  {
-    question: "What is included today?",
-    answer:
-      "Donegeon includes fast task capture, recurring schedules, a shared board experience, collaboration features, calendar connections, and onboarding paths for solo users and teams.",
-  },
-  {
-    question: "Can we learn the product before signing up?",
-    answer:
-      "Yes. The docs and blog cover core workflows, feature walkthroughs, and product updates so teams can understand how Donegeon works before they commit.",
-  },
-  {
-    question: "Are walkthrough videos available?",
-    answer:
-      "Yes. Selected guides can include videos so new users can see features in action instead of relying on screenshots and text alone.",
-  },
-  {
-    question: "What is the difference between Personal and Pro?",
-    answer:
-      "Personal is designed for solo use and the core board workflow. Pro adds shared boards, invitations, role controls, and stronger team collaboration, with a 14-day trial to get started.",
-  },
-];
+export const FAQS: FAQ[] = pricingCatalog.faqs.map((item) => ({ ...item }));

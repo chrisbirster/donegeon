@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"donegeon/internal/database"
 	"donegeon/internal/project"
 	"donegeon/internal/sessionctx"
+	sharedpricing "donegeon/web/shared/pricing"
 )
 
 func TestCompleteOnboardingPersonalCreatesPrivateBoardAndInbox(t *testing.T) {
@@ -33,6 +35,14 @@ func TestCompleteOnboardingPersonalCreatesPrivateBoardAndInbox(t *testing.T) {
 	if session.Team.Plan != PlanPersonal {
 		t.Fatalf("expected plan %q, got %q", PlanPersonal, session.Team.Plan)
 	}
+	if session.Team.PlanFamily != "free" {
+		t.Fatalf("expected plan family %q, got %q", "free", session.Team.PlanFamily)
+	}
+	if session.Team.BillingState != "none" {
+		t.Fatalf("expected billing state %q, got %q", "none", session.Team.BillingState)
+	}
+	assertTeamEntitlements(t, session.Team, sharedpricing.EntitlementCalendarSync, sharedpricing.EntitlementQuickAdd)
+	assertTeamLacksEntitlements(t, session.Team, sharedpricing.EntitlementWorkspaceInvites, sharedpricing.EntitlementTeamRoles)
 	if session.Team.Name != "Gladiators" {
 		t.Fatalf("expected workspace name %q, got %q", "Gladiators", session.Team.Name)
 	}
@@ -65,6 +75,19 @@ func TestCompleteOnboardingProTrialCreatesPrivateAndTeamBoardsPlusInbox(t *testi
 	if session.Team.Plan != PlanProTrial {
 		t.Fatalf("expected plan %q, got %q", PlanProTrial, session.Team.Plan)
 	}
+	if session.Team.PlanFamily != "pro" {
+		t.Fatalf("expected plan family %q, got %q", "pro", session.Team.PlanFamily)
+	}
+	if session.Team.BillingState != "trial" {
+		t.Fatalf("expected billing state %q, got %q", "trial", session.Team.BillingState)
+	}
+	assertTeamEntitlements(
+		t,
+		session.Team,
+		sharedpricing.EntitlementWorkspaceInvites,
+		sharedpricing.EntitlementTeamRoles,
+		sharedpricing.EntitlementBoardMemberManagement,
+	)
 	if session.Team.Name != "maze" {
 		t.Fatalf("expected workspace name %q, got %q", "maze", session.Team.Name)
 	}
@@ -101,6 +124,83 @@ func TestCompleteOnboardingNormalizesExplicitBoardNames(t *testing.T) {
 	projects := listVisibleProjectsForUser(t, db, queries, session.User.ID, session.Team.ID, session.User.Email)
 	assertProjectNames(t, projects, "super-cool", "inbox")
 	assertProjectIDs(t, projects, "board", "inbox")
+}
+
+func TestCompleteOnboardingStripsUnsupportedCharactersFromExplicitBoardNames(t *testing.T) {
+	ctx := context.Background()
+	svc, db, queries := newAccountTestService(t)
+
+	seedAccountUser(t, ctx, svc, "U_OWNER", "chris@example.com", "Chris")
+
+	session, invites, err := svc.CompleteOnboarding(ctx, "U_OWNER", " super cool!! 99 ", " Team #7!! squad ", "Chris", nil, PlanProTrial)
+	if err != nil {
+		t.Fatalf("complete onboarding: %v", err)
+	}
+	if len(invites) != 0 {
+		t.Fatalf("expected no invites, got %d", len(invites))
+	}
+	if session.Team == nil {
+		t.Fatal("expected workspace in session")
+	}
+	if session.Team.Name != "Team-7-squad" {
+		t.Fatalf("expected workspace name %q, got %q", "Team-7-squad", session.Team.Name)
+	}
+
+	projects := listVisibleProjectsForUser(t, db, queries, session.User.ID, session.Team.ID, session.User.Email)
+	assertProjectNames(t, projects, "super-cool-99", "Team-7-squad", "inbox")
+	assertProjectIDs(t, projects, "board", "board-team", "inbox")
+	assertTeamBoardNames(t, projects, "Team-7-squad")
+}
+
+func TestCompleteOnboardingTreatsSanitizedEmptyBoardNameAsOptional(t *testing.T) {
+	ctx := context.Background()
+	svc, db, queries := newAccountTestService(t)
+
+	seedAccountUser(t, ctx, svc, "U_OWNER", "chris@example.com", "Chris")
+
+	session, invites, err := svc.CompleteOnboarding(ctx, "U_OWNER", "!!!", "", "Chris", nil, PlanPersonal)
+	if err != nil {
+		t.Fatalf("complete onboarding: %v", err)
+	}
+	if len(invites) != 0 {
+		t.Fatalf("expected no invites, got %d", len(invites))
+	}
+	if session.Team == nil {
+		t.Fatal("expected workspace in session")
+	}
+	if session.Team.Name != "Chris-board" {
+		t.Fatalf("expected workspace name %q, got %q", "Chris-board", session.Team.Name)
+	}
+
+	projects := listVisibleProjectsForUser(t, db, queries, session.User.ID, session.Team.ID, session.User.Email)
+	assertProjectNames(t, projects, "Chris-board", "inbox")
+	assertProjectIDs(t, projects, "board", "inbox")
+}
+
+func TestCompleteOnboardingTreatsBlankTeamBoardNameAsOptional(t *testing.T) {
+	ctx := context.Background()
+	svc, db, queries := newAccountTestService(t)
+
+	seedAccountUser(t, ctx, svc, "U_OWNER", "chris@example.com", "Chris")
+
+	session, invites, err := svc.CompleteOnboarding(ctx, "U_OWNER", "Gladiators", "", "Chris", nil, PlanProTrial)
+	if err != nil {
+		t.Fatalf("complete onboarding: %v", err)
+	}
+	if len(invites) != 0 {
+		t.Fatalf("expected no invites, got %d", len(invites))
+	}
+	if session.Team == nil {
+		t.Fatal("expected workspace in session")
+	}
+	if session.Team.Name != "Chris-team-board" {
+		t.Fatalf("expected workspace name %q, got %q", "Chris-team-board", session.Team.Name)
+	}
+
+	projects := listVisibleProjectsForUser(t, db, queries, session.User.ID, session.Team.ID, session.User.Email)
+	assertProjectNames(t, projects, "Chris-team-board", "Gladiators", "inbox")
+	assertProjectIDs(t, projects, "board", "board-team", "inbox")
+	assertTeamBoardNames(t, projects, "Chris-team-board")
 }
 
 func TestProjectUpsertWithoutNamePreservesExistingBoardDisplayName(t *testing.T) {
@@ -177,6 +277,80 @@ func TestAcceptInvitationSharesOnlyTeamBoardAndInbox(t *testing.T) {
 	assertProjectNames(t, memberProjects, "maze", "inbox")
 	assertProjectIDs(t, memberProjects, "board-team", "inbox")
 	assertTeamBoardNames(t, memberProjects, "maze")
+}
+
+func TestDowngradeToFreePreservesExistingMembersAndFreezesTeamAdmin(t *testing.T) {
+	ctx := context.Background()
+	svc, db, queries := newAccountTestService(t)
+
+	seedAccountUser(t, ctx, svc, "U_OWNER", "captain@example.com", "Owner")
+	seedAccountUser(t, ctx, svc, "U_MEMBER", "member@example.com", "Member")
+	seedAccountUser(t, ctx, svc, "U_PENDING", "pending@example.com", "Pending")
+
+	ownerSession, _, err := svc.CompleteOnboarding(ctx, "U_OWNER", "solo-board", "raid-team", "Owner", nil, PlanProTrial)
+	if err != nil {
+		t.Fatalf("complete owner onboarding: %v", err)
+	}
+	if ownerSession.Team == nil {
+		t.Fatal("expected owner workspace in session")
+	}
+
+	acceptedInvite, err := svc.InviteMember(ctx, "U_OWNER", ownerSession.Team.ID, "member@example.com", TeamRoleEditor)
+	if err != nil {
+		t.Fatalf("invite accepted member: %v", err)
+	}
+	memberSession, err := svc.AcceptInvitation(ctx, "U_MEMBER", acceptedInvite.InvitationCode)
+	if err != nil {
+		t.Fatalf("accept invitation: %v", err)
+	}
+	if memberSession.Team == nil {
+		t.Fatal("expected member workspace in session")
+	}
+
+	pendingInvite, err := svc.InviteMember(ctx, "U_OWNER", ownerSession.Team.ID, "pending@example.com", TeamRoleReader)
+	if err != nil {
+		t.Fatalf("invite pending member: %v", err)
+	}
+
+	if _, err := svc.ActivateProFromStripe(ctx, ownerSession.Team.ID, "cus_test", "sub_test", "price_test", "billing@example.com"); err != nil {
+		t.Fatalf("activate pro: %v", err)
+	}
+
+	if err := svc.DowngradePersonalByStripeSubscription(ctx, "sub_test"); err != nil {
+		t.Fatalf("downgrade subscription: %v", err)
+	}
+
+	workspace, err := svc.GetWorkspace(ctx, ownerSession.Team.ID)
+	if err != nil {
+		t.Fatalf("get workspace: %v", err)
+	}
+	if workspace.Plan != PlanPersonal {
+		t.Fatalf("expected plan %q after downgrade, got %q", PlanPersonal, workspace.Plan)
+	}
+	if workspace.PlanFamily != "free" {
+		t.Fatalf("expected plan family %q after downgrade, got %q", "free", workspace.PlanFamily)
+	}
+	if workspace.BillingState != "none" {
+		t.Fatalf("expected billing state %q after downgrade, got %q", "none", workspace.BillingState)
+	}
+
+	memberProjects := listVisibleProjectsForUser(t, db, queries, memberSession.User.ID, ownerSession.Team.ID, memberSession.User.Email)
+	assertProjectNames(t, memberProjects, "inbox", "raid-team")
+	assertProjectIDs(t, memberProjects, "board-team", "inbox")
+
+	if _, err := svc.AcceptInvitation(ctx, "U_PENDING", pendingInvite.InvitationCode); err == nil {
+		t.Fatal("expected pending invite acceptance to fail after downgrade")
+	}
+
+	if _, err := svc.InviteMember(ctx, "U_OWNER", ownerSession.Team.ID, "newperson@example.com", TeamRoleEditor); err == nil || !strings.Contains(err.Error(), "unavailable on Free") {
+		t.Fatalf("expected invite to be frozen after downgrade, got %v", err)
+	}
+	if _, err := svc.UpdateMemberRole(ctx, "U_OWNER", ownerSession.Team.ID, "U_MEMBER", TeamRoleReader); err == nil || !strings.Contains(err.Error(), "unavailable on Free") {
+		t.Fatalf("expected role update to be frozen after downgrade, got %v", err)
+	}
+	if _, err := svc.UpdateTeamName(ctx, "U_OWNER", ownerSession.Team.ID, "frozen-name"); err == nil || !strings.Contains(err.Error(), "unavailable on Free") {
+		t.Fatalf("expected team rename to be frozen after downgrade, got %v", err)
+	}
 }
 
 func newAccountTestService(t *testing.T) (*Service, *sqlx.DB, map[string]string) {
@@ -264,6 +438,32 @@ func assertProjectIDs(t *testing.T, projects []project.Project, want ...string) 
 	for i := range got {
 		if got[i] != want[i] {
 			t.Fatalf("expected project ids %v, got %v", want, got)
+		}
+	}
+}
+
+func assertTeamEntitlements(t *testing.T, team *Team, want ...string) {
+	t.Helper()
+
+	if team == nil {
+		t.Fatal("expected team")
+	}
+	for _, entitlement := range want {
+		if !sharedpricing.HasEntitlement(team.Entitlements, entitlement) {
+			t.Fatalf("expected entitlement %q in %v", entitlement, team.Entitlements)
+		}
+	}
+}
+
+func assertTeamLacksEntitlements(t *testing.T, team *Team, disallowed ...string) {
+	t.Helper()
+
+	if team == nil {
+		t.Fatal("expected team")
+	}
+	for _, entitlement := range disallowed {
+		if sharedpricing.HasEntitlement(team.Entitlements, entitlement) {
+			t.Fatalf("did not expect entitlement %q in %v", entitlement, team.Entitlements)
 		}
 	}
 }

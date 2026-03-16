@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 
+import { hasEntitlement, workspacePlanProfile } from "../../../../shared/pricing/catalog";
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
 import { getCachedBoardState, setCachedBoardState } from "../lib/boardCache";
@@ -1006,7 +1007,20 @@ export default function BoardRoute() {
     if (boardID.startsWith("board-")) return boardID.slice("board-".length);
     return boardID;
   });
-  const canManageBoardMembers = createMemo(() => teamSettings()?.canManage ?? false);
+  const boardMemberManagementEnabled = createMemo(() => {
+    const entitlements = teamSettings()?.team.entitlements;
+    const fallback = workspacePlanProfile(teamSettings()?.team.plan || "personal").entitlements;
+    return hasEntitlement((entitlements && entitlements.length > 0 ? entitlements : fallback), "board_member_management");
+  });
+  const canManageBoardMembers = createMemo(
+    () => (teamSettings()?.canManage ?? false) && boardMemberManagementEnabled(),
+  );
+  const boardMemberManagementNotice = createMemo(() => {
+    if ((teamSettings()?.canManage ?? false) && !boardMemberManagementEnabled()) {
+      return "Board member management is frozen on Free. Upgrade to Pro to change board access.";
+    }
+    return "Only owners and admins can change board access.";
+  });
   const currentUserID = createMemo(() => teamSettings()?.currentUserId ?? "");
   const boardMemberIDs = createMemo(() => new Set(boardMembers().map((member) => member.userId)));
   const addableBoardMembers = createMemo(() => {
@@ -3482,7 +3496,7 @@ export default function BoardRoute() {
               </Show>
             </Show>
             <Show when={!canManageBoardMembers()}>
-              <p class="mt-2 text-[11px] text-[#9cb2d6]">Only owners and admins can change board access.</p>
+              <p class="mt-2 text-[11px] text-[#9cb2d6]">{boardMemberManagementNotice()}</p>
             </Show>
           </section>
 
@@ -3863,7 +3877,7 @@ export default function BoardRoute() {
               </Show>
             </Show>
             <Show when={!canManageBoardMembers()}>
-              <p class="mt-2 text-[11px] text-[#8ea0ba]">Only owners and admins can change board access.</p>
+              <p class="mt-2 text-[11px] text-[#8ea0ba]">{boardMemberManagementNotice()}</p>
             </Show>
           </section>
 

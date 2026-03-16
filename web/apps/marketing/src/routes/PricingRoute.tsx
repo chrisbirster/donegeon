@@ -22,7 +22,7 @@ function PricingContent() {
         <aside class="rounded-[1.8rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
           <p class="section-label">What to expect</p>
           <ul class="mt-4 space-y-3 text-sm leading-7 text-[var(--text-soft)]">
-            <li>• A free path for personal use</li>
+            <li>• A Free path for solo use</li>
             <li>• Team features when collaboration matters</li>
             <li>• Support for larger rollouts and enterprise questions</li>
           </ul>
@@ -48,15 +48,13 @@ function PricingContent() {
               </ul>
               <a
                 href={
-                  publicConfig.openBeta || plan.name === "Enterprise"
-                    ? plan.name === "Pro"
-                      ? planHref("pro_trial")
-                      : plan.name === "Personal"
-                        ? planHref("personal")
-                        : plan.href
+                  publicConfig.openBeta || plan.id === "enterprise"
+                    ? plan.loginPlan
+                      ? planHref(plan.loginPlan)
+                      : plan.href
                     : waitlistHref({
                         source: "marketing-pricing",
-                        plan: plan.name === "Pro" ? "pro_trial" : "personal",
+                        plan: plan.loginPlan,
                       })
                 }
                 class={`mt-7 inline-flex rounded-full px-5 py-3 text-sm font-semibold transition ${
@@ -65,11 +63,9 @@ function PricingContent() {
                     : "border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] text-[var(--text-main)] hover:border-[#4a6c8b] hover:bg-[rgba(255,255,255,0.08)]"
                 }`}
               >
-                {publicConfig.openBeta || plan.name === "Enterprise"
+                {publicConfig.openBeta || plan.id === "enterprise"
                   ? plan.ctaLabel
-                  : plan.name === "Pro"
-                    ? "Join Pro waitlist"
-                    : "Join waitlist"}
+                  : plan.waitlistLabel}
               </a>
             </article>
           )}
@@ -97,7 +93,7 @@ function PricingContent() {
             <thead>
               <tr class="bg-[rgba(255,255,255,0.04)]">
                 <th class="px-4 py-4 text-left text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">Capability</th>
-                <th class="px-4 py-4 text-left text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">Personal</th>
+                <th class="px-4 py-4 text-left text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">Free</th>
                 <th class="px-4 py-4 text-left text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">Pro</th>
                 <th class="px-4 py-4 text-left text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">Enterprise</th>
               </tr>
@@ -115,7 +111,7 @@ function PricingContent() {
                       {(row) => (
                         <tr class="border-t border-[rgba(255,255,255,0.08)]">
                           <td class="px-4 py-4 text-sm text-white">{row.label}</td>
-                          <td class="px-4 py-4 text-sm text-[var(--text-soft)]">{row.personal}</td>
+                          <td class="px-4 py-4 text-sm text-[var(--text-soft)]">{row.free}</td>
                           <td class="px-4 py-4 text-sm text-[var(--text-soft)]">{row.pro}</td>
                           <td class="px-4 py-4 text-sm text-[var(--text-soft)]">{row.enterprise}</td>
                         </tr>

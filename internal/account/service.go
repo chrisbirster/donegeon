@@ -12,6 +12,7 @@ import (
 
 	"donegeon/internal/sessionctx"
 	"donegeon/internal/tenant"
+	sharedpricing "donegeon/web/shared/pricing"
 )
 
 type User struct {
@@ -25,15 +26,18 @@ type User struct {
 }
 
 type Team struct {
-	ID                   string  `db:"id" json:"id"`
-	Name                 string  `db:"name" json:"name"`
-	Plan                 string  `db:"plan" json:"plan"`
-	TrialEndsAt          *string `db:"trial_ends_at" json:"trialEndsAt,omitempty"`
-	StripeCustomerID     *string `db:"stripe_customer_id" json:"stripeCustomerId,omitempty"`
-	StripeSubscriptionID *string `db:"stripe_subscription_id" json:"stripeSubscriptionId,omitempty"`
-	IsArchived           bool    `db:"is_archived" json:"isArchived"`
-	CreatedAt            string  `db:"created_at" json:"createdAt"`
-	UpdatedAt            string  `db:"updated_at" json:"updatedAt"`
+	ID                   string   `db:"id" json:"id"`
+	Name                 string   `db:"name" json:"name"`
+	Plan                 string   `db:"plan" json:"plan"`
+	PlanFamily           string   `db:"-" json:"planFamily"`
+	BillingState         string   `db:"-" json:"billingState"`
+	Entitlements         []string `db:"-" json:"entitlements"`
+	TrialEndsAt          *string  `db:"trial_ends_at" json:"trialEndsAt,omitempty"`
+	StripeCustomerID     *string  `db:"stripe_customer_id" json:"stripeCustomerId,omitempty"`
+	StripeSubscriptionID *string  `db:"stripe_subscription_id" json:"stripeSubscriptionId,omitempty"`
+	IsArchived           bool     `db:"is_archived" json:"isArchived"`
+	CreatedAt            string   `db:"created_at" json:"createdAt"`
+	UpdatedAt            string   `db:"updated_at" json:"updatedAt"`
 }
 
 type TeamInvite struct {
@@ -451,6 +455,9 @@ func (s *Service) UpdateTeamName(ctx context.Context, actorUserID string, worksp
 		}
 		return Team{}, err
 	}
+	if err := requireTeamEntitlement(team, sharedpricing.EntitlementTeamAdmin, "Team profile changes"); err != nil {
+		return Team{}, err
+	}
 
 	now := nowRFC3339()
 	tx, err := s.db.BeginTxx(ctx, nil)
@@ -512,6 +519,16 @@ func (s *Service) InviteMember(ctx context.Context, actorUserID string, workspac
 	}
 	if !canManageTeam(role) {
 		return TeamInvite{}, fmt.Errorf("only team owners or admins can invite members")
+	}
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamInvite{}, fmt.Errorf("team not found")
+		}
+		return TeamInvite{}, err
+	}
+	if err := requireTeamEntitlement(team, sharedpricing.EntitlementWorkspaceInvites, "Inviting members"); err != nil {
+		return TeamInvite{}, err
 	}
 
 	var memberCount int
@@ -583,6 +600,16 @@ func (s *Service) UpdateMemberRole(ctx context.Context, actorUserID string, work
 	if actorRole != TeamRoleOwner {
 		return TeamMember{}, fmt.Errorf("only team owners can change roles")
 	}
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamMember{}, fmt.Errorf("team not found")
+		}
+		return TeamMember{}, err
+	}
+	if err := requireTeamEntitlement(team, sharedpricing.EntitlementTeamRoles, "Role changes"); err != nil {
+		return TeamMember{}, err
+	}
 
 	targetMember, err := s.workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
 	if err != nil {
@@ -632,6 +659,16 @@ func (s *Service) RemoveMember(ctx context.Context, actorUserID string, workspac
 	}
 	if actorRole != TeamRoleOwner {
 		return fmt.Errorf("only team owners can remove members")
+	}
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("team not found")
+		}
+		return err
+	}
+	if err := requireTeamEntitlement(team, sharedpricing.EntitlementTeamRoles, "Member removal"); err != nil {
+		return err
 	}
 
 	targetMember, err := s.workspaceMemberByID(ctx, s.db, workspaceID, targetUserID)
@@ -704,6 +741,16 @@ func (s *Service) CancelInvitation(ctx context.Context, actorUserID string, work
 	}
 	if !canManageTeam(role) {
 		return fmt.Errorf("only team owners or admins can cancel invitations")
+	}
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("team not found")
+		}
+		return err
+	}
+	if err := requireTeamEntitlement(team, sharedpricing.EntitlementWorkspaceInvites, "Invitation cancellation"); err != nil {
+		return err
 	}
 
 	result, err := s.exec(ctx, "account_workspace_invitation_delete_pending_by_code_workspace.sql", invitationCode, workspaceID)
@@ -781,8 +828,24 @@ func (s *Service) DowngradePersonalByStripeSubscription(ctx context.Context, sub
 		return fmt.Errorf("subscription id is required")
 	}
 
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	team, err := s.workspaceBySubscriptionIDTx(ctx, tx, subscriptionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("subscription not found")
+		}
+		return err
+	}
+
 	now := nowRFC3339()
-	result, err := s.exec(ctx, "account_workspace_downgrade_by_subscription.sql", PlanPersonal, now, subscriptionID)
+	result, err := s.txExec(ctx, tx, "account_workspace_downgrade_by_subscription.sql", PlanPersonal, now, subscriptionID)
 	if err != nil {
 		return err
 	}
@@ -793,7 +856,12 @@ func (s *Service) DowngradePersonalByStripeSubscription(ctx context.Context, sub
 	if rows == 0 {
 		return fmt.Errorf("subscription not found")
 	}
-	return nil
+
+	if _, err := s.txExec(ctx, tx, "account_workspace_invitations_delete_pending_by_workspace.sql", team.ID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (s *Service) InvitationForLogin(ctx context.Context, invitationCode string) (InvitationForLogin, error) {
@@ -867,6 +935,16 @@ func (s *Service) AcceptInvitation(ctx context.Context, userID string, invitatio
 	}
 	status := strings.ToLower(strings.TrimSpace(inv.Status))
 	if status != "pending" && status != "accepted" {
+		return Session{}, fmt.Errorf("invitation is no longer valid")
+	}
+	team, err := s.workspaceByIDTx(ctx, tx, inv.WorkspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Session{}, fmt.Errorf("team not found")
+		}
+		return Session{}, err
+	}
+	if status == "pending" && !hasTeamEntitlement(team, sharedpricing.EntitlementWorkspaceInvites) {
 		return Session{}, fmt.Errorf("invitation is no longer valid")
 	}
 	inviteRole := normalizeTeamRole(inv.Role)
@@ -1095,6 +1173,16 @@ func (s *Service) AddBoardMember(ctx context.Context, actorUserID string, worksp
 	if !canManageTeam(actorRole) {
 		return TeamMember{}, fmt.Errorf("only team owners or admins can manage board members")
 	}
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return TeamMember{}, fmt.Errorf("team not found")
+		}
+		return TeamMember{}, err
+	}
+	if err := requireTeamEntitlement(team, sharedpricing.EntitlementBoardMemberManagement, "Board member management"); err != nil {
+		return TeamMember{}, err
+	}
 
 	allowed, err := s.HasBoardAccess(ctx, actorUserID, workspaceID, boardID)
 	if err != nil {
@@ -1142,6 +1230,16 @@ func (s *Service) RemoveBoardMember(ctx context.Context, actorUserID string, wor
 	}
 	if !canManageTeam(actorRole) {
 		return fmt.Errorf("only team owners or admins can manage board members")
+	}
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("team not found")
+		}
+		return err
+	}
+	if err := requireTeamEntitlement(team, sharedpricing.EntitlementBoardMemberManagement, "Board member management"); err != nil {
+		return err
 	}
 
 	allowed, err := s.HasBoardAccess(ctx, actorUserID, workspaceID, boardID)
@@ -1234,14 +1332,21 @@ func (s *Service) DeleteBoardMembershipsForBoard(ctx context.Context, workspaceI
 func (s *Service) workspaceByID(ctx context.Context, id string) (Team, error) {
 	var row Team
 	err := s.get(ctx, &row, "account_workspace_get_by_id.sql", id)
-	row.Plan = normalizeWorkspacePlan(row.Plan)
+	applyWorkspacePricing(&row)
 	return row, err
 }
 
 func (s *Service) workspaceByIDTx(ctx context.Context, tx *sqlx.Tx, id string) (Team, error) {
 	var row Team
 	err := s.txGet(ctx, tx, &row, "account_workspace_get_by_id.sql", id)
-	row.Plan = normalizeWorkspacePlan(row.Plan)
+	applyWorkspacePricing(&row)
+	return row, err
+}
+
+func (s *Service) workspaceBySubscriptionIDTx(ctx context.Context, tx *sqlx.Tx, subscriptionID string) (Team, error) {
+	var row Team
+	err := s.txGet(ctx, tx, &row, "account_workspace_get_by_subscription_id.sql", subscriptionID)
+	applyWorkspacePricing(&row)
 	return row, err
 }
 
@@ -1259,6 +1364,39 @@ func normalizeWorkspacePlan(raw string) string {
 	default:
 		return ""
 	}
+}
+
+func applyWorkspacePricing(team *Team) {
+	if team == nil {
+		return
+	}
+	profile := sharedpricing.LookupWorkspacePlan(team.Plan)
+	team.Plan = profile.WorkspacePlan
+	team.PlanFamily = profile.PlanFamily
+	team.BillingState = profile.BillingState
+	team.Entitlements = profile.Entitlements
+}
+
+func hasTeamEntitlement(team Team, entitlement string) bool {
+	return sharedpricing.HasEntitlement(team.Entitlements, entitlement)
+}
+
+func requireTeamEntitlement(team Team, entitlement string, action string) error {
+	if hasTeamEntitlement(team, entitlement) {
+		return nil
+	}
+	return fmt.Errorf("%s", teamEntitlementError(team, action))
+}
+
+func teamEntitlementError(team Team, action string) string {
+	label := sharedpricing.LookupWorkspacePlan(team.Plan).DisplayLabel
+	if label == "" {
+		label = "current plan"
+	}
+	if label == "Free" {
+		return fmt.Sprintf("%s is unavailable on Free. Upgrade this workspace to Pro to continue.", action)
+	}
+	return fmt.Sprintf("%s is unavailable on the current plan.", action)
 }
 
 func nullableString(raw string) any {
@@ -1355,7 +1493,7 @@ func resolvePersonalBoardName(boardName string, userName string, userEmail strin
 		return boardName
 	}
 	base := personalBoardBaseName(userName, userEmail)
-	return fmt.Sprintf("%s's board", base)
+	return generatedBoardName(base, "board")
 }
 
 func resolveTeamBoardName(boardName string, userName string, userEmail string) string {
@@ -1364,7 +1502,7 @@ func resolveTeamBoardName(boardName string, userName string, userEmail string) s
 		return boardName
 	}
 	base := personalBoardBaseName(userName, userEmail)
-	return fmt.Sprintf("%s's team board", base)
+	return generatedBoardName(base, "team board")
 }
 
 func resolveWorkspaceName(plan string, personalBoardName string, teamBoardName string) string {
@@ -1385,7 +1523,74 @@ func normalizeExplicitBoardName(raw string) string {
 	if trimmed == "" {
 		return ""
 	}
-	return strings.Join(strings.Fields(trimmed), "-")
+
+	var b strings.Builder
+	lastDash := false
+	for _, ch := range trimmed {
+		switch {
+		case ch >= 'a' && ch <= 'z':
+			b.WriteRune(ch)
+			lastDash = false
+		case ch >= 'A' && ch <= 'Z':
+			b.WriteRune(ch)
+			lastDash = false
+		case ch >= '0' && ch <= '9':
+			b.WriteRune(ch)
+			lastDash = false
+		case ch == '-' || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r':
+			if !lastDash && b.Len() > 0 {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+
+	return strings.Trim(b.String(), "-")
+}
+
+func generatedBoardName(base string, suffix string) string {
+	base = strings.TrimSpace(base)
+	suffix = strings.TrimSpace(suffix)
+	switch {
+	case base == "" && suffix == "":
+		return ""
+	case base == "":
+		return normalizeGeneratedBoardName(suffix)
+	case suffix == "":
+		return normalizeGeneratedBoardName(base)
+	default:
+		return normalizeGeneratedBoardName(base + " " + suffix)
+	}
+}
+
+func normalizeGeneratedBoardName(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	lastDash := false
+	for _, ch := range trimmed {
+		switch {
+		case ch >= 'a' && ch <= 'z':
+			b.WriteRune(ch)
+			lastDash = false
+		case ch >= 'A' && ch <= 'Z':
+			b.WriteRune(ch)
+			lastDash = false
+		case ch >= '0' && ch <= '9':
+			b.WriteRune(ch)
+			lastDash = false
+		default:
+			if !lastDash && b.Len() > 0 {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+
+	return strings.Trim(b.String(), "-")
 }
 
 func personalBoardBaseName(userName string, userEmail string) string {

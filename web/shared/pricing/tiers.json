@@ -1,0 +1,376 @@
+{
+  "version": 1,
+  "workspacePlanMappings": {
+    "personal": {
+      "planFamily": "free",
+      "billingState": "none"
+    },
+    "pro_trial": {
+      "planFamily": "pro",
+      "billingState": "trial"
+    },
+    "pro": {
+      "planFamily": "pro",
+      "billingState": "paid"
+    },
+    "enterprise": {
+      "planFamily": "enterprise",
+      "billingState": "sales"
+    }
+  },
+  "publicPlanOrder": ["free", "pro", "enterprise"],
+  "planFamilies": {
+    "free": {
+      "label": "Free",
+      "comparisonLabel": "Free",
+      "price": "$0",
+      "cadence": "forever",
+      "description": "For individuals who want faster task capture, recurring work, personal board gameplay, and calendar sync without team admin overhead.",
+      "ctaLabel": "Start Free",
+      "waitlistLabel": "Join waitlist",
+      "loginPlan": "personal",
+      "bullets": [
+        "Core task workflow, quick add, and recurring schedules",
+        "Personal board gameplay, quests, and profile history",
+        "Google Calendar sync and installable PWA support"
+      ],
+      "entitlements": [
+        "quick_add",
+        "recurring_schedules",
+        "personal_board_gameplay",
+        "calendar_sync",
+        "pwa_offline"
+      ]
+    },
+    "pro": {
+      "label": "Pro",
+      "comparisonLabel": "Pro",
+      "price": "$12",
+      "cadence": "per user / month",
+      "description": "For teams that need shared boards, invitations, role controls, board member management, and team operations on top of the Free workflow.",
+      "ctaLabel": "Start Pro Trial",
+      "waitlistLabel": "Join Pro waitlist",
+      "loginPlan": "pro_trial",
+      "featured": true,
+      "bullets": [
+        "14-day trial before paid billing begins",
+        "Shared team boards, workspace invites, and role controls",
+        "Board member management and guided migration help"
+      ],
+      "entitlements": [
+        "quick_add",
+        "recurring_schedules",
+        "personal_board_gameplay",
+        "calendar_sync",
+        "pwa_offline",
+        "shared_team_boards",
+        "workspace_invites",
+        "team_roles",
+        "team_admin",
+        "board_member_management",
+        "guided_migration"
+      ]
+    },
+    "enterprise": {
+      "label": "Enterprise",
+      "comparisonLabel": "Enterprise",
+      "price": "Custom",
+      "cadence": "annual",
+      "description": "For larger organizations that need sales-led rollout, security review support, procurement help, and priority migration planning on top of Pro product access.",
+      "ctaLabel": "Talk to Sales",
+      "waitlistLabel": "Talk to Sales",
+      "contactHref": "mailto:sales@donegeon.com?subject=Donegeon%20Enterprise",
+      "bullets": [
+        "Everything in Pro with a services-led rollout path",
+        "Security review support and procurement coordination",
+        "Priority migration planning and invoicing support"
+      ],
+      "entitlements": [
+        "quick_add",
+        "recurring_schedules",
+        "personal_board_gameplay",
+        "calendar_sync",
+        "pwa_offline",
+        "shared_team_boards",
+        "workspace_invites",
+        "team_roles",
+        "team_admin",
+        "board_member_management",
+        "guided_migration",
+        "security_review_support",
+        "procurement_support",
+        "priority_migration_support"
+      ]
+    }
+  },
+  "pricingMatrix": [
+    {
+      "title": "Core workflow",
+      "rows": [
+        {
+          "key": "quick_add",
+          "label": "Quick add parser with schedule tokens",
+          "free": "Included",
+          "pro": "Included",
+          "enterprise": "Included"
+        },
+        {
+          "key": "recurring_schedules",
+          "label": "Recurring tasks and advanced schedules",
+          "free": "Included",
+          "pro": "Included",
+          "enterprise": "Included"
+        },
+        {
+          "key": "personal_board_gameplay",
+          "label": "Personal board gameplay",
+          "free": "Included",
+          "pro": "Included",
+          "enterprise": "Included"
+        },
+        {
+          "key": "calendar_sync",
+          "label": "Google Calendar connections and sync",
+          "free": "Included",
+          "pro": "Included",
+          "enterprise": "Included"
+        },
+        {
+          "key": "pwa_offline",
+          "label": "Installable app and offline-friendly cached reads",
+          "free": "Included",
+          "pro": "Included",
+          "enterprise": "Included"
+        }
+      ]
+    },
+    {
+      "title": "Team operations",
+      "rows": [
+        {
+          "key": "shared_team_boards",
+          "label": "Shared team boards",
+          "free": "No",
+          "pro": "Included",
+          "enterprise": "Included"
+        },
+        {
+          "key": "workspace_invites",
+          "label": "Workspace invites and pending invitation management",
+          "free": "No",
+          "pro": "Included",
+          "enterprise": "Included"
+        },
+        {
+          "key": "team_roles",
+          "label": "Owner, admin, editor, and reader roles",
+          "free": "No",
+          "pro": "Included",
+          "enterprise": "Included"
+        },
+        {
+          "key": "board_member_management",
+          "label": "Board member management",
+          "free": "No",
+          "pro": "Included",
+          "enterprise": "Included"
+        }
+      ]
+    },
+    {
+      "title": "Launch and support",
+      "rows": [
+        {
+          "key": "guided_migration",
+          "label": "Migration help",
+          "free": "Self-serve",
+          "pro": "Guided",
+          "enterprise": "Priority"
+        },
+        {
+          "key": "security_review_support",
+          "label": "Security review support",
+          "free": "No",
+          "pro": "No",
+          "enterprise": "Included"
+        },
+        {
+          "key": "procurement_support",
+          "label": "Procurement and invoicing support",
+          "free": "No",
+          "pro": "No",
+          "enterprise": "Included"
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "question": "What is included today?",
+      "answer": "Donegeon includes fast task capture, recurring schedules, personal board gameplay, calendar sync, and a collaboration path for teams that upgrade to Pro."
+    },
+    {
+      "question": "Can we learn the product before signing up?",
+      "answer": "Yes. The docs and blog cover core workflows, feature walkthroughs, and product updates so teams can understand how Donegeon works before they commit."
+    },
+    {
+      "question": "Are walkthrough videos available?",
+      "answer": "Selected guides can include videos so new users can see features in action instead of relying on screenshots and text alone."
+    },
+    {
+      "question": "What is the difference between Free and Pro?",
+      "answer": "Free is designed for solo use and the core board workflow. Pro adds shared boards, invitations, role controls, and board-member management, with a 14-day trial to get started."
+    }
+  ],
+  "featureInventory": [
+    {
+      "key": "email_otp_auth",
+      "label": "Email OTP login and session auth",
+      "category": "Access",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "waitlist_and_closed_beta",
+      "label": "Waitlist and closed-beta onboarding entry",
+      "category": "Access",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "core_task_workflow",
+      "label": "Inbox, Today, Upcoming, project navigation, favorites, search, and task CRUD",
+      "category": "Tasks",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "quick_add",
+      "label": "Quick add parsing and parse preview",
+      "category": "Tasks",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "recurring_schedules",
+      "label": "Due dates, deadlines, RRULE parsing, and recurring schedules",
+      "category": "Scheduling",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "personal_board_gameplay",
+      "label": "Personal board gameplay, quests, rewards, decks, and profile history",
+      "category": "Board",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "calendar_sync",
+      "label": "Google Calendar connect, list, sync, and disconnect",
+      "category": "Operations",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "pwa_offline",
+      "label": "Installable PWA and offline-friendly cached reads",
+      "category": "Operations",
+      "availability": "free",
+      "status": "implemented"
+    },
+    {
+      "key": "shared_team_boards",
+      "label": "Shared team board setup and access",
+      "category": "Collaboration",
+      "availability": "pro",
+      "status": "implemented"
+    },
+    {
+      "key": "workspace_invites",
+      "label": "Workspace invites with accept, reject, and cancel flows",
+      "category": "Collaboration",
+      "availability": "pro",
+      "status": "implemented"
+    },
+    {
+      "key": "team_roles",
+      "label": "Owner, admin, editor, and reader roles",
+      "category": "Collaboration",
+      "availability": "pro",
+      "status": "implemented"
+    },
+    {
+      "key": "team_admin",
+      "label": "Team settings, naming, and team admin controls",
+      "category": "Collaboration",
+      "availability": "pro",
+      "status": "implemented"
+    },
+    {
+      "key": "board_member_management",
+      "label": "Board-level member management and access control",
+      "category": "Collaboration",
+      "availability": "pro",
+      "status": "implemented"
+    },
+    {
+      "key": "guided_migration",
+      "label": "Guided migration help as a service offering",
+      "category": "Support",
+      "availability": "pro",
+      "status": "service"
+    },
+    {
+      "key": "security_review_support",
+      "label": "Security review support",
+      "category": "Support",
+      "availability": "enterprise",
+      "status": "service"
+    },
+    {
+      "key": "procurement_support",
+      "label": "Procurement and invoicing support",
+      "category": "Support",
+      "availability": "enterprise",
+      "status": "service"
+    },
+    {
+      "key": "priority_migration_support",
+      "label": "Priority migration planning",
+      "category": "Support",
+      "availability": "enterprise",
+      "status": "service"
+    },
+    {
+      "key": "board_store",
+      "label": "Board store packs, currency, modifiers, and villager contracts",
+      "category": "Monetization",
+      "availability": "separate_add_on",
+      "status": "implemented"
+    },
+    {
+      "key": "taskmanager_compat_api",
+      "label": "TaskManager-compatible parity APIs",
+      "category": "Platform",
+      "availability": "not_yet_publicly_tiered",
+      "status": "implemented"
+    }
+  ],
+  "separateAddOns": [
+    {
+      "key": "board_store",
+      "label": "Board store purchases for packs, currency, modifiers, and villager contracts"
+    }
+  ],
+  "notYetPubliclyTiered": [
+    {
+      "key": "taskmanager_compat_api",
+      "label": "TaskManager-compatible parity APIs without a customer-facing import workflow"
+    },
+    {
+      "key": "beta_and_debug_controls",
+      "label": "Open-beta toggles, debug auth helpers, and internal runtime knobs"
+    }
+  ]
+}

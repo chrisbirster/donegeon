@@ -187,6 +187,9 @@ export type AuthTeam = {
   id: string;
   name: string;
   plan: string;
+  planFamily: "free" | "pro" | "enterprise";
+  billingState: "none" | "trial" | "paid" | "sales";
+  entitlements: string[];
   trialEndsAt?: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;

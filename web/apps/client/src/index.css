@@ -1,14 +1,30 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
 @import "tailwindcss";
 
 :root {
-  --bg-start: #0f1623;
-  --bg-end: #0a0f17;
-  --panel: #121a29;
-  --panel-soft: #182235;
-  --text-main: #f4f6fb;
-  --text-dim: #98a4bb;
-  --accent: #ff6a4a;
-  --accent-soft: #ff9b72;
+  color-scheme: dark;
+  --bg-base: #04070c;
+  --panel: rgba(11, 20, 30, 0.84);
+  --panel-soft: rgba(255, 255, 255, 0.04);
+  --panel-strong: rgba(9, 17, 26, 0.94);
+  --panel-overlay: rgba(6, 10, 16, 0.78);
+  --border-strong: rgba(119, 155, 187, 0.22);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --text-main: #edf4ff;
+  --text-soft: #bfd1e3;
+  --text-muted: #89a0b6;
+  --text-dim: #738aa2;
+  --accent: #ff8b50;
+  --accent-soft: #ffb27f;
+  --accent-wash: rgba(255, 139, 80, 0.14);
+  --accent-text: #ffd7b7;
+  --success: #c7f6d4;
+  --success-bg: rgba(24, 88, 57, 0.33);
+  --warning: #ffd4a1;
+  --warning-bg: rgba(110, 78, 21, 0.34);
+  --danger: #ffb5ad;
+  --danger-bg: rgba(120, 37, 34, 0.34);
+  --shadow-elevated: 0 24px 60px rgba(0, 0, 0, 0.32);
 }
 
 * {
@@ -16,21 +32,104 @@
 }
 
 html,
-body {
+body,
+#root {
   height: 100%;
 }
 
 body {
   margin: 0;
   min-height: 100%;
-  font-family: "DM Sans", "Avenir Next", "Segoe UI", sans-serif;
-  background: radial-gradient(1200px 700px at 15% -10%, #1a2b46 0%, transparent 65%),
-    linear-gradient(180deg, var(--bg-start), var(--bg-end));
+  background-color: var(--bg-base);
+  background-image:
+    radial-gradient(circle at top left, rgba(255, 139, 80, 0.12), transparent 32%),
+    radial-gradient(circle at top right, rgba(103, 187, 255, 0.1), transparent 30%),
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    radial-gradient(circle at top, #163049 0%, #09131c 40%, #04070c 100%);
+  background-position: 0 0, 100% 0, 0 0, 0 0, 0 0;
+  background-size: auto, auto, 36px 36px, 36px 36px, auto;
   color: var(--text-main);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   overflow-x: hidden;
   overflow-y: auto;
+  text-rendering: optimizeLegibility;
 }
 
-#root {
-  min-height: 100%;
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(255, 139, 80, 0.28);
+  color: white;
+}
+
+.font-display {
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+}
+
+.app-panel {
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-elevated);
+  backdrop-filter: blur(18px);
+}
+
+.app-panel-strong {
+  background: linear-gradient(180deg, rgba(9, 17, 26, 0.96), rgba(7, 14, 22, 0.92));
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-elevated);
+  backdrop-filter: blur(18px);
+}
+
+.app-panel-soft {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-soft);
+  backdrop-filter: blur(12px);
+}
+
+.app-button-primary {
+  background: var(--accent);
+  color: #1d1108;
+  transition: background-color 160ms ease;
+}
+
+.app-button-primary:hover {
+  background: #ff9f6d;
+}
+
+.app-button-secondary {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-strong);
+  color: var(--text-main);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.app-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #466684;
+  color: white;
+}
+
+.app-input-surface {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-strong);
+  color: var(--text-main);
+}
+
+.app-input-surface:focus {
+  border-color: var(--accent);
+  outline: none;
 }

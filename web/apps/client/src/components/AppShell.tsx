@@ -14,19 +14,27 @@ type ShellProps = {
 export default function AppShell(props: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
   const accountPlacement = () => props.accountPlacement || "floating";
+  const navItemClass = (active: boolean) =>
+    active
+      ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
+      : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.04)] hover:text-white";
+  const mobileActionClass = (active: boolean) =>
+    active
+      ? "border-[rgba(255,139,80,0.28)] bg-[var(--accent-wash)] text-[var(--accent-text)]"
+      : "app-button-secondary text-[var(--text-soft)]";
 
   function closeMobileMenu() {
     setMobileMenuOpen(false);
   }
 
   return (
-    <main class="h-screen overflow-hidden bg-[#0a0d12] text-[#eceff7]">
-      <header class="flex h-12 items-center justify-between border-b border-[#262d3a] bg-[#11151d]/95 px-3">
+    <main class="h-screen overflow-hidden text-[var(--text-main)]">
+      <header class="flex h-12 items-center justify-between border-b border-[var(--border-strong)] bg-[var(--panel-overlay)] px-3 backdrop-blur-xl">
         <div class="flex items-center gap-4">
           <Show when={props.mobileSidebar}>
             <button
               type="button"
-              class="rounded-md border border-[#35455f] p-1.5 text-[#dce5f7] transition hover:border-[var(--accent)] md:hidden"
+              class="app-button-secondary rounded-md p-1.5 text-[var(--text-main)] md:hidden"
               aria-label="Open sidebar"
               onClick={() => setMobileMenuOpen(true)}
               data-testid="appshell-mobile-menu"
@@ -34,29 +42,29 @@ export default function AppShell(props: ShellProps) {
               ☰
             </button>
           </Show>
-          <span class="text-sm font-semibold tracking-wide text-[#e7ebf3]">Donegeon</span>
-          <nav class="hidden items-center gap-1 text-xs text-[#9ea9bb] md:flex">
+          <span class="font-display text-sm font-semibold tracking-[0.08em] text-white">Donegeon</span>
+          <nav class="hidden items-center gap-1 text-xs md:flex">
             <A
               href="/task/inbox"
-              class={`rounded px-2 py-1 transition ${props.activeView === "task" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
+              class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "task")}`}
             >
               Tasks
             </A>
             <A
               href="/board"
-              class={`rounded px-2 py-1 transition ${props.activeView === "board" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
+              class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "board")}`}
             >
               Board
             </A>
             <A
               href="/profile"
-              class={`rounded px-2 py-1 transition ${props.activeView === "profile" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
+              class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "profile")}`}
             >
               Profile
             </A>
             <A
               href="/team/settings"
-              class={`rounded px-2 py-1 transition ${props.activeView === "team" ? "bg-[#1c2431] text-[#eef2fa]" : "hover:bg-[#1a202b] hover:text-[#eef2fa]"}`}
+              class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "team")}`}
             >
               Team
             </A>
@@ -66,21 +74,13 @@ export default function AppShell(props: ShellProps) {
         <div class="flex items-center gap-2">
           <A
             href="/profile"
-            class={`rounded-md border px-2 py-1 text-xs transition md:hidden ${
-              props.activeView === "profile"
-                ? "border-[#4a6084] bg-[#1f2a3d] text-[#eef3ff]"
-                : "border-[#334258] bg-[#141b28] text-[#c8d4ea] hover:border-[#4a6084] hover:text-[#eef3ff]"
-            }`}
+            class={`rounded-full px-3 py-1 text-xs transition md:hidden ${mobileActionClass(props.activeView === "profile")}`}
           >
             Profile
           </A>
           <A
             href="/team/settings"
-            class={`rounded-md border px-2 py-1 text-xs transition md:hidden ${
-              props.activeView === "team"
-                ? "border-[#4a6084] bg-[#1f2a3d] text-[#eef3ff]"
-                : "border-[#334258] bg-[#141b28] text-[#c8d4ea] hover:border-[#4a6084] hover:text-[#eef3ff]"
-            }`}
+            class={`rounded-full px-3 py-1 text-xs transition md:hidden ${mobileActionClass(props.activeView === "team")}`}
           >
             Team
           </A>
@@ -92,14 +92,14 @@ export default function AppShell(props: ShellProps) {
         {props.children}
       </div>
 
-      <nav class="fixed inset-x-0 bottom-0 z-50 border-t border-[#2f3848] bg-[#10151f]/98 px-2 pb-[max(env(safe-area-inset-bottom),0px)] pt-1 md:hidden">
+      <nav class="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border-strong)] bg-[rgba(4,8,12,0.92)] px-2 pb-[max(env(safe-area-inset-bottom),0px)] pt-1 backdrop-blur-xl md:hidden">
         <div class="grid grid-cols-2 gap-1">
           <A
             href="/task/inbox"
             class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${
               props.activeView === "task"
-                ? "bg-[#1f2a3c] text-[#eef2fa]"
-                : "text-[#9ea9bb] hover:bg-[#1a202b] hover:text-[#eef2fa]"
+                ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
+                : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
             }`}
           >
             <span class="text-sm">✓</span>
@@ -109,8 +109,8 @@ export default function AppShell(props: ShellProps) {
             href="/board"
             class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${
               props.activeView === "board"
-                ? "bg-[#1f2a3c] text-[#eef2fa]"
-                : "text-[#9ea9bb] hover:bg-[#1a202b] hover:text-[#eef2fa]"
+                ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
+                : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
             }`}
           >
             <span class="text-sm">▦</span>
@@ -127,12 +127,12 @@ export default function AppShell(props: ShellProps) {
             aria-label="Close sidebar"
             onClick={closeMobileMenu}
           />
-          <aside class="absolute left-0 top-0 h-full w-[min(84vw,320px)] overflow-y-auto border-r border-[#2a3242] bg-[#121824] shadow-[0_20px_50px_rgba(0,0,0,0.55)]">
-            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[#273247] bg-[#121824]/95 px-3 py-2 backdrop-blur-sm">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#b9c8e3]">Sidebar</p>
+          <aside class="absolute left-0 top-0 h-full w-[min(84vw,320px)] overflow-y-auto border-r border-[var(--border-strong)] bg-[rgba(6,10,16,0.96)] shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border-strong)] bg-[rgba(6,10,16,0.92)] px-3 py-2 backdrop-blur-sm">
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Sidebar</p>
               <button
                 type="button"
-                class="rounded-md border border-[#3b4f70] px-2 py-1 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                class="app-button-secondary rounded-md px-2 py-1 text-xs"
                 onClick={closeMobileMenu}
               >
                 Close
@@ -141,7 +141,7 @@ export default function AppShell(props: ShellProps) {
             <div class="p-3">
               {props.mobileSidebar}
               <Show when={accountPlacement() === "sidebar"}>
-                <div class="mt-3 border-t border-[#273247] pt-3">
+                <div class="mt-3 border-t border-[var(--border-strong)] pt-3">
                   <SidebarAccountCard onNavigate={closeMobileMenu} />
                 </div>
               </Show>

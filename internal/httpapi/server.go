@@ -475,7 +475,10 @@ func (a *API) handleAuthOnboarding(w http.ResponseWriter, r *http.Request) {
 	switch requestedPlan {
 	case "pro":
 		requestedPlan = account.PlanProTrial
-	case account.PlanProTrial, account.PlanEnterprise, account.PlanPersonal:
+	case "free", account.PlanProTrial, account.PlanEnterprise, account.PlanPersonal:
+		if requestedPlan == "free" {
+			requestedPlan = account.PlanPersonal
+		}
 	default:
 		requestedPlan = account.PlanPersonal
 	}

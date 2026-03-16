@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 
+import { hasEntitlement, workspacePlanLabel, workspacePlanProfile } from "../../../../shared/pricing/catalog";
 import AppShell from "../components/AppShell";
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
@@ -48,14 +49,6 @@ function roleBadgeClass(role: string): string {
   }
 }
 
-function planLabel(plan: string): string {
-  const value = plan.trim().toLowerCase();
-  if (value === "pro_trial") return "Pro Trial";
-  if (value === "pro") return "Pro";
-  if (value === "enterprise") return "Enterprise";
-  return "Personal";
-}
-
 export default function TeamSettingsRoute() {
   const api = useApi();
   const toast = useToast();
@@ -91,17 +84,28 @@ export default function TeamSettingsRoute() {
   });
 
   const canManage = createMemo(() => settings()?.canManage ?? false);
-  const canManageRoles = createMemo(() => settings()?.currentUserRole === "owner");
   const currentRole = createMemo(() => settings()?.currentUserRole ?? "reader");
-  const currentPlan = createMemo(() => planLabel(settings()?.team.plan || "personal"));
+  const team = createMemo(() => settings()?.team ?? null);
+  const teamPricing = createMemo(() => workspacePlanProfile(team()?.plan || "personal"));
+  const teamEntitlements = createMemo(() => {
+    const explicit = team()?.entitlements ?? [];
+    return explicit.length > 0 ? explicit : teamPricing().entitlements;
+  });
+  const currentPlan = createMemo(() => workspacePlanLabel(team()?.plan || "personal"));
+  const canManageTeamProfile = createMemo(() => canManage() && hasEntitlement(teamEntitlements(), "team_admin"));
+  const canManageInvites = createMemo(() => canManage() && hasEntitlement(teamEntitlements(), "workspace_invites"));
+  const canManageRoles = createMemo(
+    () => settings()?.currentUserRole === "owner" && hasEntitlement(teamEntitlements(), "team_roles"),
+  );
+  const teamAdminFrozen = createMemo(() => canManage() && !hasEntitlement(teamEntitlements(), "team_admin"));
 
   const roleSummary = createMemo(() => {
     const role = currentRole();
     if (role === "owner") {
-      return "Owner access: full control over team profile, billing, roles, and invitations.";
+      return "Owner access: full control over billing plus workspace roles when the current plan allows team administration.";
     }
     if (role === "admin") {
-      return "Admin access: manage team profile, billing, and invitations. Role changes stay owner-only.";
+      return "Admin access: manage team profile, billing, and invitations when team administration is enabled. Role changes stay owner-only.";
     }
     if (role === "editor") {
       return "Editor access: collaborate on invited team boards and modify board/task content.";
@@ -110,14 +114,16 @@ export default function TeamSettingsRoute() {
   });
 
   const planSummary = createMemo(() => {
-    const plan = settings()?.team.plan?.trim().toLowerCase() || "personal";
-    if (plan === "enterprise") {
-      return "Enterprise workspace: advanced security and admin controls enabled.";
+    const activeTeam = team();
+    if (!activeTeam) return "";
+    const family = activeTeam.planFamily || teamPricing().planFamily;
+    if (family === "enterprise") {
+      return "Enterprise workspace: Pro product access plus sales-led rollout, security review support, and procurement help.";
     }
-    if (plan === "pro" || plan === "pro_trial") {
-      return "Pro workspace: advanced team gameplay and operational tools enabled.";
+    if (family === "pro") {
+      return "Pro workspace: shared boards, invitations, roles, and board member management are enabled.";
     }
-    return "Free baseline: personal board flow by default; team capabilities come from invited workspace role.";
+    return "Free workspace: core task and board workflow stay available, but team admin actions are frozen until the workspace returns to Pro.";
   });
 
   async function loadSettings() {
@@ -142,6 +148,10 @@ export default function TeamSettingsRoute() {
     event.preventDefault();
     if (!canManage()) {
       setActionError("Only owners or admins can update team settings.");
+      return;
+    }
+    if (!canManageTeamProfile()) {
+      setActionError("Team profile changes are unavailable on Free. Upgrade this workspace to Pro to continue.");
       return;
     }
 
@@ -178,6 +188,10 @@ export default function TeamSettingsRoute() {
       setActionError("Only owners or admins can invite members.");
       return;
     }
+    if (!canManageInvites()) {
+      setActionError("Inviting members is unavailable on Free. Upgrade this workspace to Pro to continue.");
+      return;
+    }
 
     const emails = parseInviteEmails(inviteInput());
     if (emails.length === 0) {
@@ -208,7 +222,10 @@ export default function TeamSettingsRoute() {
   }
 
   async function changeRole(member: TeamMember, role: "admin" | "editor" | "reader") {
-    if (!canManageRoles()) return;
+    if (!canManageRoles()) {
+      setActionError("Role changes are unavailable on the current plan or role.");
+      return;
+    }
 
     setRoleSavingByUserID((current) => ({
       ...current,
@@ -241,7 +258,10 @@ export default function TeamSettingsRoute() {
   }
 
   async function removeMember(member: TeamMember) {
-    if (!canManageRoles()) return;
+    if (!canManageRoles()) {
+      setActionError("Member removal is unavailable on the current plan or role.");
+      return;
+    }
 
     setRemovingUserID(member.userId);
     setActionError("");
@@ -265,6 +285,10 @@ export default function TeamSettingsRoute() {
 
   async function cancelInvitation(invitation: TeamInvitation) {
     if (!canManage()) return;
+    if (!canManageInvites()) {
+      setActionError("Invitation cancellation is unavailable on Free. Upgrade this workspace to Pro to continue.");
+      return;
+    }
 
     setCancelingInviteCode(invitation.invitationCode);
     setActionError("");
@@ -391,6 +415,11 @@ export default function TeamSettingsRoute() {
               <div class="mt-3 rounded-lg border border-[#2f4568] bg-[#101c2e] px-3 py-2 text-xs text-[#bcd0ef]">
                 Team board access is role-based per workspace. Billing and team-admin actions are limited to owner/admin accounts.
               </div>
+              <Show when={teamAdminFrozen()}>
+                <p class="mt-3 rounded-lg border border-[#7c6042] bg-[#2d2016] px-3 py-2 text-xs text-[#ffd5af]">
+                  This workspace is on Free. Existing members and boards stay accessible, but invitations, role changes, board-member management, and other team admin actions are frozen until you return to Pro.
+                </p>
+              </Show>
             </section>
           </Show>
 
@@ -416,7 +445,7 @@ export default function TeamSettingsRoute() {
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Billing</h2>
                   <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
-                    {planLabel(settings()!.team.plan)}
+                    {currentPlan()}
                   </span>
                 </div>
                 <p class="mt-2 text-xs text-[#9fb0cc]">
@@ -433,7 +462,7 @@ export default function TeamSettingsRoute() {
                   <article class="rounded-xl border border-[#334b70] bg-[#132238] p-3">
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#b9d6ff]">Free</p>
                     <p class="mt-1 text-xl font-semibold text-[#edf4ff]">$0</p>
-                    <p class="mt-2 text-xs text-[#9fb0cc]">Core personal workflow and board basics.</p>
+                    <p class="mt-2 text-xs text-[#9fb0cc]">Core task workflow, personal board gameplay, and calendar sync.</p>
                     <button
                       type="button"
                       class="mt-3 w-full rounded-lg border border-[#3f5a83] bg-[#1a2b46] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] opacity-80"
@@ -446,7 +475,7 @@ export default function TeamSettingsRoute() {
                   <article class="rounded-xl border border-[#546fa1] bg-[#172947] p-3">
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#d7e5ff]">Pro</p>
                     <p class="mt-1 text-xl font-semibold text-[#edf4ff]">$12/user/mo</p>
-                    <p class="mt-2 text-xs text-[#b3c4df]">Team velocity tools, shared board ops, advanced progression.</p>
+                    <p class="mt-2 text-xs text-[#b3c4df]">Shared boards, invitations, role controls, and board member management.</p>
                     <div class="mt-3 flex gap-2">
                       <button
                         type="button"
@@ -470,7 +499,7 @@ export default function TeamSettingsRoute() {
                   <article class="rounded-xl border border-[#49607f] bg-[#142133] p-3">
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#d3e1f8]">Enterprise</p>
                     <p class="mt-1 text-xl font-semibold text-[#edf4ff]">Custom</p>
-                    <p class="mt-2 text-xs text-[#aebfd8]">Admin controls, compliance, and guided onboarding.</p>
+                    <p class="mt-2 text-xs text-[#aebfd8]">Pro product access with sales-led rollout, security review, and procurement support.</p>
                     <button
                       type="button"
                       class="mt-3 w-full rounded-lg border border-[#566f93] bg-[#1b2d47] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] transition hover:border-[#6f88a8] disabled:opacity-60"
@@ -502,17 +531,22 @@ export default function TeamSettingsRoute() {
                       value={teamNameInput()}
                       onInput={(event) => setTeamNameInput(event.currentTarget.value)}
                       class="mt-2 w-full rounded-lg border border-[#3a4d6f] bg-[#0c1524] px-3 py-2 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
-                      disabled={!canManage() || saveTeamLoading()}
+                      disabled={!canManageTeamProfile() || saveTeamLoading()}
                     />
                   </label>
                   <button
                     type="submit"
                     class="rounded-lg border border-[#3e5680] bg-[#172845] px-4 py-2 text-sm font-semibold text-[#d7e6ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                    disabled={!canManage() || saveTeamLoading()}
+                    disabled={!canManageTeamProfile() || saveTeamLoading()}
                   >
                     {saveTeamLoading() ? "Saving..." : "Save team"}
                   </button>
                 </form>
+                <Show when={canManage() && !canManageTeamProfile()}>
+                  <p class="mt-3 text-xs text-[#ffd5af]">
+                    Team profile changes are frozen on Free. Upgrade to Pro to rename or manage this shared workspace.
+                  </p>
+                </Show>
               </section>
 
               <section id="team-members" class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
@@ -587,6 +621,11 @@ export default function TeamSettingsRoute() {
                     }}
                   </For>
                 </div>
+                <Show when={settings()!.currentUserRole === "owner" && !canManageRoles()}>
+                  <p class="mt-3 text-xs text-[#ffd5af]">
+                    Role changes and member removal are frozen on Free. Upgrade to Pro to manage team membership again.
+                  </p>
+                </Show>
               </section>
 
               <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
@@ -605,7 +644,7 @@ export default function TeamSettingsRoute() {
                         setInviteRole(nextRole === "admin" || nextRole === "reader" ? nextRole : "editor");
                       }}
                       class="mt-2 w-full rounded-lg border border-[#3a4d6f] bg-[#0c1524] px-3 py-2 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
-                      disabled={!canManage() || inviteLoading()}
+                      disabled={!canManageInvites() || inviteLoading()}
                     >
                       <option value="editor">Editor</option>
                       <option value="reader">Reader</option>
@@ -620,18 +659,23 @@ export default function TeamSettingsRoute() {
                       onInput={(event) => setInviteInput(event.currentTarget.value)}
                       class="mt-2 w-full rounded-lg border border-[#3a4d6f] bg-[#0c1524] px-3 py-2 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
                       placeholder="teammate@company.com"
-                      disabled={!canManage() || inviteLoading()}
+                      disabled={!canManageInvites() || inviteLoading()}
                     />
                   </label>
                   <p class="mt-1 text-xs text-[#8ea3c7]">Use commas or new lines for multiple invite emails.</p>
                   <button
                     type="submit"
                     class="mt-3 rounded-lg border border-[#3e5680] bg-[#172845] px-4 py-2 text-sm font-semibold text-[#d7e6ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                    disabled={!canManage() || inviteLoading()}
+                    disabled={!canManageInvites() || inviteLoading()}
                   >
                     {inviteLoading() ? "Sending..." : "Send invite"}
                   </button>
                 </form>
+                <Show when={canManage() && !canManageInvites()}>
+                  <p class="mt-3 text-xs text-[#ffd5af]">
+                    Invitations are frozen on Free. Existing members keep access, but new invites require Pro.
+                  </p>
+                </Show>
 
                 <div class="mt-4 space-y-2">
                   <Show
@@ -653,7 +697,7 @@ export default function TeamSettingsRoute() {
                             <span class="rounded-md border border-[#3a4f74] bg-[#16243b] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
                               {invitation.status}
                             </span>
-                            <Show when={canManage()}>
+                            <Show when={canManageInvites()}>
                               <button
                                 type="button"
                                 class="rounded-md border border-[#6a3a3a] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#925151] disabled:opacity-60"

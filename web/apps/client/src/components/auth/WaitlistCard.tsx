@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 
+import { workspacePlanLabel } from "../../../../../shared/pricing/catalog";
 import { useApi } from "../../context/ApiContext";
 
 type WaitlistCardProps = {
@@ -10,14 +11,6 @@ type WaitlistCardProps = {
   description?: string;
 };
 
-function planLabel(raw: string | undefined): string {
-  const value = (raw ?? "").trim().toLowerCase();
-  if (value === "pro_trial" || value === "pro") return "Pro";
-  if (value === "enterprise") return "Enterprise";
-  if (value === "personal") return "Personal";
-  return "";
-}
-
 export default function WaitlistCard(props: WaitlistCardProps) {
   const api = useApi();
   const [name, setName] = createSignal("");
@@ -27,7 +20,7 @@ export default function WaitlistCard(props: WaitlistCardProps) {
   const [success, setSuccess] = createSignal("");
   const [deliveryWarning, setDeliveryWarning] = createSignal("");
 
-  const requestedPlan = planLabel(props.requestedPlan);
+  const requestedPlan = props.requestedPlan?.trim() ? workspacePlanLabel(props.requestedPlan) : "";
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -62,58 +55,58 @@ export default function WaitlistCard(props: WaitlistCardProps) {
   }
 
   return (
-    <main class="flex h-screen items-center justify-center bg-[#0a0d12] px-4 text-[#eceff7]">
-      <div class="w-full max-w-md rounded-2xl border border-[#2c3648] bg-[#111926] p-6 shadow-[0_24px_64px_rgba(0,0,0,0.45)]">
-        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#8ea3c7]">Donegeon</p>
-        <p class="mt-3 inline-flex rounded-full border border-[#415878] bg-[#132033] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#d3e5ff]">
+    <main class="flex h-screen items-center justify-center px-4 text-[var(--text-main)]">
+      <div class="app-panel w-full max-w-md rounded-2xl p-6">
+        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Donegeon</p>
+        <p class="mt-3 inline-flex rounded-full border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--accent-text)]">
           Open beta starts {props.openBetaStartsLabel}
         </p>
 
-        <h1 class="mt-4 text-2xl font-semibold tracking-tight text-[#edf3ff]">
+        <h1 class="font-display mt-4 text-2xl font-semibold tracking-[-0.03em] text-white">
           {props.title || "Join the waitlist"}
         </h1>
-        <p class="mt-2 text-sm leading-7 text-[#9fb0cc]">
+        <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
           {props.description ||
             "Donegeon is currently in closed beta. Leave your name and email and we'll notify you as soon as access opens."}
         </p>
         {requestedPlan ? (
-          <p class="mt-2 text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Requested plan: {requestedPlan}</p>
+          <p class="mt-2 text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Requested plan: {requestedPlan}</p>
         ) : null}
 
         <form class="mt-6" onSubmit={(event) => void submit(event)}>
-          <label class="block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Name</label>
+          <label class="block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Name</label>
           <input
             type="text"
             required
             value={name()}
             onInput={(event) => setName(event.currentTarget.value)}
-            class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+            class="app-input-surface mt-2 w-full rounded-lg px-3 py-2"
             placeholder="Your name"
           />
 
-          <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Email</label>
+          <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Email</label>
           <input
             type="email"
             required
             value={email()}
             onInput={(event) => setEmail(event.currentTarget.value)}
-            class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+            class="app-input-surface mt-2 w-full rounded-lg px-3 py-2"
             placeholder="you@company.com"
           />
-          <p class="mt-2 text-xs text-[#8ea3c7]">Confirmation emails are sent from no-reply@donegeon.com.</p>
+          <p class="mt-2 text-xs text-[var(--text-muted)]">Confirmation emails are sent from no-reply@donegeon.com.</p>
 
           <button
             type="submit"
             disabled={saving() || !name().trim() || !email().trim()}
-            class="mt-5 w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#161616] transition hover:bg-[var(--accent-soft)] disabled:opacity-60"
+            class="app-button-primary mt-5 w-full rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
           >
             {saving() ? "Joining..." : "Join the waitlist"}
           </button>
         </form>
 
-        {success() ? <p class="mt-4 text-sm text-[#a8f1c0]">{success()}</p> : null}
-        {deliveryWarning() ? <p class="mt-2 text-xs text-[#ffd18c]">{deliveryWarning()}</p> : null}
-        {error() ? <p class="mt-3 text-sm text-[#ff9b9b]">{error()}</p> : null}
+        {success() ? <p class="mt-4 text-sm text-[var(--success)]">{success()}</p> : null}
+        {deliveryWarning() ? <p class="mt-2 text-xs text-[var(--warning)]">{deliveryWarning()}</p> : null}
+        {error() ? <p class="mt-3 text-sm text-[var(--danger)]">{error()}</p> : null}
       </div>
     </main>
   );

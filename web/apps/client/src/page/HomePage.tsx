@@ -122,23 +122,66 @@ function tokenizeQuickAdd(value: string): TokenPiece[] {
 function tokenClass(kind: TokenKind): string {
   switch (kind) {
     case "project":
-      return "text-[#ffd2d2] bg-[#7f1d1d]";
+      return "bg-[rgba(120,37,34,0.36)] text-[#ffd4cf]";
     case "label":
-      return "text-[#ffdff5] bg-[#6b214d]";
+      return "bg-[rgba(97,76,132,0.3)] text-[#edd8ff]";
     case "assignee":
-      return "text-[#fbe2ff] bg-[#5b2470]";
+      return "bg-[rgba(26,78,95,0.34)] text-[#d2f4ff]";
     case "priority":
-      return "text-[#ffe5d5] bg-[#9a3412]";
+      return "bg-[rgba(255,139,80,0.22)] text-[#ffd7b7]";
     case "deadline":
-      return "text-[#e3dcff] bg-[#4338ca]";
+      return "bg-[rgba(74,78,156,0.35)] text-[#ddd9ff]";
     case "recurrence":
-      return "text-[#d8ffd4] bg-[#14532d]";
+      return "bg-[rgba(24,88,57,0.33)] text-[#c7f6d4]";
     case "due":
-      return "text-[#ffe6cc] bg-[#92400e]";
+      return "bg-[rgba(110,78,21,0.34)] text-[#ffd4a1]";
     default:
       return "text-[var(--text-main)]";
   }
 }
+
+const sidebarCardClass =
+  "rounded-xl border border-[var(--border-strong)] bg-[rgba(10,18,28,0.9)] p-3 shadow-[0_18px_48px_rgba(0,0,0,0.24)] backdrop-blur";
+const sidebarItemBaseClass =
+  "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition";
+const sidebarItemActiveClass = "bg-[var(--accent-wash)] text-[var(--accent-text)]";
+const sidebarItemIdleClass = "text-[var(--text-main)] hover:bg-[rgba(255,255,255,0.04)]";
+const searchButtonClass =
+  "mt-3 flex w-full items-center justify-between rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-left text-sm text-[var(--text-main)] transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.05)]";
+const panelActionButtonClass = "app-button-secondary rounded-lg px-3 py-1.5 text-sm";
+const smallActionButtonClass = "app-button-secondary rounded-lg px-2 py-1 text-xs";
+const listActionButtonClass = "app-button-secondary rounded-md px-2 py-1 text-xs";
+const successActionButtonClass =
+  "rounded-md border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] px-2 py-1 text-xs text-[var(--success)] transition hover:border-[rgba(92,173,131,0.48)] disabled:cursor-not-allowed disabled:opacity-60";
+const dangerActionButtonClass =
+  "rounded-md border border-[rgba(255,181,173,0.32)] bg-[var(--danger-bg)] px-2 py-1 text-xs text-[var(--danger)] transition hover:border-[var(--accent)]";
+const formFieldClass =
+  "w-full rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]";
+const iconMutedClass = "text-[var(--text-muted)]";
+const iconActiveClass = "text-[#ffd7b7]";
+const teamBadgeClass =
+  "rounded border border-[rgba(126,141,214,0.45)] bg-[rgba(84,95,168,0.22)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d8e1ff]";
+const dueBadgeClass = "rounded-md bg-[rgba(110,78,21,0.34)] px-2 py-0.5 text-[#ffd4a1]";
+const deadlineBadgeClass = "rounded-md bg-[rgba(74,78,156,0.35)] px-2 py-0.5 text-[#ddd9ff]";
+const warningBadgeClass = "rounded-md bg-[rgba(129,61,28,0.35)] px-2 py-0.5 text-[#ffd4b5]";
+const boardDraftBadgeClass = "rounded-md bg-[rgba(97,76,132,0.26)] px-2 py-0.5 text-[#d9c6ff]";
+const boardLiveBadgeClass = "rounded-md bg-[rgba(24,88,57,0.33)] px-2 py-0.5 text-[#c7f6d4]";
+const tagBadgeClass = "rounded-md bg-[rgba(84,95,168,0.22)] px-2 py-0.5 text-[#e0d8ff]";
+const emptyStateClass =
+  "rounded-xl border border-[var(--border-soft)] bg-[rgba(255,255,255,0.02)] px-4 py-6 text-sm text-[var(--text-dim)]";
+const errorBannerClass =
+  "rounded-lg border border-[rgba(255,181,173,0.35)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]";
+const warningBannerClass =
+  "rounded-md border border-[rgba(255,212,161,0.3)] bg-[var(--warning-bg)] px-2.5 py-1.5 text-xs text-[var(--warning)]";
+const successBannerClass =
+  "rounded-md border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] px-2 py-1 text-xs text-[var(--success)]";
+const taskRowBaseClass = "group flex items-center gap-3 rounded-xl border px-3 py-3 transition";
+const taskRowDropClass = "border-[var(--accent)] bg-[rgba(255,139,80,0.08)]";
+const taskRowNextActionClass = "border-[rgba(255,139,80,0.28)] bg-[rgba(255,139,80,0.08)] hover:border-[#ffb27f]";
+const taskRowDefaultClass =
+  "border-[rgba(119,155,187,0.18)] bg-[rgba(255,255,255,0.03)] hover:border-[rgba(119,155,187,0.32)]";
+const completedTaskRowClass =
+  "group flex items-center gap-3 rounded-xl border border-[rgba(119,155,187,0.16)] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-[var(--text-muted)] transition hover:border-[rgba(119,155,187,0.28)]";
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -1522,12 +1565,12 @@ export default function HomeRoute() {
       accountPlacement="sidebar"
       mobileSidebar={
         <div class="space-y-5">
-          <div class="rounded-xl border border-[#2b3c57] bg-[#0f1728] p-3">
+          <div class={sidebarCardClass}>
             <div class="flex items-center justify-between">
-              <h2 class="text-sm font-semibold tracking-tight text-[var(--text-main)]">Tasks</h2>
+              <h2 class="font-display text-sm font-semibold tracking-tight text-white">Tasks</h2>
               <button
                 type="button"
-                class="rounded-lg border border-[#334660] px-2 py-1 text-xs text-[#d7e4ff] transition hover:border-[var(--accent)]"
+                class={smallActionButtonClass}
                 onClick={focusComposer}
               >
                 Add
@@ -1535,7 +1578,7 @@ export default function HomeRoute() {
             </div>
             <button
               type="button"
-              class="mt-3 flex w-full items-center justify-between rounded-lg border border-[#2f3f5d] bg-[#0d1523] px-3 py-2 text-left text-sm text-[var(--text-main)] hover:border-[var(--accent)]"
+              class={searchButtonClass}
               onClick={openSearchModal}
             >
               <span>Search</span>
@@ -1543,16 +1586,12 @@ export default function HomeRoute() {
             </button>
           </div>
 
-          <div class="rounded-xl border border-[#2b3c57] bg-[#0f1728] p-3">
+          <div class={sidebarCardClass}>
             <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Views</p>
             <div class="mt-2 space-y-1">
               <button
                 type="button"
-                class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                  isViewActive("inbox")
-                    ? "bg-[#5c2525]/65 text-[#ef8680]"
-                    : "text-[var(--text-main)] hover:bg-[#17243a]"
-                }`}
+                class={`${sidebarItemBaseClass} ${isViewActive("inbox") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
                 onClick={() => navigateToView("inbox")}
               >
                 <span>Inbox</span>
@@ -1560,11 +1599,7 @@ export default function HomeRoute() {
               </button>
               <button
                 type="button"
-                class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                  isViewActive("today")
-                    ? "bg-[#5c2525]/65 text-[#ef8680]"
-                    : "text-[var(--text-main)] hover:bg-[#17243a]"
-                }`}
+                class={`${sidebarItemBaseClass} ${isViewActive("today") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
                 onClick={() => navigateToView("today")}
               >
                 <span>Today</span>
@@ -1572,38 +1607,30 @@ export default function HomeRoute() {
               </button>
               <button
                 type="button"
-                class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                  isViewActive("upcomming")
-                    ? "bg-[#5c2525]/65 text-[#ef8680]"
-                    : "text-[var(--text-main)] hover:bg-[#17243a]"
-                }`}
+                class={`${sidebarItemBaseClass} ${isViewActive("upcomming") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
                 onClick={() => navigateToView("upcomming")}
               >
-                <span>Upcomming</span>
+                <span>Upcoming</span>
                 <span class="text-xs text-[var(--text-dim)]">{upcomingCount()}</span>
               </button>
             </div>
           </div>
 
-          <div class="rounded-xl border border-[#2b3c57] bg-[#0f1728] p-3">
+          <div class={sidebarCardClass}>
             <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Projects</p>
             <div class="mt-2 space-y-1">
               <For each={sidebarProjects()}>
                 {(project) => (
                   <button
                     type="button"
-                    class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                      isProjectActive(project.id)
-                        ? "bg-[#5c2525]/65 text-[#ef8680]"
-                        : "text-[var(--text-main)] hover:bg-[#17243a]"
-                    }`}
+                    class={`${sidebarItemBaseClass} ${isProjectActive(project.id) ? sidebarItemActiveClass : sidebarItemIdleClass}`}
                     onClick={() => navigateToProject(project.id)}
                   >
                     <span class="min-w-0">
                       <span class="block truncate">{project.name}</span>
                       <Show when={projectQuickAddAlias(project)}>
                         {(alias) => (
-                          <span class="block text-[10px] uppercase tracking-[0.08em] text-[#8fa3c7]">
+                          <span class="block text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
                             #{alias()}
                           </span>
                         )}
@@ -1620,194 +1647,168 @@ export default function HomeRoute() {
     >
       <div class="h-full overflow-hidden p-3 md:p-6">
         <div class="grid h-full min-h-0 w-full grid-cols-1 gap-4 md:grid-cols-[300px_minmax(0,1fr)]">
-          <aside class="hidden h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-[#273248] bg-[linear-gradient(180deg,#101a2c,#0d1523)] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:flex">
+          <aside class="app-panel-strong hidden h-full min-h-0 flex-col overflow-hidden rounded-3xl p-4 md:flex">
             <div class="flex h-full min-h-0 flex-col">
-            <div class="flex items-center justify-between">
-              <h1 class="text-lg font-semibold tracking-tight text-[var(--text-main)]">Tasks</h1>
-              <button
-                type="button"
-                class="rounded-lg border border-[#334660] px-3 py-1.5 text-sm text-[#d7e4ff] transition hover:border-[var(--accent)]"
-                onClick={focusComposer}
-              >
-                Add Task
-              </button>
-            </div>
-
-            <nav class="mt-4 space-y-1">
-              <button
-                type="button"
-                class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-[#17243a]"
-                onClick={openSearchModal}
-                data-testid="open-search"
-              >
-                <span class="flex items-center gap-2 text-[var(--text-main)]">
-                  <span class="text-[#9fb2d3]">⌕</span>
-                  <span>Search</span>
-                </span>
-                <span class="text-xs text-[var(--text-dim)]">⌘K</span>
-              </button>
-
-              <button
-                type="button"
-                class={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
-                  isViewActive("inbox")
-                    ? "bg-[#5c2525]/65 text-[#ef8680]"
-                    : "text-[var(--text-main)] hover:bg-[#17243a]"
-                }`}
-                onClick={() => navigateToView("inbox")}
-              >
-                <span class="flex items-center gap-2">
-                  <span class={isViewActive("inbox") ? "text-[#f5b7b1]" : "text-[#9fb2d3]"}>▱</span>
-                  <span>Inbox</span>
-                </span>
-                <span class="text-xs text-[var(--text-dim)]">{inboxCount()}</span>
-              </button>
-
-              <button
-                type="button"
-                class={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
-                  isViewActive("today")
-                    ? "bg-[#5c2525]/65 text-[#ef8680]"
-                    : "text-[var(--text-main)] hover:bg-[#17243a]"
-                }`}
-                onClick={() => navigateToView("today")}
-              >
-                <span class="flex items-center gap-2">
-                  <span class={isViewActive("today") ? "text-[#f5b7b1]" : "text-[#9fb2d3]"}>◫</span>
-                  <span>Today</span>
-                </span>
-                <span class="text-xs text-[var(--text-dim)]">{todayCount()}</span>
-              </button>
-
-              <button
-                type="button"
-                class={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
-                  isViewActive("upcomming")
-                    ? "bg-[#5c2525]/65 text-[#ef8680]"
-                    : "text-[var(--text-main)] hover:bg-[#17243a]"
-                }`}
-                onClick={() => navigateToView("upcomming")}
-              >
-                <span class="flex items-center gap-2">
-                  <span class={isViewActive("upcomming") ? "text-[#f5b7b1]" : "text-[#9fb2d3]"}>☷</span>
-                  <span>Upcomming</span>
-                </span>
-                <span class="text-xs text-[var(--text-dim)]">{upcomingCount()}</span>
-              </button>
-            </nav>
-
-            <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
-              <div>
-                <p class="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Favorites</p>
-                <div class="mt-2 space-y-1">
-                  <Show
-                    when={favoriteProjects().length > 0}
-                    fallback={<p class="px-2 py-1 text-sm text-[var(--text-dim)]">No favorite projects yet.</p>}
-                  >
-                    <For each={favoriteProjects()}>
-                      {(project) => (
-                        <button
-                          type="button"
-                          class={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
-                            isProjectActive(project.id)
-                              ? "bg-[#5c2525]/65 text-[#ef8680]"
-                              : "text-[var(--text-main)] hover:bg-[#17243a]"
-                          }`}
-                          onClick={() => navigateToProject(project.id)}
-                        >
-                          <span class="flex min-w-0 items-center gap-2">
-                            <span class="text-[#ffd89c]">★</span>
-                            <span class="min-w-0">
-                              <span class="block truncate">{project.name}</span>
-                              <Show when={projectQuickAddAlias(project)}>
-                                {(alias) => (
-                                  <span class="block text-[10px] uppercase tracking-[0.08em] text-[#8fa3c7]">
-                                    #{alias()}
-                                  </span>
-                                )}
-                              </Show>
-                            </span>
-                            <Show when={isTeamBoardProject(project.id, projectMap())}>
-                              <span class="rounded border border-[#4d62a9] bg-[#202955] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
-                                Team
-                              </span>
-                            </Show>
-                          </span>
-                          <span class="text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
-                        </button>
-                      )}
-                    </For>
-                  </Show>
-                </div>
+              <div class="flex items-center justify-between">
+                <h1 class="font-display text-lg font-semibold tracking-tight text-white">Tasks</h1>
+                <button type="button" class={panelActionButtonClass} onClick={focusComposer}>
+                  Add Task
+                </button>
               </div>
 
-              <div class="mt-6">
-                <p class="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">My Projects</p>
-                <div class="mt-2 space-y-1">
-                  <Show
-                    when={sidebarProjects().length > 0}
-                    fallback={<p class="px-2 py-1 text-sm text-[var(--text-dim)]">No projects found in database.</p>}
-                  >
-                    <For each={sidebarProjects()}>
-                      {(project) => (
-                        <div class="group flex items-center gap-1">
+              <nav class="mt-4 space-y-1">
+                <button
+                  type="button"
+                  class={`${sidebarItemBaseClass} ${sidebarItemIdleClass}`}
+                  onClick={openSearchModal}
+                  data-testid="open-search"
+                >
+                  <span class="flex items-center gap-2 text-[var(--text-main)]">
+                    <span class={iconMutedClass}>⌕</span>
+                    <span>Search</span>
+                  </span>
+                  <span class="text-xs text-[var(--text-dim)]">⌘K</span>
+                </button>
+
+                <button
+                  type="button"
+                  class={`${sidebarItemBaseClass} ${isViewActive("inbox") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
+                  onClick={() => navigateToView("inbox")}
+                >
+                  <span class="flex items-center gap-2">
+                    <span class={isViewActive("inbox") ? iconActiveClass : iconMutedClass}>▱</span>
+                    <span>Inbox</span>
+                  </span>
+                  <span class="text-xs text-[var(--text-dim)]">{inboxCount()}</span>
+                </button>
+
+                <button
+                  type="button"
+                  class={`${sidebarItemBaseClass} ${isViewActive("today") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
+                  onClick={() => navigateToView("today")}
+                >
+                  <span class="flex items-center gap-2">
+                    <span class={isViewActive("today") ? iconActiveClass : iconMutedClass}>◫</span>
+                    <span>Today</span>
+                  </span>
+                  <span class="text-xs text-[var(--text-dim)]">{todayCount()}</span>
+                </button>
+
+                <button
+                  type="button"
+                  class={`${sidebarItemBaseClass} ${isViewActive("upcomming") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
+                  onClick={() => navigateToView("upcomming")}
+                >
+                  <span class="flex items-center gap-2">
+                    <span class={isViewActive("upcomming") ? iconActiveClass : iconMutedClass}>☷</span>
+                    <span>Upcoming</span>
+                  </span>
+                  <span class="text-xs text-[var(--text-dim)]">{upcomingCount()}</span>
+                </button>
+              </nav>
+
+              <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
+                <div>
+                  <p class="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Favorites</p>
+                  <div class="mt-2 space-y-1">
+                    <Show
+                      when={favoriteProjects().length > 0}
+                      fallback={<p class="px-2 py-1 text-sm text-[var(--text-dim)]">No favorite projects yet.</p>}
+                    >
+                      <For each={favoriteProjects()}>
+                        {(project) => (
                           <button
                             type="button"
-                            class={`min-w-0 flex-1 rounded-xl px-3 py-2 text-left text-sm transition ${
-                              isProjectActive(project.id)
-                                ? "bg-[#5c2525]/65 text-[#ef8680]"
-                                : "text-[var(--text-main)] hover:bg-[#17243a]"
-                            }`}
+                            class={`${sidebarItemBaseClass} ${isProjectActive(project.id) ? sidebarItemActiveClass : sidebarItemIdleClass}`}
                             onClick={() => navigateToProject(project.id)}
                           >
-                            <span class="flex items-center justify-between gap-2">
-                              <span class="flex min-w-0 items-center gap-2">
-                                <span class="min-w-0">
-                                  <span class="block truncate">{project.name}</span>
-                                  <Show when={projectQuickAddAlias(project)}>
-                                    {(alias) => (
-                                      <span class="block text-[10px] uppercase tracking-[0.08em] text-[#8fa3c7]">
-                                        #{alias()}
-                                      </span>
-                                    )}
-                                  </Show>
-                                </span>
-                                <Show when={isTeamBoardProject(project.id, projectMap())}>
-                                  <span class="rounded border border-[#4d62a9] bg-[#202955] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
-                                    Team
-                                  </span>
+                            <span class="flex min-w-0 items-center gap-2">
+                              <span class="text-[#ffd4a1]">★</span>
+                              <span class="min-w-0">
+                                <span class="block truncate">{project.name}</span>
+                                <Show when={projectQuickAddAlias(project)}>
+                                  {(alias) => (
+                                    <span class="block text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                                      #{alias()}
+                                    </span>
+                                  )}
                                 </Show>
                               </span>
-                              <span class="ml-3 text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
+                              <Show when={isTeamBoardProject(project.id, projectMap())}>
+                                <span class={teamBadgeClass}>Team</span>
+                              </Show>
                             </span>
+                            <span class="text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
                           </button>
-                          <button
-                            type="button"
-                            class={`rounded-lg border px-2 py-1 text-xs transition ${
-                              project.isFavorite
-                                ? "border-[#ffbf69] bg-[#3a2a0d] text-[#ffd89c]"
-                                : "border-[#334660] text-[#9fb2d3] hover:border-[#ffbf69] hover:text-[#ffd89c]"
-                            }`}
-                            onClick={() => void toggleProjectFavorite(project)}
-                            aria-label={project.isFavorite ? "Remove favorite" : "Add favorite"}
-                          >
-                            ★
-                          </button>
-                        </div>
-                      )}
-                    </For>
-                  </Show>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                </div>
+
+                <div class="mt-6">
+                  <p class="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">My Projects</p>
+                  <div class="mt-2 space-y-1">
+                    <Show
+                      when={sidebarProjects().length > 0}
+                      fallback={<p class="px-2 py-1 text-sm text-[var(--text-dim)]">No projects found in database.</p>}
+                    >
+                      <For each={sidebarProjects()}>
+                        {(project) => (
+                          <div class="group flex items-center gap-1">
+                            <button
+                              type="button"
+                              class={`min-w-0 flex-1 rounded-xl px-3 py-2 text-left text-sm transition ${
+                                isProjectActive(project.id) ? `${sidebarItemActiveClass}` : `${sidebarItemIdleClass}`
+                              }`}
+                              onClick={() => navigateToProject(project.id)}
+                            >
+                              <span class="flex items-center justify-between gap-2">
+                                <span class="flex min-w-0 items-center gap-2">
+                                  <span class="min-w-0">
+                                    <span class="block truncate">{project.name}</span>
+                                    <Show when={projectQuickAddAlias(project)}>
+                                      {(alias) => (
+                                        <span class="block text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                                          #{alias()}
+                                        </span>
+                                      )}
+                                    </Show>
+                                  </span>
+                                  <Show when={isTeamBoardProject(project.id, projectMap())}>
+                                    <span class={teamBadgeClass}>Team</span>
+                                  </Show>
+                                </span>
+                                <span class="ml-3 text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              class={`rounded-lg border px-2 py-1 text-xs transition ${
+                                project.isFavorite
+                                  ? "border-[rgba(255,139,80,0.28)] bg-[var(--accent-wash)] text-[var(--accent-text)]"
+                                  : "border-[var(--border-strong)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+                              }`}
+                              onClick={() => void toggleProjectFavorite(project)}
+                              aria-label={project.isFavorite ? "Remove favorite" : "Add favorite"}
+                            >
+                              ★
+                            </button>
+                          </div>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
                 </div>
               </div>
-            </div>
 
-              <div class="mt-4 border-t border-[#273248] pt-4">
+              <div class="mt-4 border-t border-[var(--border-strong)] pt-4">
                 <SidebarAccountCard />
               </div>
             </div>
           </aside>
 
-          <section class="flex h-full min-h-0 flex-col rounded-3xl border border-[#273248] bg-[linear-gradient(180deg,#101a2c,#0c1423)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:p-8">
+          <section class="app-panel-strong flex h-full min-h-0 flex-col rounded-3xl p-6 md:p-8">
             <TaskViewHeader title={viewTitle()} count={visibleTasks().length} />
 
             <TaskQuickAddComposer
@@ -1824,13 +1825,13 @@ export default function HomeRoute() {
             />
 
           <Show when={error()}>
-            <p class="mb-4 rounded-lg border border-[#5d2f2f] bg-[#2a1111] px-3 py-2 text-sm text-[#ffb5b5]">{error()}</p>
+            <p class={`mb-4 ${errorBannerClass}`}>{error()}</p>
           </Show>
 
           <div class="min-h-0 flex-1 overflow-y-auto pr-1">
             <Show
               when={visibleTasks().length > 0}
-              fallback={<p class="rounded-xl border border-[#23314c] bg-[#101a2c] px-4 py-6 text-sm text-[var(--text-dim)]">No open tasks in this view.</p>}
+              fallback={<p class={emptyStateClass}>No open tasks in this view.</p>}
             >
               <ul class="space-y-2">
                 <For each={visibleTasks()}>
@@ -1838,12 +1839,12 @@ export default function HomeRoute() {
                     <li
                       data-testid="task-row"
                       data-task-id={item.id}
-                      class={`group flex items-center gap-3 rounded-xl border px-3 py-3 transition ${
+                      class={`${taskRowBaseClass} ${
                         dropTargetId() === item.id
-                          ? "border-[var(--accent)] bg-[#0f192b]"
+                          ? taskRowDropClass
                           : isNextActionTask(item)
-                            ? "border-[#8f6a1c] bg-[#2a1f0c] hover:border-[#d8ac45]"
-                            : "border-[#24314a] bg-[#0f192b] hover:border-[#2d3f5f]"
+                            ? taskRowNextActionClass
+                            : taskRowDefaultClass
                       }`}
                       onDragOver={(event) => onDragOver(event, item.id)}
                       onDrop={(event) => onDrop(event, item.id)}
@@ -1855,7 +1856,7 @@ export default function HomeRoute() {
                       <button
                         type="button"
                         draggable={true}
-                        class={`cursor-grab select-none rounded px-1 text-[#91a4c6] transition hover:bg-[#1e2b43] hover:text-white ${
+                        class={`cursor-grab select-none rounded px-1 text-[var(--text-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-white ${
                           dragTaskId() === item.id ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                         }`}
                         aria-label="Drag to reorder"
@@ -1868,7 +1869,7 @@ export default function HomeRoute() {
 
                       <button
                         type="button"
-                        class="h-5 w-5 rounded-full border border-[#4b6da5] bg-transparent transition hover:border-[var(--accent)]"
+                        class="h-5 w-5 rounded-full border border-[var(--border-strong)] bg-transparent transition hover:border-[var(--accent)]"
                         aria-label="Complete task"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -1886,45 +1887,35 @@ export default function HomeRoute() {
                               </p>
                               <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
                                 <Show when={scheduleBadgeLabel(item, "due")}>
-                                  {(label) => (
-                                    <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">{label()}</span>
-                                  )}
+                                  {(label) => <span class={dueBadgeClass}>{label()}</span>}
                                 </Show>
                                 <Show when={scheduleBadgeLabel(item, "deadline")}>
-                                  {(label) => (
-                                    <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">{label()}</span>
-                                  )}
+                                  {(label) => <span class={deadlineBadgeClass}>{label()}</span>}
                                 </Show>
                               <Show when={scheduleValidationWarning(item)}>
-                                {(warning) => (
-                                  <span class="rounded-md bg-[#4b2a19] px-2 py-0.5 text-[#ffd5b0]">{warning()}</span>
-                                )}
+                                {(warning) => <span class={warningBadgeClass}>{warning()}</span>}
                               </Show>
                               <Show when={isBoardProject(item.projectId) && !isBoardLiveTask(item)}>
-                                <span class="rounded-md bg-[#2a2238] px-2 py-0.5 text-[#cbb9ff]">Board draft</span>
+                                <span class={boardDraftBadgeClass}>Board draft</span>
                               </Show>
                               <Show when={isBoardLiveTask(item)}>
-                                <span class="rounded-md bg-[#163328] px-2 py-0.5 text-[#b3f2d5]">Live on board</span>
+                                <span class={boardLiveBadgeClass}>Live on board</span>
                               </Show>
                               <For each={visibleTaskLabels(item.labels)}>
-                                {(label) => (
-                                  <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">@{label}</span>
-                                )}
+                                {(label) => <span class={tagBadgeClass}>@{label}</span>}
                               </For>
                                 <Show when={projectNameByID(item.projectId)}>
                                   {(projectName) => (
-                                    <span class="inline-flex items-center gap-1 rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">
+                                    <span class={`inline-flex items-center gap-1 ${tagBadgeClass}`}>
                                       <span>#{projectName()}</span>
                                       <Show when={isTeamBoardProject(item.projectId, projectMap())}>
-                                        <span class="rounded border border-[#4d62a9] bg-[#202955] px-1 py-0 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
-                                          Team
-                                        </span>
+                                        <span class={teamBadgeClass}>Team</span>
                                       </Show>
                                     </span>
                                   )}
                                 </Show>
                                 <Show when={item.recurrenceRule}>
-                                  <span class="rounded-md bg-[#163328] px-2 py-0.5 text-[#b3f2d5]">↻ recurring</span>
+                                  <span class={boardLiveBadgeClass}>↻ recurring</span>
                                 </Show>
                               </div>
                             </>
@@ -1944,19 +1935,19 @@ export default function HomeRoute() {
                                   cancelInlineEdit();
                                 }
                               }}
-                              class="w-full rounded-lg border border-[#3d537b] bg-[#101d30] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
+                              class="w-full rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-1 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
                               autofocus
                             />
                             <button
                               type="button"
-                              class="rounded-md bg-[#2a3a56] px-2 py-1 text-xs text-white"
+                              class="app-button-primary rounded-md px-2 py-1 text-xs"
                               onClick={() => void saveInlineEdit(item.id)}
                             >
                               Save
                             </button>
                             <button
                               type="button"
-                              class="rounded-md bg-[#28303d] px-2 py-1 text-xs text-[#d7d9dd]"
+                              class="app-button-secondary rounded-md px-2 py-1 text-xs text-[var(--text-soft)]"
                               onClick={cancelInlineEdit}
                             >
                               Cancel
@@ -1968,8 +1959,8 @@ export default function HomeRoute() {
                       <span
                         class={`rounded-md px-2 py-1 text-xs ${
                           item.priority <= 2
-                            ? "bg-[#5f201a] text-[#ffcbc2]"
-                            : "bg-[#1e2a43] text-[#b5c4df]"
+                            ? "bg-[rgba(255,139,80,0.18)] text-[#ffd7b7]"
+                            : "bg-[rgba(103,187,255,0.12)] text-[#cfe3ff]"
                         }`}
                       >
                         p{item.priority}
@@ -1978,7 +1969,7 @@ export default function HomeRoute() {
                       <div class="ml-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
                         <button
                           type="button"
-                          class="rounded-md border border-[#334660] bg-[#101b2d] px-2 py-1 text-xs text-[#d7e4ff] hover:border-[var(--accent)]"
+                          class={listActionButtonClass}
                           aria-label="Edit inline"
                           data-testid="edit-task-inline"
                           onClick={(event) => {
@@ -1990,7 +1981,7 @@ export default function HomeRoute() {
                         </button>
                         <button
                           type="button"
-                          class="rounded-md border border-[#334660] bg-[#101b2d] px-2 py-1 text-xs text-[#d7e4ff] hover:border-[var(--accent)]"
+                          class={listActionButtonClass}
                           aria-label="Open details"
                           data-testid="open-task-details"
                           onClick={(event) => {
@@ -2003,7 +1994,7 @@ export default function HomeRoute() {
                         <Show when={isBoardProject(item.projectId) && !isBoardLiveTask(item)}>
                           <button
                             type="button"
-                            class="rounded-md border border-[#3b5b37] bg-[#152915] px-2 py-1 text-xs text-[#b8efb3] hover:border-[#6aaa5f] disabled:cursor-not-allowed disabled:opacity-60"
+                            class={successActionButtonClass}
                             aria-label="Make live on board"
                             data-testid="make-task-live"
                             onClick={(event) => {
@@ -2017,7 +2008,7 @@ export default function HomeRoute() {
                         </Show>
                         <button
                           type="button"
-                          class="rounded-md border border-[#5b2f2f] bg-[#2a1616] px-2 py-1 text-xs text-[#ffbeb7] hover:border-[#ff6a4a]"
+                          class={dangerActionButtonClass}
                           aria-label="Delete task"
                           data-testid="delete-task"
                           onClick={(event) => {
@@ -2047,48 +2038,40 @@ export default function HomeRoute() {
                       <li
                         data-testid="completed-task-row"
                         data-task-id={item.id}
-                        class="group flex items-center gap-3 rounded-xl border border-[#223048] bg-[#0b1422]/85 px-3 py-3 text-[#8fa3c7] transition hover:border-[#35507a]"
+                        class={completedTaskRowClass}
                         onClick={() => {
                           if (editingTaskId() === item.id) return;
                           openDetailModal(item);
                         }}
                       >
-                        <span class="flex h-5 w-5 items-center justify-center rounded-full border border-[#2f7a55] bg-[#163328] text-[11px] text-[#b3f2d5]">
+                        <span class="flex h-5 w-5 items-center justify-center rounded-full border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] text-[11px] text-[var(--success)]">
                           ✓
                         </span>
 
                         <div class="min-w-0 flex-1">
-                          <p class="truncate text-sm text-[#b9c7dc] line-through" data-testid="completed-task-content">
+                          <p class="truncate text-sm text-[var(--text-soft)] line-through" data-testid="completed-task-content">
                             {item.content}
                           </p>
                           <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
-                            <span class="rounded-md bg-[#163328] px-2 py-0.5 text-[#b3f2d5]">Done</span>
+                            <span class={boardLiveBadgeClass}>Done</span>
                             <Show when={scheduleBadgeLabel(item, "due")}>
-                              {(label) => (
-                                <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">{label()}</span>
-                              )}
+                              {(label) => <span class={dueBadgeClass}>{label()}</span>}
                             </Show>
                             <Show when={scheduleBadgeLabel(item, "deadline")}>
-                              {(label) => (
-                                <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">{label()}</span>
-                              )}
+                              {(label) => <span class={deadlineBadgeClass}>{label()}</span>}
                             </Show>
                             <Show when={projectNameByID(item.projectId)}>
                               {(projectName) => (
-                                <span class="inline-flex items-center gap-1 rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">
+                                <span class={`inline-flex items-center gap-1 ${tagBadgeClass}`}>
                                   <span>#{projectName()}</span>
                                   <Show when={isTeamBoardProject(item.projectId, projectMap())}>
-                                    <span class="rounded border border-[#4d62a9] bg-[#202955] px-1 py-0 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
-                                      Team
-                                    </span>
+                                    <span class={teamBadgeClass}>Team</span>
                                   </Show>
                                 </span>
                               )}
                             </Show>
                             <For each={visibleTaskLabels(item.labels)}>
-                              {(label) => (
-                                <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">@{label}</span>
-                              )}
+                              {(label) => <span class={tagBadgeClass}>@{label}</span>}
                             </For>
                           </div>
                         </div>
@@ -2096,8 +2079,8 @@ export default function HomeRoute() {
                         <span
                           class={`rounded-md px-2 py-1 text-xs ${
                             item.priority <= 2
-                              ? "bg-[#5f201a] text-[#ffcbc2]"
-                              : "bg-[#1e2a43] text-[#b5c4df]"
+                              ? "bg-[rgba(255,139,80,0.18)] text-[#ffd7b7]"
+                              : "bg-[rgba(103,187,255,0.12)] text-[#cfe3ff]"
                           }`}
                         >
                           p{item.priority}
@@ -2106,7 +2089,7 @@ export default function HomeRoute() {
                         <div class="ml-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
                           <button
                             type="button"
-                            class="rounded-md border border-[#2f6a53] bg-[#12251c] px-2 py-1 text-xs text-[#b8efb3] hover:border-[#63a37d]"
+                            class={successActionButtonClass}
                             data-testid="reopen-task"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -2117,7 +2100,7 @@ export default function HomeRoute() {
                           </button>
                           <button
                             type="button"
-                            class="rounded-md border border-[#334660] bg-[#101b2d] px-2 py-1 text-xs text-[#d7e4ff] hover:border-[var(--accent)]"
+                            class={listActionButtonClass}
                             onClick={(event) => {
                               event.stopPropagation();
                               openDetailModal(item);
@@ -2142,10 +2125,10 @@ export default function HomeRoute() {
           onClick={closeSearchModal}
         >
           <div
-            class="w-full max-w-2xl rounded-2xl border border-[#29354c] bg-[#111a2a] shadow-[0_25px_70px_rgba(0,0,0,0.55)]"
+            class="w-full max-w-2xl rounded-2xl border border-[var(--border-strong)] bg-[rgba(9,17,26,0.96)] shadow-[0_25px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div class="border-b border-[#24314a] px-4 py-3">
+            <div class="border-b border-[var(--border-strong)] px-4 py-3">
               <input
                 ref={searchInputRef}
                 value={searchText()}
@@ -2153,7 +2136,7 @@ export default function HomeRoute() {
                 placeholder="Search tasks, descriptions, projects..."
                 aria-label="Search tasks"
                 data-testid="search-input"
-                class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                class={formFieldClass}
               />
             </div>
             <div class="max-h-[420px] overflow-y-auto px-3 py-3">
@@ -2170,7 +2153,7 @@ export default function HomeRoute() {
                       {(item) => (
                         <button
                           type="button"
-                          class="w-full rounded-lg border border-transparent px-3 py-2 text-left transition hover:border-[#2d3f5f] hover:bg-[#0f192b]"
+                          class="w-full rounded-lg border border-transparent px-3 py-2 text-left transition hover:border-[rgba(119,155,187,0.24)] hover:bg-[rgba(255,255,255,0.04)]"
                           onClick={() => {
                             closeSearchModal();
                             openDetailModal(item);
@@ -2180,35 +2163,25 @@ export default function HomeRoute() {
                           <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
                             <Show when={projectNameByID(item.projectId)}>
                               {(projectName) => (
-                                <span class="inline-flex items-center gap-1 rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">
+                                <span class={`inline-flex items-center gap-1 ${tagBadgeClass}`}>
                                   <span>#{projectName()}</span>
                                   <Show when={isTeamBoardProject(item.projectId, projectMap())}>
-                                    <span class="rounded border border-[#4d62a9] bg-[#202955] px-1 py-0 text-[10px] uppercase tracking-[0.08em] text-[#d5dcff]">
-                                      Team
-                                    </span>
+                                    <span class={teamBadgeClass}>Team</span>
                                   </Show>
                                 </span>
                               )}
                             </Show>
                             <Show when={scheduleBadgeLabel(item, "due")}>
-                              {(label) => (
-                                <span class="rounded-md bg-[#463312] px-2 py-0.5 text-[#ffd89c]">{label()}</span>
-                              )}
+                              {(label) => <span class={dueBadgeClass}>{label()}</span>}
                             </Show>
                             <Show when={scheduleBadgeLabel(item, "deadline")}>
-                              {(label) => (
-                                <span class="rounded-md bg-[#2d2c67] px-2 py-0.5 text-[#d8d6ff]">{label()}</span>
-                              )}
+                              {(label) => <span class={deadlineBadgeClass}>{label()}</span>}
                             </Show>
                             <Show when={scheduleValidationWarning(item)}>
-                              {(warning) => (
-                                <span class="rounded-md bg-[#4b2a19] px-2 py-0.5 text-[#ffd5b0]">{warning()}</span>
-                              )}
+                              {(warning) => <span class={warningBadgeClass}>{warning()}</span>}
                             </Show>
                             <For each={visibleTaskLabels(item.labels)}>
-                              {(label) => (
-                                <span class="rounded-md bg-[#2f243b] px-2 py-0.5 text-[#e9cbff]">@{label}</span>
-                              )}
+                              {(label) => <span class={tagBadgeClass}>@{label}</span>}
                             </For>
                           </div>
                         </button>
@@ -2228,15 +2201,15 @@ export default function HomeRoute() {
           onClick={closeDetailModal}
         >
           <div
-            class="my-2 flex max-h-[calc(100vh-1rem)] w-full max-w-[52rem] flex-col overflow-hidden rounded-2xl border border-[#29354c] bg-[#121824] shadow-[0_30px_100px_rgba(0,0,0,0.55)] md:my-4 md:max-h-[calc(100vh-2rem)]"
+            class="my-2 flex max-h-[calc(100vh-1rem)] w-full max-w-[52rem] flex-col overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[rgba(9,17,26,0.96)] shadow-[0_30px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl md:my-4 md:max-h-[calc(100vh-2rem)]"
             onClick={(event) => event.stopPropagation()}
             data-testid="task-detail-modal"
           >
-            <div class="flex items-center justify-between border-b border-[#27344d] px-6 py-4">
+            <div class="flex items-center justify-between border-b border-[var(--border-strong)] px-6 py-4">
               <p class="text-sm uppercase tracking-wider text-[var(--text-dim)]">Task Detail</p>
               <button
                 type="button"
-                class="rounded-md border border-[#344764] px-3 py-1 text-sm text-[#d2e3ff] hover:border-[var(--accent)]"
+                class="app-button-secondary rounded-md px-3 py-1 text-sm"
                 onClick={closeDetailModal}
               >
                 Close
@@ -2249,7 +2222,7 @@ export default function HomeRoute() {
                 <input
                   value={detailContent()}
                   onInput={(event) => setDetailContent(event.currentTarget.value)}
-                  class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-lg outline-none focus:border-[var(--accent)]"
+                  class="w-full rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-lg text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
                   data-testid="task-detail-title"
                 />
 
@@ -2257,12 +2230,12 @@ export default function HomeRoute() {
                 <textarea
                   value={detailDescription()}
                   onInput={(event) => setDetailDescription(event.currentTarget.value)}
-                  class="h-40 w-full resize-none rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                  class="h-40 w-full resize-none rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
                   data-testid="task-detail-description"
                 />
               </div>
 
-              <div class="overflow-y-auto border-t border-[#27344d] p-6 md:border-l md:border-t-0">
+              <div class="overflow-y-auto border-t border-[var(--border-strong)] p-6 md:border-l md:border-t-0">
                 <div class="space-y-4">
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Project</label>
                   <Show
@@ -2283,12 +2256,12 @@ export default function HomeRoute() {
                           placeholder="New project name"
                           autofocus
                           disabled={detailProjectAssigning()}
-                          class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                          class={formFieldClass}
                           data-testid="task-detail-new-project"
                         />
                         <button
                           type="button"
-                          class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                          class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
                           onClick={() => void createAndAssignDetailProject(detailNewProjectName() ?? "")}
                           disabled={detailProjectAssigning()}
                         >
@@ -2296,7 +2269,7 @@ export default function HomeRoute() {
                         </button>
                         <button
                           type="button"
-                          class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                          class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
                           disabled={detailProjectAssigning()}
                           onClick={() => setDetailNewProjectName(null)}
                         >
@@ -2317,7 +2290,7 @@ export default function HomeRoute() {
                         }
                         setDetailProjectId(value);
                       }}
-                      class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                      class={formFieldClass}
                       data-testid="task-detail-project"
                     >
                       <For each={sidebarProjects()}>
@@ -2331,7 +2304,7 @@ export default function HomeRoute() {
                     </select>
                   </Show>
                   <Show when={isTeamBoardProject(detailTask()?.projectId, projectMap())}>
-                    <p class="inline-flex rounded-md border border-[#4d62a9] bg-[#202955] px-2 py-0.5 text-[11px] text-[#d5dcff]">
+                    <p class={`inline-flex ${teamBadgeClass}`}>
                       Team board project
                     </p>
                   </Show>
@@ -2341,7 +2314,7 @@ export default function HomeRoute() {
                     value={detailTags()}
                     onInput={(event) => setDetailTags(event.currentTarget.value)}
                     placeholder="@chore @home"
-                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    class={formFieldClass}
                     data-testid="task-detail-tags"
                   />
                   <p class="text-xs text-[var(--text-dim)]">
@@ -2352,7 +2325,7 @@ export default function HomeRoute() {
                   <select
                     value={detailPriority()}
                     onInput={(event) => setDetailPriority(Number(event.currentTarget.value))}
-                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    class={formFieldClass}
                     data-testid="task-detail-priority"
                   >
                     <option value={1}>P1</option>
@@ -2367,13 +2340,13 @@ export default function HomeRoute() {
                       type="datetime-local"
                       value={toDatetimeLocalValue(detailDueText())}
                       onInput={(event) => setDetailDueText(fromDatetimeLocalValue(event.currentTarget.value))}
-                      class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)] [color-scheme:dark]"
+                      class={`${formFieldClass} [color-scheme:dark]`}
                       data-testid="task-detail-due"
                     />
                     <Show when={detailDueText()}>
                       <button
                         type="button"
-                        class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                        class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
                         onClick={() => setDetailDueText("")}
                         title="Clear due date"
                       >
@@ -2382,10 +2355,10 @@ export default function HomeRoute() {
                     </Show>
                   </div>
                   <Show when={detailDueInputToken()}>
-                    <p class="text-xs text-[#8fa6cb]">Original token: {detailDueInputToken()}</p>
+                    <p class="text-xs text-[var(--text-muted)]">Original token: {detailDueInputToken()}</p>
                   </Show>
                   <Show when={detailDueStoredValue()}>
-                    <p class="text-xs text-[#9cb2d6]">Stored: {detailDueStoredValue()}</p>
+                    <p class="text-xs text-[var(--text-soft)]">Stored: {detailDueStoredValue()}</p>
                   </Show>
 
                   <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Deadline</label>
@@ -2394,13 +2367,13 @@ export default function HomeRoute() {
                       type="datetime-local"
                       value={toDatetimeLocalValue(detailDeadline())}
                       onInput={(event) => setDetailDeadline(fromDatetimeLocalValue(event.currentTarget.value))}
-                      class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)] [color-scheme:dark]"
+                      class={`${formFieldClass} [color-scheme:dark]`}
                       data-testid="task-detail-deadline"
                     />
                     <Show when={detailDeadline()}>
                       <button
                         type="button"
-                        class="shrink-0 rounded-lg border border-[#3a4d6d] bg-[#172033] px-2 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                        class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
                         onClick={() => setDetailDeadline("")}
                         title="Clear deadline"
                       >
@@ -2409,13 +2382,13 @@ export default function HomeRoute() {
                     </Show>
                   </div>
                   <Show when={detailDeadlineInputToken()}>
-                    <p class="text-xs text-[#8fa6cb]">Original token: {detailDeadlineInputToken()}</p>
+                    <p class="text-xs text-[var(--text-muted)]">Original token: {detailDeadlineInputToken()}</p>
                   </Show>
                   <Show when={detailDeadlineStoredValue()}>
-                    <p class="text-xs text-[#9cb2d6]">Stored: {detailDeadlineStoredValue()}</p>
+                    <p class="text-xs text-[var(--text-soft)]">Stored: {detailDeadlineStoredValue()}</p>
                   </Show>
                   <Show when={detailScheduleWarning()}>
-                    <p class="rounded-md border border-[#5f4a2a] bg-[#2b2112] px-2.5 py-1.5 text-xs text-[#f7d9a1]">
+                    <p class={warningBannerClass}>
                       {detailScheduleWarning()}
                     </p>
                   </Show>
@@ -2425,7 +2398,7 @@ export default function HomeRoute() {
                     value={detailScheduleOriginal()}
                     readonly
                     placeholder="Not captured for this task."
-                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    class={formFieldClass}
                     data-testid="task-detail-schedule-original"
                   />
 
@@ -2434,24 +2407,24 @@ export default function HomeRoute() {
                     value={detailRecurrence()}
                     onInput={(event) => setDetailRecurrence(event.currentTarget.value)}
                     placeholder="FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR"
-                    class="w-full rounded-lg border border-[#354968] bg-[#0f1728] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                    class={formFieldClass}
                     data-testid="task-detail-recurrence"
                   />
                   <button
                     type="button"
-                    class="rounded-lg border border-[#3a4d6d] bg-[#172033] px-3 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)]"
+                    class="app-button-secondary rounded-lg px-3 py-2 text-xs"
                     onClick={() => void parseDetailRecurrence()}
                     data-testid="task-detail-parse-rrule"
                   >
                     Validate RRULE
                   </button>
                   <Show when={detailRecurrenceError()}>
-                    <p class="rounded-md border border-[#5d2f2f] bg-[#2a1111] px-2 py-1 text-xs text-[#ffb5b5]">
+                    <p class={errorBannerClass}>
                       {detailRecurrenceError()}
                     </p>
                   </Show>
                   <Show when={detailRecurrenceCanonical()}>
-                    <p class="rounded-md border border-[#2d4b37] bg-[#102419] px-2 py-1 text-xs text-[#b4efce]">
+                    <p class={successBannerClass}>
                       {detailRecurrenceCanonical().trim().toUpperCase() === detailRecurrence().trim().toUpperCase()
                         ? "RRULE is valid."
                         : detailRecurrenceCanonical()}
@@ -2460,13 +2433,13 @@ export default function HomeRoute() {
 
                   <Show when={detailTaskIsBoardProject()}>
                     <div
-                      class="space-y-3 rounded-lg border border-[#2a3b58] bg-[#101a2d] p-3"
+                      class="space-y-3 rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] p-3"
                       data-testid="task-detail-board-activation"
                     >
                       <div class="flex items-center justify-between">
                         <p class="text-xs uppercase tracking-wider text-[var(--text-dim)]">Board Activation</p>
                         <Show when={detailActivationPreview()?.alreadyLive}>
-                          <span class="rounded-md border border-[#2d5d3b] bg-[#163727] px-2 py-0.5 text-[11px] text-[#bbf1cf]">
+                          <span class={successBannerClass}>
                             Live
                           </span>
                         </Show>
@@ -2477,7 +2450,7 @@ export default function HomeRoute() {
                       </Show>
 
                       <Show when={detailActivationError()}>
-                        <p class="rounded-md border border-[#5d2f2f] bg-[#2a1111] px-2 py-1 text-xs text-[#ffb5b5]">
+                        <p class={errorBannerClass}>
                           {detailActivationError()}
                         </p>
                       </Show>
@@ -2487,12 +2460,12 @@ export default function HomeRoute() {
                           <>
                             <Show when={preview().requirements.coin}>
                               {(coinRequirement) => (
-                                <div class="rounded-md border border-[#2f4364] bg-[#0f1728] px-2 py-2">
+                                <div class="rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-2">
                                   <p class="text-[11px] uppercase tracking-wider text-[var(--text-dim)]">Coin</p>
                                   <p class="text-sm text-[var(--text-main)]">
                                     {coinRequirement().currency}: {coinRequirement().available}/{coinRequirement().required}
                                     <Show when={coinRequirement().missing > 0}>
-                                      <span class="ml-2 text-[#ffb5b5]">missing {coinRequirement().missing}</span>
+                                      <span class="ml-2 text-[var(--danger)]">missing {coinRequirement().missing}</span>
                                     </Show>
                                   </p>
                                 </div>
@@ -2506,12 +2479,12 @@ export default function HomeRoute() {
                               <div class="space-y-1">
                                 <For each={preview().requirements.modifiers}>
                                   {(requirement) => (
-                                    <div class="flex items-center justify-between rounded-md border border-[#2f4364] bg-[#0f1728] px-2 py-1.5 text-xs text-[var(--text-main)]">
+                                    <div class="flex items-center justify-between rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-1.5 text-xs text-[var(--text-main)]">
                                       <span>{formatModifierRequirementName(requirement.defId)}</span>
                                       <span>
                                         {requirement.available}/{requirement.required}
                                         <Show when={requirement.missing > 0}>
-                                          <span class="ml-2 text-[#ffb5b5]">missing {requirement.missing}</span>
+                                          <span class="ml-2 text-[var(--danger)]">missing {requirement.missing}</span>
                                         </Show>
                                       </span>
                                     </div>
@@ -2522,7 +2495,7 @@ export default function HomeRoute() {
 
                             <button
                               type="button"
-                              class="w-full rounded-lg border border-[#3a4d6d] bg-[#172033] px-3 py-2 text-xs text-[#d8e6ff] hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                              class="app-button-secondary w-full rounded-lg px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                               onClick={() => void makeDetailTaskLive()}
                               disabled={
                                 detailActivating() ||
@@ -2555,10 +2528,10 @@ export default function HomeRoute() {
               </div>
             </div>
 
-            <div class="flex items-center justify-between border-t border-[#27344d] px-6 py-4">
+            <div class="flex items-center justify-between border-t border-[var(--border-strong)] px-6 py-4">
               <button
                 type="button"
-                class="rounded-lg border border-[#3a4d6d] bg-[#172033] px-3 py-2 text-sm text-[#d8e6ff] hover:border-[var(--accent)]"
+                class="app-button-secondary rounded-lg px-3 py-2 text-sm"
                 onClick={() => {
                   const task = detailTask();
                   if (task) {
@@ -2575,7 +2548,7 @@ export default function HomeRoute() {
               </button>
               <button
                 type="button"
-                class="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-[#1e0f08] hover:bg-[var(--accent-soft)]"
+                class="app-button-primary rounded-lg px-4 py-2 font-medium"
                 onClick={() => void saveDetailModal()}
                 data-testid="task-detail-save"
               >

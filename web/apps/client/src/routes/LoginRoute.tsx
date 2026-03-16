@@ -168,23 +168,23 @@ export default function LoginRoute() {
           />
         }
       >
-        <main class="flex h-screen items-center justify-center bg-[#0a0d12] px-4 text-[#eceff7]">
-          <div class="w-full max-w-md rounded-2xl border border-[#2c3648] bg-[#111926] p-6 shadow-[0_24px_64px_rgba(0,0,0,0.45)]">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#8ea3c7]">Donegeon</p>
+        <main class="flex h-screen items-center justify-center px-4 text-[var(--text-main)]">
+          <div class="app-panel w-full max-w-md rounded-2xl p-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Donegeon</p>
 
             {!challengeId() ? (
               <form onSubmit={(event) => void submitRequest(event)}>
-                <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">Sign in</h1>
-                <p class="mt-1 text-sm text-[#9fb0cc]">Log in with your email to start onboarding your team.</p>
+                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Sign in</h1>
+                <p class="mt-1 text-sm text-[var(--text-soft)]">Log in with your email to start onboarding your team.</p>
                 {inviteCode() ? (
-                  <p class="mt-2 text-xs text-[#8ea3c7]">
+                  <p class="mt-2 text-xs text-[var(--text-muted)]">
                     {resolvingInvite()
                       ? "Loading invitation..."
                       : `You were invited${inviteTeamName() ? ` to ${inviteTeamName()}` : " to a team"}. Complete login to accept it.`}
                   </p>
                 ) : null}
 
-                <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Email</label>
+                <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Email</label>
                 <input
                   type="email"
                   required
@@ -195,49 +195,49 @@ export default function LoginRoute() {
                       setEmail(event.currentTarget.value);
                     }
                   }}
-                  class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                  class="app-input-surface mt-2 w-full rounded-lg px-3 py-2"
                   placeholder="you@company.com"
                 />
                 {inviteEmailLocked() ? (
-                  <p class="mt-2 text-xs text-[#8ea3c7]">Email is locked to your invitation address.</p>
+                  <p class="mt-2 text-xs text-[var(--text-muted)]">Email is locked to your invitation address.</p>
                 ) : null}
 
                 <button
                   type="submit"
                   disabled={saving() || resolvingInvite() || !email().trim()}
-                  class="mt-5 w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#161616] transition hover:bg-[var(--accent-soft)] disabled:opacity-60"
+                  class="app-button-primary mt-5 w-full rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
                 >
                   {saving() ? "Sending code..." : "Continue"}
                 </button>
               </form>
             ) : (
               <form onSubmit={(event) => void submitVerify(event)}>
-                <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">Check your email</h1>
-                <p class="mt-1 text-sm text-[#9fb0cc]">
-                  We sent a code to <span class="text-[#edf3ff]">{email()}</span>.
+                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Check your email</h1>
+                <p class="mt-1 text-sm text-[var(--text-soft)]">
+                  We sent a code to <span class="text-white">{email()}</span>.
                 </p>
 
-                <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[#8ea3c7]">Verification Code</label>
+                <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Verification Code</label>
                 <input
                   type="text"
                   required
                   autofocus
                   value={code()}
                   onInput={(event) => setCode(event.currentTarget.value)}
-                  class="mt-2 w-full rounded-lg border border-[#34486b] bg-[#0d1523] px-3 py-2 text-[var(--text-main)] outline-none focus:border-[var(--accent)] text-center text-2xl tracking-[0.25em]"
+                  class="app-input-surface mt-2 w-full rounded-lg px-3 py-2 text-center text-2xl tracking-[0.25em]"
                   placeholder="000000"
                   maxlength="6"
                 />
                 {debugCode() ? (
-                  <p class="mt-2 rounded-md border border-[#405e88] bg-[#13253f] px-2 py-1 text-xs text-[#cfe3ff]">
-                    Dev OTP: <span class="font-semibold text-[#f2f7ff]">{debugCode()}</span>
+                  <p class="mt-2 rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] px-2 py-1 text-xs text-[#cfe3ff]">
+                    Dev OTP: <span class="font-semibold text-white">{debugCode()}</span>
                   </p>
                 ) : null}
 
                 <button
                   type="submit"
                   disabled={saving()}
-                  class="mt-5 w-full rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#161616] transition hover:bg-[var(--accent-soft)] disabled:opacity-60"
+                  class="app-button-primary mt-5 w-full rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
                 >
                   {saving() ? "Verifying..." : "Verify"}
                 </button>
@@ -246,7 +246,7 @@ export default function LoginRoute() {
                   <button
                     type="button"
                     onClick={() => setChallengeId(null)}
-                    class="mt-3 w-full text-xs text-[#8ea3c7] hover:text-[#edf3ff] transition"
+                    class="mt-3 w-full text-xs text-[var(--text-muted)] transition hover:text-white"
                   >
                     Use a different email
                   </button>
@@ -254,7 +254,7 @@ export default function LoginRoute() {
               </form>
             )}
 
-            {error() ? <p class="mt-3 text-sm text-[#ff9b9b]">{error()}</p> : null}
+            {error() ? <p class="mt-3 text-sm text-[var(--danger)]">{error()}</p> : null}
           </div>
         </main>
       </Show>

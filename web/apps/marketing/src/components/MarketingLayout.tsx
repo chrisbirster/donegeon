@@ -205,7 +205,7 @@ export default function MarketingLayout(props: ParentProps) {
                   Bring more focus, energy, and visibility to your team's work.
                 </h2>
                 <p class="mt-3 max-w-2xl text-base text-[var(--text-soft)] md:text-lg">
-                  Start on Personal, add collaboration when it matters, or talk to us about a broader rollout.
+                  Start on Free, add collaboration when it matters, or talk to us about a broader rollout.
                 </p>
               </div>
 

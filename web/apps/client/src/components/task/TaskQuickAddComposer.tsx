@@ -28,9 +28,9 @@ type TaskQuickAddComposerProps = {
 
 export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
   return (
-    <form onSubmit={props.onSubmit} class="mb-5">
+    <form onSubmit={props.onSubmit} class="mb-6">
       <div class="relative">
-        <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-xl border border-[#2f3f5d] bg-[#0d1523] px-3 py-2 text-xl leading-normal tracking-normal whitespace-pre text-[var(--text-main)] [font-variant-ligatures:none]">
+        <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xl leading-normal tracking-normal whitespace-pre text-[var(--text-main)] shadow-[0_18px_38px_rgba(0,0,0,0.16)] backdrop-blur [font-variant-ligatures:none]">
           <Show when={props.content.length > 0} fallback={<span class="text-[var(--text-dim)]">Add task</span>}>
             <For each={props.tokens}>
               {(token) => (
@@ -46,7 +46,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
           ref={props.inputRef}
           value={props.content}
           onInput={(event) => props.onInput(event.currentTarget.value)}
-          class="relative w-full rounded-xl border border-[#2f3f5d] bg-transparent px-3 py-2 text-xl leading-normal tracking-normal text-transparent caret-[var(--text-main)] outline-none [font-variant-ligatures:none] focus:border-[var(--accent)]"
+          class="relative w-full rounded-xl border border-[var(--border-strong)] bg-transparent px-3 py-2 text-xl leading-normal tracking-normal text-transparent caret-[var(--text-main)] outline-none [font-variant-ligatures:none] focus:border-[var(--accent)]"
           aria-label="Add task"
           data-testid="add-task-input"
           spellcheck={false}
@@ -58,7 +58,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
         <div class="mt-3 flex flex-wrap gap-2">
           <For each={props.parsedChips}>
             {(chip) => (
-              <span class="rounded-lg border border-[#3a4d70] bg-[#121f34] px-2 py-1 text-xs text-[var(--text-main)]">
+              <span class="rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-1 text-xs text-[var(--text-soft)]">
                 {chip}
               </span>
             )}
@@ -67,7 +67,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
       </Show>
 
       <Show when={props.parsedGuidance}>
-        <p class="mt-2 rounded-lg border border-[#2f4a39] bg-[#0f2219] px-3 py-2 text-xs text-[#b5efce]">
+        <p class="mt-2 rounded-lg border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] px-3 py-2 text-xs text-[var(--success)]">
           {props.parsedGuidance}
         </p>
       </Show>
@@ -75,7 +75,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
       <div class="mt-3 flex justify-end">
         <button
           type="submit"
-          class="rounded-xl bg-[var(--accent)] px-4 py-2 font-medium text-[#1e0f08] transition hover:bg-[var(--accent-soft)]"
+          class="app-button-primary rounded-xl px-4 py-2 font-medium"
           data-testid="add-task-submit"
         >
           Add

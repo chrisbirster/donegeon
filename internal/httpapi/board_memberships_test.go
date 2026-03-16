@@ -20,6 +20,9 @@ func TestBoardMemberCRUDByOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seed owner session: %v", err)
 	}
+	if err := setWorkspacePlan(ctx, env, "W1", "pro"); err != nil {
+		t.Fatalf("set workspace plan: %v", err)
+	}
 	if err := seedWorkspaceMember(ctx, env, "U_MEMBER", "member@example.com", "Member", "editor"); err != nil {
 		t.Fatalf("seed board target member: %v", err)
 	}
@@ -72,6 +75,9 @@ func TestBoardMemberAddRequiresManagePermission(t *testing.T) {
 	editorSessionID, err := seedSessionUserRole(ctx, env, "U_EDITOR", "editor@example.com", "Editor", "editor")
 	if err != nil {
 		t.Fatalf("seed editor session: %v", err)
+	}
+	if err := setWorkspacePlan(ctx, env, "W1", "pro"); err != nil {
+		t.Fatalf("set workspace plan: %v", err)
 	}
 	if err := seedWorkspaceMember(ctx, env, "U_TARGET", "target@example.com", "Target", "editor"); err != nil {
 		t.Fatalf("seed board target member: %v", err)
@@ -218,6 +224,11 @@ ON CONFLICT(workspace_id, user_id) DO UPDATE SET
 		return err
 	}
 	return nil
+}
+
+func setWorkspacePlan(ctx context.Context, env *parityEnv, workspaceID string, plan string) error {
+	_, err := env.db.ExecContext(ctx, `UPDATE workspaces SET plan = ? WHERE id = ?`, plan, workspaceID)
+	return err
 }
 
 func seedBoardMembership(ctx context.Context, env *parityEnv, boardID string, userID string) error {
