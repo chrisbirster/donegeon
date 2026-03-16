@@ -353,6 +353,72 @@ func TestDowngradeToFreePreservesExistingMembersAndFreezesTeamAdmin(t *testing.T
 	}
 }
 
+func TestEndProTrialDowngradesToFreeAndClearsPendingInvites(t *testing.T) {
+	ctx := context.Background()
+	svc, db, queries := newAccountTestService(t)
+
+	seedAccountUser(t, ctx, svc, "U_OWNER", "captain@example.com", "Owner")
+	seedAccountUser(t, ctx, svc, "U_MEMBER", "member@example.com", "Member")
+	seedAccountUser(t, ctx, svc, "U_PENDING", "pending@example.com", "Pending")
+
+	ownerSession, _, err := svc.CompleteOnboarding(ctx, "U_OWNER", "solo-board", "raid-team", "Owner", nil, PlanProTrial)
+	if err != nil {
+		t.Fatalf("complete owner onboarding: %v", err)
+	}
+	if ownerSession.Team == nil {
+		t.Fatal("expected owner workspace in session")
+	}
+
+	acceptedInvite, err := svc.InviteMember(ctx, "U_OWNER", ownerSession.Team.ID, "member@example.com", TeamRoleEditor)
+	if err != nil {
+		t.Fatalf("invite accepted member: %v", err)
+	}
+	memberSession, err := svc.AcceptInvitation(ctx, "U_MEMBER", acceptedInvite.InvitationCode)
+	if err != nil {
+		t.Fatalf("accept invitation: %v", err)
+	}
+	if memberSession.Team == nil {
+		t.Fatal("expected member workspace in session")
+	}
+
+	pendingInvite, err := svc.InviteMember(ctx, "U_OWNER", ownerSession.Team.ID, "pending@example.com", TeamRoleReader)
+	if err != nil {
+		t.Fatalf("invite pending member: %v", err)
+	}
+
+	workspace, err := svc.EndProTrial(ctx, "U_OWNER", ownerSession.Team.ID)
+	if err != nil {
+		t.Fatalf("end pro trial: %v", err)
+	}
+	if workspace.Plan != PlanPersonal {
+		t.Fatalf("expected plan %q after ending trial, got %q", PlanPersonal, workspace.Plan)
+	}
+	if workspace.PlanFamily != "free" {
+		t.Fatalf("expected plan family %q after ending trial, got %q", "free", workspace.PlanFamily)
+	}
+	if workspace.BillingState != "none" {
+		t.Fatalf("expected billing state %q after ending trial, got %q", "none", workspace.BillingState)
+	}
+
+	memberProjects := listVisibleProjectsForUser(t, db, queries, memberSession.User.ID, ownerSession.Team.ID, memberSession.User.Email)
+	assertProjectNames(t, memberProjects, "inbox", "raid-team")
+	assertProjectIDs(t, memberProjects, "board-team", "inbox")
+
+	if _, err := svc.AcceptInvitation(ctx, "U_PENDING", pendingInvite.InvitationCode); err == nil {
+		t.Fatal("expected pending invite acceptance to fail after ending trial")
+	}
+
+	if _, err := svc.InviteMember(ctx, "U_OWNER", ownerSession.Team.ID, "newperson@example.com", TeamRoleEditor); err == nil || !strings.Contains(err.Error(), "unavailable on Free") {
+		t.Fatalf("expected invite to be frozen after ending trial, got %v", err)
+	}
+	if _, err := svc.UpdateMemberRole(ctx, "U_OWNER", ownerSession.Team.ID, "U_MEMBER", TeamRoleReader); err == nil || !strings.Contains(err.Error(), "unavailable on Free") {
+		t.Fatalf("expected role update to be frozen after ending trial, got %v", err)
+	}
+	if _, err := svc.UpdateTeamName(ctx, "U_OWNER", ownerSession.Team.ID, "frozen-name"); err == nil || !strings.Contains(err.Error(), "unavailable on Free") {
+		t.Fatalf("expected team rename to be frozen after ending trial, got %v", err)
+	}
+}
+
 func newAccountTestService(t *testing.T) (*Service, *sqlx.DB, map[string]string) {
 	t.Helper()
 

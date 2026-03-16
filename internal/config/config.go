@@ -39,10 +39,12 @@ type Config struct {
 	EmailSendAuthHeader      string
 	EmailSendAuthValue       string
 	StripeSecretKey          string
+	StripeAPIBaseURL         string
 	StripeWebhookSecret      string
 	StripeProPriceID         string
 	StripeCheckoutSuccessURL string
 	StripeCheckoutCancelURL  string
+	StripePortalReturnURL    string
 	GoogleCalendarClientID   string
 	GoogleCalendarSecret     string
 	CalendarOAuthStateTTL    time.Duration
@@ -86,6 +88,7 @@ func Load() (Config, error) {
 		EmailSendAuthHeader: envOr("DONEGEON_EMAIL_SEND_AUTH_HEADER", "Authorization"),
 		EmailSendAuthValue:  envOr("DONEGEON_EMAIL_SEND_AUTH_VALUE", ""),
 		StripeSecretKey:     envOr("DONEGEON_STRIPE_SECRET_KEY", ""),
+		StripeAPIBaseURL:    envOr("DONEGEON_STRIPE_API_BASE_URL", "https://api.stripe.com"),
 		StripeWebhookSecret: envOr("DONEGEON_STRIPE_WEBHOOK_SECRET", ""),
 		StripeProPriceID:    envOr("DONEGEON_STRIPE_PRICE_PRO", ""),
 		StripeCheckoutSuccessURL: envOr(
@@ -95,6 +98,10 @@ func Load() (Config, error) {
 		StripeCheckoutCancelURL: envOr(
 			"DONEGEON_STRIPE_CHECKOUT_CANCEL_URL",
 			"https://app.donegeon.com/team/settings?billing=canceled",
+		),
+		StripePortalReturnURL: envOr(
+			"DONEGEON_STRIPE_PORTAL_RETURN_URL",
+			"https://app.donegeon.com/team/settings?billing=portal",
 		),
 		GoogleCalendarClientID:  envOr("DONEGEON_GOOGLE_CALENDAR_CLIENT_ID", ""),
 		GoogleCalendarSecret:    envOr("DONEGEON_GOOGLE_CALENDAR_CLIENT_SECRET", ""),

@@ -142,6 +142,8 @@ func New(
 	mux.HandleFunc("DELETE /api/team/members/{userId}", api.handleDeleteTeamMember)
 	mux.HandleFunc("GET /api/billing/status", api.handleBillingStatus)
 	mux.HandleFunc("POST /api/billing/checkout", api.handleCreateBillingCheckout)
+	mux.HandleFunc("POST /api/billing/portal", api.handleCreateBillingPortalSession)
+	mux.HandleFunc("POST /api/billing/trial/end", api.handleEndBillingTrial)
 	mux.HandleFunc("GET /api/billing/store", api.handleBillingStoreCatalog)
 	mux.HandleFunc("POST /api/billing/store/checkout", api.handleCreateBillingStoreCheckout)
 	mux.HandleFunc("POST /api/billing/webhook", api.handleBillingWebhook)
@@ -700,6 +702,11 @@ func (a *API) handleAcceptTeamInvitation(w http.ResponseWriter, r *http.Request)
 			a.logError(r, "update_auth_session_after_accept_failed", err)
 		}
 	}
+	if session.Team != nil {
+		if err := a.syncStripeWorkspaceSeatCount(r.Context(), session.Team.ID); err != nil {
+			a.logError(r, "stripe_seat_sync_after_accept_failed", err)
+		}
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"session": session})
 }
@@ -782,6 +789,9 @@ func (a *API) handleDeleteTeamMember(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, err.Error()), "userId"))
 		return
 	}
+	if err := a.syncStripeWorkspaceSeatCount(r.Context(), principal.WorkspaceID); err != nil {
+		a.logError(r, "stripe_seat_sync_after_remove_failed", err)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -834,8 +844,21 @@ func (a *API) handleCreateBillingCheckout(w http.ResponseWriter, r *http.Request
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "workspace is required"), "workspaceId"))
 		return
 	}
+	team, err := a.accounts.BillingWorkspace(r.Context(), principal.UserID, workspaceID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+		return
+	}
 
 	if plan == account.PlanProTrial {
+		if team.BillingState == "paid" {
+			writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "workspace is already on paid Pro"), "plan"))
+			return
+		}
+		if team.BillingState == "sales" {
+			writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "workspace is already on Enterprise"), "plan"))
+			return
+		}
 		team, err := a.accounts.BeginProTrial(r.Context(), workspaceID)
 		if err != nil {
 			writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
@@ -855,18 +878,20 @@ func (a *API) handleCreateBillingCheckout(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if plan == account.PlanPersonal {
-		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "use team settings to downgrade after subscription cancellation"), "plan"))
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "use the billing downgrade actions instead of checkout"), "plan"))
+		return
+	}
+	if team.BillingState == "paid" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "workspace is already on paid Pro"), "plan"))
+		return
+	}
+	if team.BillingState == "sales" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "workspace is already on Enterprise"), "plan"))
 		return
 	}
 
 	if strings.TrimSpace(a.cfg.StripeSecretKey) == "" || strings.TrimSpace(a.cfg.StripeProPriceID) == "" {
 		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "stripe checkout is not configured"))
-		return
-	}
-
-	team, err := a.accounts.GetWorkspace(r.Context(), workspaceID)
-	if err != nil {
-		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
 		return
 	}
 
@@ -877,10 +902,16 @@ func (a *API) handleCreateBillingCheckout(w http.ResponseWriter, r *http.Request
 			email = strings.TrimSpace(session.User.Email)
 		}
 	}
+	seatCount, err := a.accounts.WorkspaceSeatCount(r.Context(), workspaceID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+		return
+	}
 	checkoutURL, err := a.createStripeCheckoutSession(r.Context(), stripeCheckoutInput{
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    team.Name,
 		Plan:             plan,
+		SeatCount:        seatCount,
 		CustomerEmail:    email,
 		ExistingCustomer: strings.TrimSpace(ptrString(team.StripeCustomerID)),
 	})
@@ -892,6 +923,68 @@ func (a *API) handleCreateBillingCheckout(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mode":        "stripe_checkout",
 		"checkoutUrl": checkoutURL,
+	})
+}
+
+func (a *API) handleCreateBillingPortalSession(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	team, err := a.accounts.BillingWorkspace(r.Context(), principal.UserID, principal.WorkspaceID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+		return
+	}
+	if team.BillingState != "paid" {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "billing portal is only available for paid Pro workspaces"), "plan"))
+		return
+	}
+
+	customerID := strings.TrimSpace(ptrString(team.StripeCustomerID))
+	if customerID == "" {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, "stripe customer is not configured for this workspace"))
+		return
+	}
+
+	portalURL, err := a.createStripeBillingPortalSession(r.Context(), stripeBillingPortalInput{
+		CustomerID: customerID,
+	})
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, err.Error()))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"url": portalURL,
+	})
+}
+
+func (a *API) handleEndBillingTrial(w http.ResponseWriter, r *http.Request) {
+	if err := requireWriteScope(r.Context()); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	if a.accounts == nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeInternal, "account service unavailable"))
+		return
+	}
+
+	principal := sessionctx.PrincipalFromContext(r.Context())
+	team, err := a.accounts.EndProTrial(r.Context(), principal.UserID, principal.WorkspaceID)
+	if err != nil {
+		writeAPIError(w, apperrors.New(apperrors.CodeValidationError, err.Error()))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"team": team,
 	})
 }
 
@@ -974,6 +1067,11 @@ func (a *API) handleBillingWebhook(w http.ResponseWriter, r *http.Request) {
 		if _, err := a.accounts.ActivateProFromStripe(r.Context(), workspaceID, customerID, subscriptionID, a.cfg.StripeProPriceID, email); err != nil {
 			a.logError(r, "stripe_checkout_complete_update_failed", err)
 			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to update workspace plan"))
+			return
+		}
+		if err := a.syncStripeWorkspaceSeatCount(r.Context(), workspaceID); err != nil {
+			a.logError(r, "stripe_checkout_complete_seat_sync_failed", err)
+			writeAPIError(w, apperrors.New(apperrors.CodeInternal, "failed to sync subscription seats"))
 			return
 		}
 	case "customer.subscription.deleted":
@@ -2596,8 +2694,13 @@ type stripeCheckoutInput struct {
 	WorkspaceID      string
 	WorkspaceName    string
 	Plan             string
+	SeatCount        int
 	CustomerEmail    string
 	ExistingCustomer string
+}
+
+type stripeBillingPortalInput struct {
+	CustomerID string
 }
 
 type stripeStoreCheckoutInput struct {
@@ -2623,6 +2726,10 @@ func (a *API) createStripeCheckoutSession(ctx context.Context, in stripeCheckout
 	if successURL == "" || cancelURL == "" {
 		return "", fmt.Errorf("stripe checkout urls are not configured")
 	}
+	seatCount := in.SeatCount
+	if seatCount < 1 {
+		seatCount = 1
+	}
 
 	form := url.Values{}
 	form.Set("mode", "subscription")
@@ -2631,7 +2738,7 @@ func (a *API) createStripeCheckoutSession(ctx context.Context, in stripeCheckout
 	form.Set("client_reference_id", strings.TrimSpace(in.WorkspaceID))
 	form.Set("allow_promotion_codes", "true")
 	form.Set("line_items[0][price]", priceID)
-	form.Set("line_items[0][quantity]", "1")
+	form.Set("line_items[0][quantity]", strconv.Itoa(seatCount))
 	form.Set("metadata[workspace_id]", strings.TrimSpace(in.WorkspaceID))
 	form.Set("metadata[workspace_name]", strings.TrimSpace(in.WorkspaceName))
 	form.Set("metadata[plan_target]", normalizeBillingPlan(in.Plan))
@@ -2643,7 +2750,28 @@ func (a *API) createStripeCheckoutSession(ctx context.Context, in stripeCheckout
 		form.Set("customer_email", email)
 	}
 
-	return a.postStripeCheckoutSession(ctx, secret, form)
+	return a.postStripeSessionURL(ctx, secret, a.stripeAPIBaseURL()+"/v1/checkout/sessions", "stripe checkout", form)
+}
+
+func (a *API) createStripeBillingPortalSession(ctx context.Context, in stripeBillingPortalInput) (string, error) {
+	secret := strings.TrimSpace(a.cfg.StripeSecretKey)
+	if secret == "" {
+		return "", fmt.Errorf("stripe secret key is not configured")
+	}
+	returnURL := strings.TrimSpace(a.cfg.StripePortalReturnURL)
+	if returnURL == "" {
+		return "", fmt.Errorf("stripe billing portal return url is not configured")
+	}
+	customerID := strings.TrimSpace(in.CustomerID)
+	if customerID == "" {
+		return "", fmt.Errorf("stripe customer id is required")
+	}
+
+	form := url.Values{}
+	form.Set("customer", customerID)
+	form.Set("return_url", returnURL)
+
+	return a.postStripeSessionURL(ctx, secret, a.stripeAPIBaseURL()+"/v1/billing_portal/sessions", "stripe billing portal", form)
 }
 
 func (a *API) createStripeStoreCheckoutSession(ctx context.Context, in stripeStoreCheckoutInput) (string, error) {
@@ -2699,11 +2827,11 @@ func (a *API) createStripeStoreCheckoutSession(ctx context.Context, in stripeSto
 		form.Set("customer_email", email)
 	}
 
-	return a.postStripeCheckoutSession(ctx, secret, form)
+	return a.postStripeSessionURL(ctx, secret, a.stripeAPIBaseURL()+"/v1/checkout/sessions", "stripe checkout", form)
 }
 
-func (a *API) postStripeCheckoutSession(ctx context.Context, secret string, form url.Values) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.stripe.com/v1/checkout/sessions", strings.NewReader(form.Encode()))
+func (a *API) postStripeSessionURL(ctx context.Context, secret string, endpoint string, operation string, form url.Values) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", err
 	}
@@ -2731,16 +2859,157 @@ func (a *API) postStripeCheckoutSession(ctx context.Context, secret string, form
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		if payload.Error != nil && strings.TrimSpace(payload.Error.Message) != "" {
-			return "", fmt.Errorf("stripe checkout failed: %s", strings.TrimSpace(payload.Error.Message))
+			return "", fmt.Errorf("%s failed: %s", operation, strings.TrimSpace(payload.Error.Message))
 		}
-		return "", fmt.Errorf("stripe checkout failed with status %d", resp.StatusCode)
+		return "", fmt.Errorf("%s failed with status %d", operation, resp.StatusCode)
 	}
 
 	checkoutURL := strings.TrimSpace(payload.URL)
 	if checkoutURL == "" {
-		return "", fmt.Errorf("stripe did not return checkout url")
+		return "", fmt.Errorf("%s did not return a url", operation)
 	}
 	return checkoutURL, nil
+}
+
+func (a *API) stripeAPIBaseURL() string {
+	baseURL := strings.TrimSpace(a.cfg.StripeAPIBaseURL)
+	if baseURL == "" {
+		return "https://api.stripe.com"
+	}
+	return strings.TrimRight(baseURL, "/")
+}
+
+func (a *API) syncStripeWorkspaceSeatCount(ctx context.Context, workspaceID string) error {
+	if a.accounts == nil {
+		return fmt.Errorf("account service unavailable")
+	}
+	secret := strings.TrimSpace(a.cfg.StripeSecretKey)
+	if secret == "" {
+		return fmt.Errorf("stripe secret key is not configured")
+	}
+
+	team, err := a.accounts.GetWorkspace(ctx, strings.TrimSpace(workspaceID))
+	if err != nil {
+		return err
+	}
+	if team.BillingState != "paid" {
+		return nil
+	}
+
+	subscriptionID := ptrString(team.StripeSubscriptionID)
+	if subscriptionID == "" {
+		return fmt.Errorf("stripe subscription id is not configured")
+	}
+
+	seatCount, err := a.accounts.WorkspaceSeatCount(ctx, team.ID)
+	if err != nil {
+		return err
+	}
+
+	itemID, currentQuantity, err := a.stripeSubscriptionItem(ctx, secret, subscriptionID, strings.TrimSpace(a.cfg.StripeProPriceID))
+	if err != nil {
+		return err
+	}
+	if currentQuantity == seatCount {
+		return nil
+	}
+
+	return a.updateStripeSubscriptionItemQuantity(ctx, secret, itemID, seatCount)
+}
+
+func (a *API) stripeSubscriptionItem(ctx context.Context, secret string, subscriptionID string, priceID string) (string, int, error) {
+	endpoint := a.stripeAPIBaseURL() + "/v1/subscriptions/" + url.PathEscape(strings.TrimSpace(subscriptionID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", 0, err
+	}
+	req.SetBasicAuth(secret, "")
+
+	client := &http.Client{Timeout: a.cfg.RequestTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", 0, err
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 16384))
+	var payload struct {
+		Items struct {
+			Data []struct {
+				ID       string `json:"id"`
+				Quantity int    `json:"quantity"`
+				Price    struct {
+					ID string `json:"id"`
+				} `json:"price"`
+			} `json:"data"`
+		} `json:"items"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &payload)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if payload.Error != nil && strings.TrimSpace(payload.Error.Message) != "" {
+			return "", 0, fmt.Errorf("stripe subscription lookup failed: %s", strings.TrimSpace(payload.Error.Message))
+		}
+		return "", 0, fmt.Errorf("stripe subscription lookup failed with status %d", resp.StatusCode)
+	}
+
+	for _, item := range payload.Items.Data {
+		if priceID == "" || strings.TrimSpace(item.Price.ID) == strings.TrimSpace(priceID) {
+			if strings.TrimSpace(item.ID) == "" {
+				return "", 0, fmt.Errorf("stripe subscription item id is missing")
+			}
+			return strings.TrimSpace(item.ID), item.Quantity, nil
+		}
+	}
+	return "", 0, fmt.Errorf("stripe subscription item not found")
+}
+
+func (a *API) updateStripeSubscriptionItemQuantity(ctx context.Context, secret string, itemID string, quantity int) error {
+	if quantity < 1 {
+		quantity = 1
+	}
+	form := url.Values{}
+	form.Set("quantity", strconv.Itoa(quantity))
+	form.Set("proration_behavior", "create_prorations")
+
+	endpoint := a.stripeAPIBaseURL() + "/v1/subscription_items/" + url.PathEscape(strings.TrimSpace(itemID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(secret, "")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: a.cfg.RequestTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	var payload struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &payload)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if payload.Error != nil && strings.TrimSpace(payload.Error.Message) != "" {
+			return fmt.Errorf("stripe subscription item update failed: %s", strings.TrimSpace(payload.Error.Message))
+		}
+		return fmt.Errorf("stripe subscription item update failed with status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (a *API) storeCheckoutAvailability() (bool, string) {

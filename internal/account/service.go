@@ -427,6 +427,50 @@ func (s *Service) GetTeamSettings(ctx context.Context, actorUserID string, works
 	}, nil
 }
 
+func (s *Service) BillingWorkspace(ctx context.Context, actorUserID string, workspaceID string) (Team, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	if actorUserID == "" || workspaceID == "" {
+		return Team{}, fmt.Errorf("team context is required")
+	}
+
+	role, err := s.workspaceUserRole(ctx, s.db, workspaceID, actorUserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Team{}, fmt.Errorf("not a member of this team")
+		}
+		return Team{}, err
+	}
+	if !canManageTeam(role) {
+		return Team{}, fmt.Errorf("only team owners or admins can manage billing")
+	}
+
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Team{}, fmt.Errorf("team not found")
+		}
+		return Team{}, err
+	}
+	return team, nil
+}
+
+func (s *Service) WorkspaceSeatCount(ctx context.Context, workspaceID string) (int, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return 0, fmt.Errorf("workspace id is required")
+	}
+
+	var count int
+	if err := s.get(ctx, &count, "account_workspace_user_count.sql", workspaceID); err != nil {
+		return 0, err
+	}
+	if count < 1 {
+		count = 1
+	}
+	return count, nil
+}
+
 func (s *Service) UpdateTeamName(ctx context.Context, actorUserID string, workspaceID string, teamName string) (Team, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
 	workspaceID = strings.TrimSpace(workspaceID)
@@ -773,6 +817,22 @@ func (s *Service) BeginProTrial(ctx context.Context, workspaceID string) (Team, 
 		return Team{}, fmt.Errorf("workspace id is required")
 	}
 
+	team, err := s.workspaceByID(ctx, workspaceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Team{}, fmt.Errorf("team not found")
+		}
+		return Team{}, err
+	}
+	switch team.BillingState {
+	case "trial":
+		return team, nil
+	case "paid":
+		return Team{}, fmt.Errorf("workspace is already on paid Pro")
+	case "sales":
+		return Team{}, fmt.Errorf("workspace is already on Enterprise")
+	}
+
 	now := time.Now().UTC()
 	nowRFC3339 := now.Format(time.RFC3339)
 	trialEndsAt := now.Add(14 * 24 * time.Hour).Format(time.RFC3339)
@@ -786,6 +846,46 @@ func (s *Service) BeginProTrial(ctx context.Context, workspaceID string) (Team, 
 	}
 	if rows == 0 {
 		return Team{}, fmt.Errorf("team not found")
+	}
+	return s.workspaceByID(ctx, workspaceID)
+}
+
+func (s *Service) EndProTrial(ctx context.Context, actorUserID string, workspaceID string) (Team, error) {
+	team, err := s.BillingWorkspace(ctx, actorUserID, workspaceID)
+	if err != nil {
+		return Team{}, err
+	}
+	if team.BillingState != "trial" {
+		return Team{}, fmt.Errorf("workspace is not on an active Pro trial")
+	}
+
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return Team{}, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	now := nowRFC3339()
+	result, err := s.txExec(ctx, tx, "account_workspace_downgrade_by_id.sql", PlanPersonal, now, strings.TrimSpace(workspaceID))
+	if err != nil {
+		return Team{}, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return Team{}, err
+	}
+	if rows == 0 {
+		return Team{}, fmt.Errorf("team not found")
+	}
+
+	if _, err := s.txExec(ctx, tx, "account_workspace_invitations_delete_pending_by_workspace.sql", team.ID); err != nil {
+		return Team{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Team{}, err
 	}
 	return s.workspaceByID(ctx, workspaceID)
 }

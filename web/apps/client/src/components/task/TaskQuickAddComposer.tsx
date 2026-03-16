@@ -30,7 +30,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
   return (
     <form onSubmit={props.onSubmit} class="mb-6">
       <div class="relative">
-        <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xl leading-normal tracking-normal whitespace-pre text-[var(--text-main)] shadow-[0_18px_38px_rgba(0,0,0,0.16)] backdrop-blur [font-variant-ligatures:none]">
+        <div class="app-input-surface pointer-events-none absolute inset-0 overflow-hidden rounded-xl px-3 py-2 text-xl leading-normal tracking-normal whitespace-pre shadow-[0_18px_38px_rgba(0,0,0,0.16)] backdrop-blur [font-variant-ligatures:none]">
           <Show when={props.content.length > 0} fallback={<span class="text-[var(--text-dim)]">Add task</span>}>
             <For each={props.tokens}>
               {(token) => (
@@ -58,7 +58,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
         <div class="mt-3 flex flex-wrap gap-2">
           <For each={props.parsedChips}>
             {(chip) => (
-              <span class="rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-1 text-xs text-[var(--text-soft)]">
+              <span class="app-panel-soft rounded-lg px-2 py-1 text-xs text-[var(--text-soft)]">
                 {chip}
               </span>
             )}

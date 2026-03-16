@@ -8,6 +8,7 @@ import HomeRoute from "./routes/HomeRoute";
 import LoginRoute from "./routes/LoginRoute";
 import OnboardingRoute from "./routes/OnboardingRoute";
 import ProfileRoute from "./routes/ProfileRoute";
+import SettingsRoute from "./routes/SettingsRoute";
 import TeamSettingsRoute from "./routes/TeamSettingsRoute";
 import WaitlistRoute from "./routes/WaitlistRoute";
 import { useApi } from "./context/ApiContext";
@@ -29,7 +30,7 @@ function ProtectedRoute(props: ProtectedRouteProps) {
   return (
     <Switch>
       <Match when={session.isPending}>
-        <main class="flex h-screen items-center justify-center bg-[#0a0d12] text-[#c8d5eb]">Loading...</main>
+        <main class="flex h-screen items-center justify-center text-[var(--text-soft)]">Loading...</main>
       </Match>
       <Match when={session.isError}>
         <Navigate href="/login" />
@@ -59,7 +60,7 @@ export default function App() {
       <Route path="/board/store" component={() => <ProtectedRoute component={BoardStoreRoute} />} />
       <Route path="/board" component={() => <ProtectedRoute component={BoardRoute} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={ProfileRoute} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={TeamSettingsRoute} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={SettingsRoute} />} />
       <Route path="/team/settings" component={() => <ProtectedRoute component={TeamSettingsRoute} />} />
     </>
   );

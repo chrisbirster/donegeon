@@ -127,8 +127,8 @@ export default function AppShell(props: ShellProps) {
             aria-label="Close sidebar"
             onClick={closeMobileMenu}
           />
-          <aside class="absolute left-0 top-0 h-full w-[min(84vw,320px)] overflow-y-auto border-r border-[var(--border-strong)] bg-[rgba(6,10,16,0.96)] shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border-strong)] bg-[rgba(6,10,16,0.92)] px-3 py-2 backdrop-blur-sm">
+          <aside class="absolute left-0 top-0 h-full w-[min(84vw,320px)] overflow-y-auto border-r border-[var(--border-strong)] bg-[var(--panel-strong-start)] shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border-strong)] bg-[var(--panel-overlay)] px-3 py-2 backdrop-blur-sm">
               <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Sidebar</p>
               <button
                 type="button"

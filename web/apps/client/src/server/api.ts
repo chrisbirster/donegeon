@@ -275,6 +275,14 @@ export type BillingCheckoutResponse = {
   team?: AuthTeam;
 };
 
+export type BillingPortalResponse = {
+  url: string;
+};
+
+export type BillingTrialEndResponse = {
+  team: AuthTeam;
+};
+
 export type StoreCatalogItem = {
   id: string;
   name: string;
@@ -590,6 +598,14 @@ export const billingApi = {
     api<BillingCheckoutResponse>("/api/billing/checkout", {
       method: "POST",
       body: JSON.stringify({ plan }),
+    }),
+  portal: () =>
+    api<BillingPortalResponse>("/api/billing/portal", {
+      method: "POST",
+    }),
+  endTrial: () =>
+    api<BillingTrialEndResponse>("/api/billing/trial/end", {
+      method: "POST",
     }),
   store: () => api<StoreCatalogResponse>("/api/billing/store"),
   storeCheckout: (payload: { itemId: string; board?: string }) =>

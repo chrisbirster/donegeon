@@ -54,7 +54,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
       <div class={props.class}>
         <button
           type="button"
-          class="flex w-full items-center gap-2 rounded-xl border border-[var(--border-strong)] bg-[rgba(9,17,26,0.92)] px-2.5 py-2 text-left shadow-[0_16px_32px_rgba(0,0,0,0.38)] backdrop-blur transition hover:border-[#466684]"
+          class="app-panel flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition hover:border-[var(--border-hover)]"
           onClick={() => setAccountMenuOpen((open) => !open)}
           data-testid="appshell-account-toggle"
         >
@@ -72,7 +72,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
 
         <Show when={accountMenuOpen()}>
           <div
-            class="mt-2 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[rgba(6,10,16,0.96)] shadow-[0_20px_42px_rgba(0,0,0,0.5)] backdrop-blur"
+            class="app-panel mt-2 overflow-hidden rounded-xl"
             data-testid="appshell-account-menu"
           >
             <A

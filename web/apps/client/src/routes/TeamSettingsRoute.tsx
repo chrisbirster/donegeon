@@ -92,12 +92,39 @@ export default function TeamSettingsRoute() {
     return explicit.length > 0 ? explicit : teamPricing().entitlements;
   });
   const currentPlan = createMemo(() => workspacePlanLabel(team()?.plan || "personal"));
+  const currentPlanFamily = createMemo(() => team()?.planFamily || teamPricing().planFamily);
+  const currentBillingState = createMemo(() => team()?.billingState || teamPricing().billingState);
+  const currentPlanBadge = createMemo(() => {
+    if (currentPlanFamily() === "pro" && currentBillingState() === "trial") {
+      return "Pro trial";
+    }
+    return currentPlan();
+  });
   const canManageTeamProfile = createMemo(() => canManage() && hasEntitlement(teamEntitlements(), "team_admin"));
   const canManageInvites = createMemo(() => canManage() && hasEntitlement(teamEntitlements(), "workspace_invites"));
   const canManageRoles = createMemo(
     () => settings()?.currentUserRole === "owner" && hasEntitlement(teamEntitlements(), "team_roles"),
   );
   const teamAdminFrozen = createMemo(() => canManage() && !hasEntitlement(teamEntitlements(), "team_admin"));
+  const billingSummary = createMemo(() => {
+    if (currentPlanFamily() === "enterprise") {
+      return "Enterprise keeps the Pro product set active and routes rollout, invoicing, and procurement through sales.";
+    }
+    if (currentPlanFamily() === "pro" && currentBillingState() === "trial") {
+      return "This workspace is already on a Pro trial. Start a paid subscription to keep team powers active, or end the trial now to return to Free.";
+    }
+    if (currentPlanFamily() === "pro") {
+      return "This workspace is already on paid Pro. Shared boards, invitations, roles, and board member management are active. Use Stripe billing to cancel or update payment details.";
+    }
+    return "Personal boards stay on Free by default. Upgrade this shared workspace when you need team administration controls.";
+  });
+  const freeCardLabel = createMemo(() => {
+    if (currentPlanFamily() === "free") return "Current plan";
+    return "Available after cancellation";
+  });
+  const hasPaidSubscription = createMemo(
+    () => currentPlanFamily() === "pro" && currentBillingState() === "paid" && !!team()?.stripeSubscriptionId,
+  );
 
   const roleSummary = createMemo(() => {
     const role = currentRole();
@@ -337,6 +364,38 @@ export default function TeamSettingsRoute() {
     }
   }
 
+  async function openBillingPortal() {
+    setBillingLoading(true);
+    setActionError("");
+    setActionNotice("");
+    try {
+      const response = await api.billing.portal();
+      if (!response.url) {
+        throw new Error("Stripe billing portal did not return a URL.");
+      }
+      window.location.href = response.url;
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to open billing portal");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
+  async function endTrial() {
+    setBillingLoading(true);
+    setActionError("");
+    setActionNotice("");
+    try {
+      await api.billing.endTrial();
+      await loadSettings();
+      setActionNotice("Pro trial ended. The workspace is back on Free.");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to end Pro trial");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
   return (
     <AppShell
       activeView="team"
@@ -386,7 +445,7 @@ export default function TeamSettingsRoute() {
               <div class="flex items-center justify-between gap-3">
                 <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Access & Entitlements</h2>
                 <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
-                  {currentPlan()} / {formatRoleLabel(currentRole())}
+                  {currentPlanBadge()} / {formatRoleLabel(currentRole())}
                 </span>
               </div>
 
@@ -445,13 +504,13 @@ export default function TeamSettingsRoute() {
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Billing</h2>
                   <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
-                    {currentPlan()}
+                    {currentPlanBadge()}
                   </span>
                 </div>
                 <p class="mt-2 text-xs text-[#9fb0cc]">
-                  Personal boards default to Free. This page controls plan upgrades for the active team workspace.
+                  {billingSummary()}
                 </p>
-                <Show when={settings()!.team.trialEndsAt}>
+                <Show when={currentBillingState() === "trial" && settings()!.team.trialEndsAt}>
                   {(trialEndsAt) => (
                     <p class="mt-2 text-xs text-[#9fb0cc]">
                       Trial ends on {formatDate(trialEndsAt())}
@@ -468,7 +527,7 @@ export default function TeamSettingsRoute() {
                       class="mt-3 w-full rounded-lg border border-[#3f5a83] bg-[#1a2b46] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] opacity-80"
                       disabled
                     >
-                      Current baseline
+                      {freeCardLabel()}
                     </button>
                   </article>
 
@@ -476,24 +535,84 @@ export default function TeamSettingsRoute() {
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#d7e5ff]">Pro</p>
                     <p class="mt-1 text-xl font-semibold text-[#edf4ff]">$12/user/mo</p>
                     <p class="mt-2 text-xs text-[#b3c4df]">Shared boards, invitations, role controls, and board member management.</p>
-                    <div class="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                        disabled={billingLoading() || !canManage()}
-                        onClick={() => void startBilling("pro_trial")}
-                      >
-                        14-day trial
-                      </button>
-                      <button
-                        type="button"
-                        class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                        disabled={billingLoading() || !canManage()}
-                        onClick={() => void startBilling("pro")}
-                      >
-                        Upgrade
-                      </button>
-                    </div>
+                    <Show
+                      when={currentPlanFamily() === "pro" && currentBillingState() === "trial"}
+                      fallback={
+                        <Show
+                          when={currentPlanFamily() === "pro" && currentBillingState() === "paid"}
+                          fallback={
+                            <Show
+                              when={currentPlanFamily() === "enterprise"}
+                              fallback={
+                                <div class="mt-3 flex gap-2">
+                                  <button
+                                    type="button"
+                                    class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                                    disabled={billingLoading() || !canManage()}
+                                    onClick={() => void startBilling("pro_trial")}
+                                  >
+                                    Start 14-day trial
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                                    disabled={billingLoading() || !canManage()}
+                                    onClick={() => void startBilling("pro")}
+                                  >
+                                    Upgrade
+                                  </button>
+                                </div>
+                              }
+                            >
+                              <button
+                                type="button"
+                                class="mt-3 w-full rounded-lg border border-[#5f7eb5] bg-[#20385f] px-3 py-1.5 text-xs font-semibold text-[#e2eeff] opacity-80"
+                                disabled
+                              >
+                                Included in Enterprise
+                              </button>
+                            </Show>
+                          }
+                        >
+                          <div class="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-3 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                              disabled={billingLoading() || !canManage() || !hasPaidSubscription()}
+                              onClick={() => void openBillingPortal()}
+                            >
+                              Manage billing
+                            </button>
+                            <button
+                              type="button"
+                              class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-3 py-1.5 text-xs font-semibold text-[#e2eeff] opacity-80"
+                              disabled
+                            >
+                              Current plan
+                            </button>
+                          </div>
+                        </Show>
+                      }
+                    >
+                      <div class="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[#f0b86a] disabled:opacity-60"
+                          disabled={billingLoading() || !canManage()}
+                          onClick={() => void endTrial()}
+                        >
+                          End trial
+                        </button>
+                        <button
+                          type="button"
+                          class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                          disabled={billingLoading() || !canManage()}
+                          onClick={() => void startBilling("pro")}
+                        >
+                          Start paid plan
+                        </button>
+                      </div>
+                    </Show>
                   </article>
 
                   <article class="rounded-xl border border-[#49607f] bg-[#142133] p-3">
@@ -503,13 +622,23 @@ export default function TeamSettingsRoute() {
                     <button
                       type="button"
                       class="mt-3 w-full rounded-lg border border-[#566f93] bg-[#1b2d47] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] transition hover:border-[#6f88a8] disabled:opacity-60"
-                      disabled={billingLoading() || !canManage()}
+                      disabled={currentPlanFamily() === "enterprise" || billingLoading() || !canManage()}
                       onClick={() => void startBilling("enterprise")}
                     >
-                      Talk to Sales
+                      {currentPlanFamily() === "enterprise" ? "Current plan" : "Talk to Sales"}
                     </button>
                   </article>
                 </div>
+                <Show when={currentPlanFamily() !== "free"}>
+                  <p class="mt-3 text-xs text-[#9fb0cc]">
+                    Free remains the fallback after cancellation. Existing boards and members stay in place, but new invites and other team-admin actions freeze until the workspace returns to Pro.
+                  </p>
+                </Show>
+                <Show when={currentPlanFamily() === "pro" && currentBillingState() === "paid"}>
+                  <p class="mt-2 text-xs text-[#9fb0cc]">
+                    Manage billing opens Stripe so owners/admins can cancel at period end, update payment details, or review invoices.
+                  </p>
+                </Show>
                 <Show when={!canManage()}>
                   <p class="mt-3 text-xs text-[#9fb0cc]">
                     You can use team features on boards you were invited to. Only owners/admins can change team billing.

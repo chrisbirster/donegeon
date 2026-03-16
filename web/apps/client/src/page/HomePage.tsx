@@ -140,14 +140,13 @@ function tokenClass(kind: TokenKind): string {
   }
 }
 
-const sidebarCardClass =
-  "rounded-xl border border-[var(--border-strong)] bg-[rgba(10,18,28,0.9)] p-3 shadow-[0_18px_48px_rgba(0,0,0,0.24)] backdrop-blur";
+const sidebarCardClass = "app-panel rounded-xl p-3";
 const sidebarItemBaseClass =
   "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition";
 const sidebarItemActiveClass = "bg-[var(--accent-wash)] text-[var(--accent-text)]";
 const sidebarItemIdleClass = "text-[var(--text-main)] hover:bg-[rgba(255,255,255,0.04)]";
 const searchButtonClass =
-  "mt-3 flex w-full items-center justify-between rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-left text-sm text-[var(--text-main)] transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.05)]";
+  "app-input-surface mt-3 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition hover:border-[var(--border-hover)] hover:bg-[var(--panel-soft)]";
 const panelActionButtonClass = "app-button-secondary rounded-lg px-3 py-1.5 text-sm";
 const smallActionButtonClass = "app-button-secondary rounded-lg px-2 py-1 text-xs";
 const listActionButtonClass = "app-button-secondary rounded-md px-2 py-1 text-xs";
@@ -155,8 +154,7 @@ const successActionButtonClass =
   "rounded-md border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] px-2 py-1 text-xs text-[var(--success)] transition hover:border-[rgba(92,173,131,0.48)] disabled:cursor-not-allowed disabled:opacity-60";
 const dangerActionButtonClass =
   "rounded-md border border-[rgba(255,181,173,0.32)] bg-[var(--danger-bg)] px-2 py-1 text-xs text-[var(--danger)] transition hover:border-[var(--accent)]";
-const formFieldClass =
-  "w-full rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]";
+const formFieldClass = "app-input-surface w-full rounded-lg px-3 py-2 text-sm";
 const iconMutedClass = "text-[var(--text-muted)]";
 const iconActiveClass = "text-[#ffd7b7]";
 const teamBadgeClass =
@@ -179,9 +177,9 @@ const taskRowBaseClass = "group flex items-center gap-3 rounded-xl border px-3 p
 const taskRowDropClass = "border-[var(--accent)] bg-[rgba(255,139,80,0.08)]";
 const taskRowNextActionClass = "border-[rgba(255,139,80,0.28)] bg-[rgba(255,139,80,0.08)] hover:border-[#ffb27f]";
 const taskRowDefaultClass =
-  "border-[rgba(119,155,187,0.18)] bg-[rgba(255,255,255,0.03)] hover:border-[rgba(119,155,187,0.32)]";
+  "border-[rgba(119,155,187,0.18)] bg-[var(--panel-soft)] hover:border-[rgba(119,155,187,0.32)]";
 const completedTaskRowClass =
-  "group flex items-center gap-3 rounded-xl border border-[rgba(119,155,187,0.16)] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-[var(--text-muted)] transition hover:border-[rgba(119,155,187,0.28)]";
+  "group flex items-center gap-3 rounded-xl border border-[rgba(119,155,187,0.16)] bg-[var(--panel-soft)] px-3 py-3 text-[var(--text-muted)] transition hover:border-[rgba(119,155,187,0.28)]";
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -2125,7 +2123,7 @@ export default function HomeRoute() {
           onClick={closeSearchModal}
         >
           <div
-            class="w-full max-w-2xl rounded-2xl border border-[var(--border-strong)] bg-[rgba(9,17,26,0.96)] shadow-[0_25px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+            class="app-panel w-full max-w-2xl rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.55)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div class="border-b border-[var(--border-strong)] px-4 py-3">
@@ -2201,7 +2199,7 @@ export default function HomeRoute() {
           onClick={closeDetailModal}
         >
           <div
-            class="my-2 flex max-h-[calc(100vh-1rem)] w-full max-w-[52rem] flex-col overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[rgba(9,17,26,0.96)] shadow-[0_30px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl md:my-4 md:max-h-[calc(100vh-2rem)]"
+            class="app-panel my-2 flex max-h-[calc(100vh-1rem)] w-full max-w-[52rem] flex-col overflow-hidden rounded-2xl shadow-[0_30px_100px_rgba(0,0,0,0.55)] md:my-4 md:max-h-[calc(100vh-2rem)]"
             onClick={(event) => event.stopPropagation()}
             data-testid="task-detail-modal"
           >
