@@ -129,6 +129,25 @@ export type BoardQuestState = {
   unlocked?: BoardQuestUnlock[];
 };
 
+export type BoardProgressionPerk = {
+  id: string;
+  label: string;
+  summary?: string;
+};
+
+export type BoardProgressionLevel = {
+  level: number;
+  threshold: number;
+  perks?: BoardProgressionPerk[];
+};
+
+export type BoardProgressionState = {
+  maxLevel: number;
+  thresholds?: Record<string, number>;
+  perksByLevel?: Record<string, BoardProgressionPerk[]>;
+  levels?: BoardProgressionLevel[];
+};
+
 export type BoardMeta = {
   inventory?: Record<string, number>;
   villagers?: Record<
@@ -138,8 +157,13 @@ export type BoardMeta = {
       xp?: number;
       level?: number;
       perks?: string[];
+      maxStamina?: number;
+      nextLevel?: number;
+      nextLevelXP?: number;
+      xpToNextLevel?: number;
     }
   >;
+  progression?: BoardProgressionState;
   metrics?: Record<string, number>;
   deckOpen?: Record<string, number>;
   dayTickCount?: number;

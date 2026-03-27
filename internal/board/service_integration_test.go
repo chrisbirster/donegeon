@@ -2,6 +2,7 @@ package board
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -439,6 +440,78 @@ func TestTaskSetPriorityPersistsCardAndTask(t *testing.T) {
 	}
 	if updatedTask.Priority != 2 {
 		t.Fatalf("expected task priority 2, got %d", updatedTask.Priority)
+	}
+}
+
+func TestTaskSyncFromTaskCopiesScheduleInputToBoardCard(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	created, err := env.taskService.Create(env.ctx, task.CreateInput{
+		Content:  "testing",
+		Priority: 4,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	spawnResult := env.command(t, "task.spawn_existing", map[string]any{
+		"taskId": created.ID,
+		"x":      520,
+		"y":      220,
+	})
+	card := patchCard(t, spawnResult, "card")
+
+	rawInput := "testing due Thursday at 8pm every 1 month p1"
+	dueText := "2026-03-19T20:00:00-04:00"
+	recurrence := "FREQ=MONTHLY;INTERVAL=1"
+	priority := 1
+	labels := []string{"next_action"}
+	content := "testing"
+	if _, err := env.taskService.Update(env.ctx, created.ID, task.UpdateInput{
+		Content:       &content,
+		Priority:      &priority,
+		DueText:       &dueText,
+		Recurrence:    &recurrence,
+		ScheduleInput: &rawInput,
+		Labels:        &labels,
+	}); err != nil {
+		t.Fatalf("update task: %v", err)
+	}
+
+	env.command(t, "task.sync_from_task", map[string]any{
+		"taskCardId": card.ID,
+	})
+
+	updatedTask, err := env.taskService.Get(env.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("load updated task: %v", err)
+	}
+	expectedDueText := ""
+	if updatedTask.DueText != nil {
+		expectedDueText = strings.TrimSpace(*updatedTask.DueText)
+	}
+
+	state := env.state(t)
+	updatedCard := state.Cards[card.ID]
+	if updatedCard == nil {
+		t.Fatalf("expected updated board card %s", card.ID)
+	}
+	if got := dataStringPatch(updatedCard.Data["title"]); got != "testing" {
+		t.Fatalf("expected synced board title 'testing', got %q", got)
+	}
+	if got := intFromPatch(updatedCard.Data["priority"]); got != 1 {
+		t.Fatalf("expected synced board priority 1, got %d", got)
+	}
+	if got := dataStringPatch(updatedCard.Data["scheduleInput"]); got != rawInput {
+		t.Fatalf("expected synced scheduleInput %q, got %q", rawInput, got)
+	}
+	if got := dataStringPatch(updatedCard.Data["dueText"]); got != expectedDueText {
+		t.Fatalf("expected synced dueText %q, got %q", expectedDueText, got)
+	}
+	if !contains(patchStringSlice(t, updatedCard.Data["labels"]), "next_action") {
+		t.Fatalf("expected synced labels to include next_action, got %v", updatedCard.Data["labels"])
 	}
 }
 
@@ -1102,13 +1175,10 @@ func TestMergePrioritizesTaskResourceFoodAsFaceCards(t *testing.T) {
 	env := newBoardIntegrationEnv(t)
 	env.command(t, "board.seed_default", map[string]any{})
 
-	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
-		"defId": "task.blank",
+	taskStack := patchStack(t, env.command(t, "task.create_blank", map[string]any{
 		"x":     540,
 		"y":     220,
-		"data": map[string]any{
-			"title": "Face card task",
-		},
+		"title": "Face card task",
 	}), "stack")
 	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
 		"defId": "resource.tree",
@@ -1153,6 +1223,102 @@ func TestMergePrioritizesTaskResourceFoodAsFaceCards(t *testing.T) {
 	}
 	if cardKind(top.DefID) != "task" {
 		t.Fatalf("expected task face card when task/resource/food are merged, got %s", top.DefID)
+	}
+}
+
+func TestStackMoveSnapsToBoardGrid(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	stack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     500,
+		"y":     120,
+		"data": map[string]any{
+			"title": "Snap Me",
+		},
+	}), "stack")
+
+	result := env.command(t, "stack.move", map[string]any{
+		"stackId": stack.ID,
+		"x":       540,
+		"y":       160,
+	})
+	moved := patchStack(t, result, "stack")
+	expected := Point{X: 551, Y: 155}
+	if moved.Pos != expected {
+		t.Fatalf("expected moved stack to snap to %+v, got %+v", expected, moved.Pos)
+	}
+
+	after := env.state(t)
+	persisted := after.Stacks[stack.ID]
+	if persisted == nil {
+		t.Fatalf("expected moved stack %s to remain", stack.ID)
+	}
+	if persisted.Pos != expected {
+		t.Fatalf("expected persisted stack to snap to %+v, got %+v", expected, persisted.Pos)
+	}
+}
+
+func TestStackSplitNewPositionSnapsToBoardGrid(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	stackA := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     500,
+		"y":     120,
+		"data": map[string]any{
+			"title": "Split Snap",
+		},
+	}), "stack")
+	stackB := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "mod.next_action",
+		"x":     560,
+		"y":     120,
+	}), "stack")
+	env.command(t, "stack.merge", map[string]any{
+		"targetId": stackA.ID,
+		"sourceId": stackB.ID,
+	})
+
+	result := env.command(t, "stack.split", map[string]any{
+		"stackId": stackA.ID,
+		"index":   1,
+		"newX":    540,
+		"newY":    160,
+	})
+	newStack := patchStack(t, result, "newStack")
+	expected := Point{X: 551, Y: 155}
+	if newStack.Pos != expected {
+		t.Fatalf("expected split stack to snap to %+v, got %+v", expected, newStack.Pos)
+	}
+}
+
+func TestStackMergeResourceOntoBlankTaskRejected(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	blankTaskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     520,
+		"y":     260,
+		"data": map[string]any{
+			"title": "Blank Task",
+		},
+	}), "stack")
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.tree",
+		"x":     580,
+		"y":     260,
+	}), "stack")
+
+	err := env.commandExpectError(t, "stack.merge", map[string]any{
+		"targetId": blankTaskStack.ID,
+		"sourceId": resourceStack.ID,
+	})
+	if !errors.Is(err, ErrInvalidStackPair) && !strings.Contains(err.Error(), ErrInvalidStackPair.Error()) {
+		t.Fatalf("expected ErrInvalidStackPair for blank-task+resource merge, got: %v", err)
 	}
 }
 
@@ -1721,6 +1887,410 @@ func TestTaskCompleteStackSpawnsCoinReward(t *testing.T) {
 	}
 }
 
+func TestTaskCompletionXPRespectsPriorityMapping(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		priority int
+		wantXP   int
+	}{
+		{name: "P1", priority: 1, wantXP: 18},
+		{name: "P2", priority: 2, wantXP: 15},
+		{name: "P3", priority: 3, wantXP: 13},
+		{name: "P4", priority: 4, wantXP: 12},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			env := newBoardIntegrationEnv(t)
+			cfg := DefaultGameplayConfig()
+			cfg.Villagers.Leveling.Thresholds = map[int]int{
+				1: 0,
+				2: 999,
+			}
+			cfg.Villagers.Leveling.TaskCompletionRewards.BonusRolls = 0
+			cfg.Villagers.Leveling.TaskCompletionRewards.RNGPool = nil
+			env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+			villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+				"defId": "villager.basic",
+				"x":     520,
+				"y":     240,
+			}), "stack")
+			taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+				"defId": "task.blank",
+				"x":     580,
+				"y":     240,
+				"data": map[string]any{
+					"title":    "Priority XP task",
+					"priority": tc.priority,
+				},
+			}), "stack")
+
+			env.command(t, "task.assign_villager", map[string]any{
+				"taskStackId":     taskStack.ID,
+				"villagerStackId": villagerStack.ID,
+			})
+			result := env.command(t, "task.complete_stack", map[string]any{
+				"stackId": taskStack.ID,
+			})
+
+			progress := patchAnyMap(t, patchMap(t, result, ""), "villagerProgress")
+			if got := intFromPatch(progress["xpGained"]); got != tc.wantXP {
+				t.Fatalf("expected xpGained=%d for priority %d, got=%d patch=%v", tc.wantXP, tc.priority, got, progress)
+			}
+		})
+	}
+}
+
+func TestTaskCompletionCanGrantMultipleMilestonePerksInSingleAward(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	cfg.Villagers.Leveling.XPSources.CompleteTask.BaseXP = 48
+	cfg.Villagers.Leveling.XPSources.CompleteTask.ByPriority = map[string]int{
+		"none":   0,
+		"low":    0,
+		"medium": 0,
+		"high":   0,
+	}
+	cfg.Villagers.Leveling.Thresholds = map[int]int{
+		1: 0,
+		2: 10,
+		3: 20,
+		4: 30,
+	}
+	cfg.Villagers.Leveling.TaskCompletionRewards.BonusRolls = 0
+	cfg.Villagers.Leveling.TaskCompletionRewards.RNGPool = nil
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     280,
+	}), "stack")
+	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     580,
+		"y":     280,
+		"data": map[string]any{
+			"title":    "Milestone sprint",
+			"priority": 4,
+		},
+	}), "stack")
+
+	env.command(t, "task.assign_villager", map[string]any{
+		"taskStackId":     taskStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+	result := env.command(t, "task.complete_stack", map[string]any{
+		"stackId": taskStack.ID,
+	})
+
+	progress := patchAnyMap(t, patchMap(t, result, ""), "villagerProgress")
+	if got := intFromPatch(progress["level"]); got != 4 {
+		t.Fatalf("expected villager to jump to level 4, got=%d patch=%v", got, progress)
+	}
+	if got := intFromPatch(progress["maxStamina"]); got != 10 {
+		t.Fatalf("expected Heartier to raise max stamina to 10, got=%d patch=%v", got, progress)
+	}
+	perks := patchStringSlice(t, progress["perks"])
+	for _, perkID := range []string{"perk_heartier", "perk_bounty_hunter", "perk_focused_worker"} {
+		if !contains(perks, perkID) {
+			t.Fatalf("expected perk %s in villager progression, got=%v", perkID, perks)
+		}
+	}
+	newPerks := patchStringSlice(t, progress["newPerks"])
+	if len(newPerks) != 3 {
+		t.Fatalf("expected three newly granted perks, got=%v", newPerks)
+	}
+}
+
+func TestTaskCompletionCurrencyPerkAddsCoinReward(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	cfg.Villagers.Leveling.TaskCompletionRewards.BonusRolls = 0
+	cfg.Villagers.Leveling.TaskCompletionRewards.RNGPool = nil
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     320,
+	}), "stack")
+	setVillagerProgressForStack(t, env, villagerStack.ID, func(progress *VillagerProgress) {
+		progress.Perks = []string{"perk_bounty_hunter"}
+	})
+	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "task.blank",
+		"x":     580,
+		"y":     320,
+		"data": map[string]any{
+			"title": "Coin bonus task",
+		},
+	}), "stack")
+
+	env.command(t, "task.assign_villager", map[string]any{
+		"taskStackId":     taskStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+	result := env.command(t, "task.complete_stack", map[string]any{
+		"stackId": taskStack.ID,
+	})
+
+	reward := patchAnyMap(t, patchMap(t, result, ""), "reward")
+	if got := intFromPatch(reward["amount"]); got != 2 {
+		t.Fatalf("expected guaranteed coin reward plus perk bonus = 2, got=%d patch=%v", got, reward)
+	}
+
+	after := env.state(t)
+	lootStack := findCreatedStackWithDefID(after, patchStacks(t, result, "createdStacks"), "loot.coin")
+	if lootStack == nil {
+		t.Fatalf("expected task completion to spawn loot.coin, created=%+v", patchStacks(t, result, "createdStacks"))
+	}
+	if got := stackCardAmount(after, lootStack, "loot.coin"); got != 2 {
+		t.Fatalf("expected loot.coin stack amount=2, got=%d", got)
+	}
+}
+
+func TestResourceGatherCostsNoStaminaAndBerryBushDropsFood(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	cfg.Resources.Nodes = []ResourceNodeConfig{
+		{
+			ID: "berry_bush",
+			Charges: ResourceChargesConfig{
+				Min: 1,
+				Max: 1,
+			},
+			Gather: ResourceGatherConfig{
+				Rewards: RewardTableConfig{
+					Guaranteed: []RewardTableEntryConfig{
+						{Type: "food", ID: "berries", Amount: 1},
+					},
+				},
+			},
+		},
+	}
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     360,
+	}), "stack")
+	villagerID := setVillagerProgressForStack(t, env, villagerStack.ID, func(progress *VillagerProgress) {
+		progress.Stamina = 1
+	})
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.berry_bush",
+		"x":     580,
+		"y":     360,
+		"data": map[string]any{
+			"charges": 1,
+		},
+	}), "stack")
+
+	result := env.command(t, "resource.gather", map[string]any{
+		"resourceStackId": resourceStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+	patch := patchMap(t, result, "")
+	if got := intFromPatch(patch["staminaCost"]); got != 0 {
+		t.Fatalf("expected zero gather stamina cost, got=%d patch=%v", got, patch)
+	}
+	progress := patchAnyMap(t, patch, "villagerProgress")
+	if got := intFromPatch(progress["xpGained"]); got != 4 {
+		t.Fatalf("expected gather xp=4, got=%d patch=%v", got, progress)
+	}
+
+	after := env.state(t)
+	rewardStack := findCreatedStackWithDefID(after, patchStacks(t, result, "createdStacks"), "food.berries")
+	if rewardStack == nil {
+		t.Fatalf("expected berry bush gather to spawn food.berries, created=%+v", patchStacks(t, result, "createdStacks"))
+	}
+	if stateProgress := after.Meta.Villagers[villagerID]; stateProgress == nil || stateProgress.Stamina != 1 {
+		t.Fatalf("expected villager stamina to remain 1 after zero-cost gather, progress=%+v", after.Meta.Villagers[villagerID])
+	}
+}
+
+func TestSalvagerPerkAddsLootAmountOnResourceGather(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	cfg.Resources.Nodes = []ResourceNodeConfig{
+		{
+			ID: "scrap_pile",
+			Charges: ResourceChargesConfig{
+				Min: 1,
+				Max: 1,
+			},
+			Gather: ResourceGatherConfig{
+				Rewards: RewardTableConfig{
+					Guaranteed: []RewardTableEntryConfig{
+						{Type: "loot", ID: "parts", Amount: 1},
+					},
+				},
+			},
+		},
+	}
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     400,
+	}), "stack")
+	setVillagerProgressForStack(t, env, villagerStack.ID, func(progress *VillagerProgress) {
+		progress.Perks = []string{"perk_salvager"}
+	})
+	resourceStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "resource.scrap_pile",
+		"x":     580,
+		"y":     400,
+		"data": map[string]any{
+			"charges": 1,
+		},
+	}), "stack")
+
+	result := env.command(t, "resource.gather", map[string]any{
+		"resourceStackId": resourceStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+
+	after := env.state(t)
+	rewardStack := findCreatedStackWithDefID(after, patchStacks(t, result, "createdStacks"), "loot.parts")
+	if rewardStack == nil {
+		t.Fatalf("expected salvage gather to spawn loot.parts, created=%+v", patchStacks(t, result, "createdStacks"))
+	}
+	if got := stackCardAmount(after, rewardStack, "loot.parts"); got != 2 {
+		t.Fatalf("expected salvager perk to raise loot.parts amount to 2, got=%d", got)
+	}
+}
+
+func TestFoodPerkAddsStaminaRestore(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     440,
+	}), "stack")
+	setVillagerProgressForStack(t, env, villagerStack.ID, func(progress *VillagerProgress) {
+		progress.Stamina = 1
+		progress.Perks = []string{"perk_field_snacks"}
+	})
+	foodStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "food.bread",
+		"x":     580,
+		"y":     440,
+		"data": map[string]any{
+			"amount": 1,
+		},
+	}), "stack")
+
+	result := env.command(t, "food.consume", map[string]any{
+		"foodStackId":     foodStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+
+	patch := patchMap(t, result, "")
+	if got := intFromPatch(patch["staminaRemaining"]); got != 7 {
+		t.Fatalf("expected villager stamina 1 -> 7 after bread + field snacks, got=%d patch=%v", got, patch)
+	}
+	foodConsumed := patchAnyMap(t, patch, "foodConsumed")
+	if got := intFromPatch(foodConsumed["staminaRestore"]); got != 6 {
+		t.Fatalf("expected bread restore=6 with field snacks, got=%d patch=%v", got, foodConsumed)
+	}
+}
+
+func TestZombieSlayerPerkKeepsMinimumClearCostAtOne(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	cfg.Villagers.Actions.ClearZombie.StaminaCost = 1
+	if len(cfg.Zombies.Types) > 0 {
+		cfg.Zombies.Types[0].Cleanup.StaminaCost = 1
+	}
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
+
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     480,
+	}), "stack")
+	setVillagerProgressForStack(t, env, villagerStack.ID, func(progress *VillagerProgress) {
+		progress.Perks = []string{"perk_zombie_slayer"}
+	})
+	zombieStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "zombie.default",
+		"x":     580,
+		"y":     480,
+	}), "stack")
+
+	result := env.command(t, "zombie.clear", map[string]any{
+		"zombieStackId":   zombieStack.ID,
+		"villagerStackId": villagerStack.ID,
+	})
+
+	patch := patchMap(t, result, "")
+	if got := intFromPatch(patch["staminaCost"]); got != 1 {
+		t.Fatalf("expected zombie slayer to respect min clear cost 1, got=%d patch=%v", got, patch)
+	}
+}
+
+func TestBoardStateIncludesProgressionMetadata(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+
+	villagerSpawn := env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     520,
+	})
+	villagerStack := patchStack(t, villagerSpawn, "stack")
+	villagerID := setVillagerProgressForStack(t, env, villagerStack.ID, func(progress *VillagerProgress) {})
+
+	state := env.state(t)
+	if state.Meta.Progression == nil {
+		t.Fatal("expected board state to include progression metadata")
+	}
+	if got := state.Meta.Progression.MaxLevel; got != 10 {
+		t.Fatalf("expected max level 10, got=%d", got)
+	}
+	if got := state.Meta.Progression.Thresholds["2"]; got != 20 {
+		t.Fatalf("expected threshold for level 2 = 20, got=%d", got)
+	}
+	if len(state.Meta.Progression.PerksByLevel["2"]) == 0 || state.Meta.Progression.PerksByLevel["2"][0].Label != "Heartier" {
+		t.Fatalf("expected level 2 progression perk metadata, got=%+v", state.Meta.Progression.PerksByLevel["2"])
+	}
+
+	progress := state.Meta.Villagers[villagerID]
+	if progress == nil {
+		t.Fatalf("expected villager progress in board meta for %s", villagerID)
+	}
+	if progress.MaxStamina != 8 {
+		t.Fatalf("expected max stamina 8, got=%d", progress.MaxStamina)
+	}
+	if progress.NextLevel != 2 || progress.NextLevelXP != 20 || progress.XPToNext != 20 {
+		t.Fatalf("expected next level metadata {2,20,20}, got=%+v", *progress)
+	}
+}
+
 func TestStackMergeTaskAndVillagerCountsAsAssignmentForQuests(t *testing.T) {
 	t.Parallel()
 
@@ -1878,6 +2448,54 @@ func TestStackMergeFoodOntoExhaustedVillagerConsumesFood(t *testing.T) {
 	}
 	if after.Stacks[villagerStack.ID] == nil {
 		t.Fatalf("expected villager stack %s to remain after consuming food", villagerStack.ID)
+	}
+}
+
+func TestStackMergeVillagerOntoLootPartsRejected(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	partsStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "loot.parts",
+		"x":     520,
+		"y":     320,
+	}), "stack")
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     580,
+		"y":     320,
+	}), "stack")
+
+	err := env.commandExpectError(t, "stack.merge", map[string]any{
+		"targetId": partsStack.ID,
+		"sourceId": villagerStack.ID,
+	})
+	if !errors.Is(err, ErrInvalidStackPair) && !strings.Contains(err.Error(), ErrInvalidStackPair.Error()) {
+		t.Fatalf("expected ErrInvalidStackPair for villager+loot.parts merge, got: %v", err)
+	}
+}
+
+func TestStackMergeModifierOntoVillagerWithoutTaskRejected(t *testing.T) {
+	t.Parallel()
+
+	env := newBoardIntegrationEnv(t)
+	villagerStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "villager.basic",
+		"x":     520,
+		"y":     360,
+	}), "stack")
+	modifierStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
+		"defId": "mod.next_action",
+		"x":     580,
+		"y":     360,
+	}), "stack")
+
+	err := env.commandExpectError(t, "stack.merge", map[string]any{
+		"targetId": villagerStack.ID,
+		"sourceId": modifierStack.ID,
+	})
+	if !errors.Is(err, ErrInvalidStackPair) && !strings.Contains(err.Error(), ErrInvalidStackPair.Error()) {
+		t.Fatalf("expected ErrInvalidStackPair for villager+modifier merge without task, got: %v", err)
 	}
 }
 
@@ -2138,6 +2756,66 @@ func findStackWithTopDef(state StateResponse, defID string) *Stack {
 		}
 	}
 	return nil
+}
+
+func findCreatedStackWithDefID(state StateResponse, stacks []*Stack, defID string) *Stack {
+	for _, created := range stacks {
+		if created == nil {
+			continue
+		}
+		stack := state.Stacks[created.ID]
+		if stack == nil {
+			continue
+		}
+		if stackContainsDefID(state, stack, defID) {
+			return stack
+		}
+	}
+	return nil
+}
+
+func stackCardAmount(state StateResponse, stack *Stack, defID string) int {
+	if stack == nil {
+		return 0
+	}
+	for _, cardID := range stack.Cards {
+		card := state.Cards[cardID]
+		if card == nil || !strings.EqualFold(strings.TrimSpace(card.DefID), strings.TrimSpace(defID)) {
+			continue
+		}
+		if card.Data != nil {
+			if amount := intFromPatch(card.Data["amount"]); amount > 0 {
+				return amount
+			}
+		}
+		return 1
+	}
+	return 0
+}
+
+func setVillagerProgressForStack(t *testing.T, env *boardIntegrationEnv, stackID string, mutate func(*VillagerProgress)) string {
+	t.Helper()
+
+	rawState, err := env.boardSvc.repo.Load(env.ctx, DefaultBoardID)
+	if err != nil {
+		t.Fatalf("load raw state: %v", err)
+	}
+	stack := rawState.GetStack(stackID)
+	if stack == nil {
+		t.Fatalf("expected raw stack %s", stackID)
+	}
+	villagerID := firstVillagerIDFromStack(rawState, stack)
+	if villagerID == "" {
+		t.Fatalf("expected villager id for stack %s", stackID)
+	}
+	progress := ensureVillager(&rawState.Meta, villagerID)
+	if mutate != nil {
+		mutate(progress)
+	}
+	if err := env.boardSvc.repo.Save(env.ctx, DefaultBoardID, rawState); err != nil {
+		t.Fatalf("save villager progress: %v", err)
+	}
+	return villagerID
 }
 
 func findFirstStackWithKind(state StateResponse, kind string) *Stack {

@@ -3,8 +3,10 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, 
 
 import { hasEntitlement, workspacePlanProfile } from "../../../../shared/pricing/catalog";
 import { useApi } from "../context/ApiContext";
+import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import { getCachedBoardState, setCachedBoardState } from "../lib/boardCache";
+import { readStoredBoardSelection, writeStoredBoardSelection } from "../lib/boardSelection";
 import { extractQuickAddLabels, mergeNormalizedLabels, parseQuickAddLabels } from "../lib/quickAddLabels";
 import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
 import {
@@ -12,6 +14,7 @@ import {
   type BoardCommandPayload,
   type BoardMember,
   type BoardPoint,
+  type BoardProgressionLevel,
   type BoardQuestObjective,
   type BoardQuestReward,
   type BoardStack,
@@ -26,6 +29,7 @@ import AppShell from "../components/AppShell";
 import SidebarAccountCard from "../components/SidebarAccountCard";
 
 const DEFAULT_BOARD = "default";
+const BOARD_DEV_CONTROLS_ENABLED = import.meta.env.DEV;
 
 const CARD_WIDTH = 92;
 const CARD_HEIGHT = 124;
@@ -46,7 +50,9 @@ const DECK_ROW_MAX_VISIBLE = 4;
 const DECK_ROW_PREFS_KEY = "donegeon.board.deck-row.v1";
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_DECK_SCALE = 0.88;
-const DEFAULT_VILLAGER_STAMINA = 6;
+const DEFAULT_VILLAGER_STAMINA = 8;
+const BOARD_GRID_SPACING = 22;
+const BOARD_GRID_ORIGIN_OFFSET = 1;
 
 const MERGE_GAP_DISTANCE = 16;
 const MIN_MERGE_OVERLAP = 900;
@@ -109,8 +115,13 @@ type VillagerStatus = {
   stackID: string;
   name: string;
   stamina: number;
+  maxStamina: number;
   level: number;
   xp: number;
+  nextLevel: number;
+  nextLevelXP: number;
+  xpToNextLevel: number;
+  perks: string[];
 };
 
 type PanDragState = {
@@ -377,11 +388,11 @@ function taskCompletionToastMessage(patch: unknown): string {
 function notificationToneClass(tone: string | undefined): string {
   switch ((tone ?? "").trim().toLowerCase()) {
     case "success":
-      return "border-[#3d6b4e] bg-[#12281d] text-[#baf2cd]";
+      return "border-[rgba(70,140,98,0.34)] bg-[var(--success-bg)] text-[var(--success)]";
     case "error":
-      return "border-[#734040] bg-[#2b1717] text-[#ffbaba]";
+      return "border-[rgba(196,98,91,0.28)] bg-[var(--danger-bg)] text-[var(--danger)]";
     default:
-      return "border-[#415779] bg-[#152238] text-[#d6e6ff]";
+      return "border-[var(--border-strong)] bg-[var(--panel-soft)] text-[var(--text-main)]";
   }
 }
 
@@ -672,8 +683,13 @@ function villagerStatusForStack(stack: BoardStack | null, snapshot: BoardStateRe
     const villagerID = dataString(card.data?.villagerId) || stack.id;
     const progress = snapshot.meta?.villagers?.[villagerID];
     const stamina = Math.max(0, Math.floor(dataNumber(progress?.stamina) ?? DEFAULT_VILLAGER_STAMINA));
+    const maxStamina = Math.max(stamina, Math.floor(dataNumber(progress?.maxStamina) ?? DEFAULT_VILLAGER_STAMINA));
     const level = Math.max(1, Math.floor(dataNumber(progress?.level) ?? 1));
     const xp = Math.max(0, Math.floor(dataNumber(progress?.xp) ?? 0));
+    const nextLevel = Math.max(level, Math.floor(dataNumber(progress?.nextLevel) ?? level));
+    const nextLevelXP = Math.max(xp, Math.floor(dataNumber(progress?.nextLevelXP) ?? xp));
+    const xpToNextLevel = Math.max(0, Math.floor(dataNumber(progress?.xpToNextLevel) ?? 0));
+    const perks = dataStringArray(progress?.perks);
     const name = dataString(card.data?.name) || titleFromCard(card) || "Villager";
 
     return {
@@ -681,8 +697,13 @@ function villagerStatusForStack(stack: BoardStack | null, snapshot: BoardStateRe
       stackID: stack.id,
       name,
       stamina,
+      maxStamina,
       level,
       xp,
+      nextLevel,
+      nextLevelXP,
+      xpToNextLevel,
+      perks,
     };
   }
 
@@ -691,7 +712,7 @@ function villagerStatusForStack(stack: BoardStack | null, snapshot: BoardStateRe
 
 function villagerTooltipLabel(status: VillagerStatus | null): string | undefined {
   if (!status) return undefined;
-  return `${status.name} • Stamina ${status.stamina} • Lv ${status.level}`;
+  return `${status.name} • Stamina ${status.stamina}/${status.maxStamina} • Lv ${status.level}`;
 }
 
 function cardFromCardIDs(cardIDs: string[], state: BoardStateResponse | null): BoardCard | null {
@@ -720,6 +741,23 @@ function splitCardIDs(cardIDs: string[], index: number): { remaining: string[]; 
     remaining: cardIDs.slice(0, clamped),
     dragged: cardIDs.slice(clamped),
   };
+}
+
+function snapBoardCoordinate(value: number): number {
+  return Math.round((value - BOARD_GRID_ORIGIN_OFFSET) / BOARD_GRID_SPACING) * BOARD_GRID_SPACING + BOARD_GRID_ORIGIN_OFFSET;
+}
+
+function snapBoardPoint(point: BoardPoint): BoardPoint {
+  return {
+    x: snapBoardCoordinate(point.x),
+    y: snapBoardCoordinate(point.y),
+  };
+}
+
+function trailingCardIDs(cardIDs: string[], count: number): string[] {
+  if (cardIDs.length === 0 || count <= 0) return [];
+  const normalizedCount = Math.min(cardIDs.length, Math.max(1, Math.trunc(count)));
+  return cardIDs.slice(cardIDs.length - normalizedCount);
 }
 
 function stackHeightPx(cardCount: number): number {
@@ -908,11 +946,28 @@ function hasBoardLiveLabel(labels: string[] | undefined): boolean {
   return labels.some((label) => normalizeLabelToken(label) === "boardlive");
 }
 
+function parseEmailEntries(raw: string): string[] {
+  return raw
+    .split(/[\n,;]+/g)
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0);
+}
+
+function sameStringArray(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) return false;
+  }
+  return true;
+}
+
 export default function BoardRoute() {
   const api = useApi();
+  const theme = useTheme();
   const toast = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const isLightTheme = createMemo(() => theme.resolvedTheme() === "light");
 
   const [state, setState] = createSignal<BoardStateResponse | null>(null);
   const [projects, setProjects] = createSignal<Project[]>([]);
@@ -956,11 +1011,15 @@ export default function BoardRoute() {
   const [createBoardModalOpen, setCreateBoardModalOpen] = createSignal(false);
   const [notificationHistoryOpen, setNotificationHistoryOpen] = createSignal(false);
   const [boardCrudBusy, setBoardCrudBusy] = createSignal(false);
+  const [boardSelectorValue, setBoardSelectorValue] = createSignal(DEFAULT_BOARD);
+  const [managedBoardID, setManagedBoardID] = createSignal(DEFAULT_BOARD);
+  const [managedBoardName, setManagedBoardName] = createSignal("");
   const [teamSettings, setTeamSettings] = createSignal<TeamSettings | null>(null);
   const [boardMembers, setBoardMembers] = createSignal<BoardMember[]>([]);
   const [boardMembersLoading, setBoardMembersLoading] = createSignal(false);
   const [boardMembersBusy, setBoardMembersBusy] = createSignal(false);
   const [pendingBoardMemberID, setPendingBoardMemberID] = createSignal("");
+  const [boardInviteEmail, setBoardInviteEmail] = createSignal("");
   const [exhaustedVillagerIDs, setExhaustedVillagerIDs] = createSignal<string[]>([]);
   const [exhaustedResourceAssignmentKeys, setExhaustedResourceAssignmentKeys] = createSignal<string[]>([]);
 
@@ -1000,6 +1059,10 @@ export default function BoardRoute() {
   const activeBoardChoice = createMemo(
     () => boardChoices().find((choice) => choice.boardID === activeBoardID()) ?? null,
   );
+  const managedBoardChoice = createMemo(
+    () => boardChoices().find((choice) => choice.boardID === managedBoardID()) ?? null,
+  );
+  const managedBoardProjectID = createMemo(() => boardProjectIDForBoard(managedBoardID()));
   const createBoardSlugHint = createMemo(() => {
     const boardID = boardIDFromName(newBoardName());
     if (!boardID) return "";
@@ -1007,13 +1070,19 @@ export default function BoardRoute() {
     if (boardID.startsWith("board-")) return boardID.slice("board-".length);
     return boardID;
   });
-  const boardMemberManagementEnabled = createMemo(() => {
-    const entitlements = teamSettings()?.team.entitlements;
+  const teamEntitlements = createMemo(() => {
+    const explicit = teamSettings()?.team.entitlements ?? [];
     const fallback = workspacePlanProfile(teamSettings()?.team.plan || "personal").entitlements;
-    return hasEntitlement((entitlements && entitlements.length > 0 ? entitlements : fallback), "board_member_management");
+    return explicit.length > 0 ? explicit : fallback;
+  });
+  const boardMemberManagementEnabled = createMemo(() => {
+    return hasEntitlement(teamEntitlements(), "board_member_management");
   });
   const canManageBoardMembers = createMemo(
     () => (teamSettings()?.canManage ?? false) && boardMemberManagementEnabled(),
+  );
+  const canManageBoardInvites = createMemo(
+    () => (teamSettings()?.canManage ?? false) && hasEntitlement(teamEntitlements(), "workspace_invites"),
   );
   const boardMemberManagementNotice = createMemo(() => {
     if ((teamSettings()?.canManage ?? false) && !boardMemberManagementEnabled()) {
@@ -1028,6 +1097,29 @@ export default function BoardRoute() {
     if (!settings) return [] as TeamMember[];
     const existing = boardMemberIDs();
     return settings.members.filter((member) => !existing.has(member.userId));
+  });
+  const pendingTeamInvitesByEmail = createMemo(() => {
+    const index = new Map<string, string>();
+    for (const invitation of teamSettings()?.invitations ?? []) {
+      index.set(invitation.email.trim().toLowerCase(), invitation.status);
+    }
+    return index;
+  });
+
+  createEffect(() => {
+    setBoardSelectorValue(activeBoardID());
+  });
+
+  createEffect(() => {
+    writeStoredBoardSelection(activeBoardID());
+  });
+
+  createEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.has("board")) return;
+    const storedBoardID = readStoredBoardSelection();
+    if (storedBoardID === DEFAULT_BOARD || storedBoardID === activeBoardID()) return;
+    navigate(boardHref(storedBoardID), { replace: true });
   });
 
   const stacks = createMemo(() => Object.values(state()?.stacks ?? {}).sort((a, b) => a.z - b.z));
@@ -1303,6 +1395,27 @@ export default function BoardRoute() {
   const selectedCard = createMemo(() => cardFromStack(selectedStack(), state()));
   const questState = createMemo(() => state()?.meta?.quests);
   const activeQuests = createMemo(() => questState()?.active ?? []);
+  const progressionLevels = createMemo<BoardProgressionLevel[]>(() => state()?.meta?.progression?.levels ?? []);
+  const progressionPerkMap = createMemo(() => {
+    const entries = new Map<string, { label: string; summary: string }>();
+    for (const level of progressionLevels()) {
+      for (const perk of level.perks ?? []) {
+        const perkID = dataString(perk.id);
+        if (!perkID) continue;
+        entries.set(perkID, {
+          label: dataString(perk.label) || humanizeToken(perkID.replace(/^perk[_-]?/i, "")),
+          summary: dataString(perk.summary),
+        });
+      }
+    }
+    return entries;
+  });
+
+  function villagerPerkLabel(perkID: string): string {
+    const trimmed = perkID.trim();
+    if (!trimmed) return "";
+    return progressionPerkMap().get(trimmed)?.label || humanizeToken(trimmed.replace(/^perk[_-]?/i, ""));
+  }
 
   const summary = createMemo<BoardSummary>(() => {
     const current = state();
@@ -1417,12 +1530,16 @@ export default function BoardRoute() {
       hasPrimedExhaustedVillagers = true;
     }
 
-    setExhaustedVillagerIDs(nextExhausted.map((status) => status.villagerID));
-    setExhaustedResourceAssignmentKeys(nextAssignments);
+    const nextExhaustedIDs = nextExhausted.map((status) => status.villagerID);
+    if (!sameStringArray(exhaustedVillagerIDs(), nextExhaustedIDs)) {
+      setExhaustedVillagerIDs(nextExhaustedIDs);
+    }
+    if (!sameStringArray(exhaustedResourceAssignmentKeys(), nextAssignments)) {
+      setExhaustedResourceAssignmentKeys(nextAssignments);
+    }
   });
 
   const composerTokens = createMemo(() => tokenizeQuickAdd(composerText()));
-  const detailTokens = createMemo(() => tokenizeQuickAdd(detailTitle()));
 
   const composerChips = createMemo(() => {
     const parsed = composerParsed();
@@ -1514,6 +1631,16 @@ export default function BoardRoute() {
   const detailScheduleInput = createMemo(() => dataString(selectedTaskCard()?.data?.scheduleInput));
   const detailStoredDue = createMemo(() => dataString(selectedTaskCard()?.data?.dueText));
   const detailStoredDeadline = createMemo(() => dataString(selectedTaskCard()?.data?.dueDeadline));
+  const detailPreviewInput = createMemo(() => {
+    const currentTitle = detailTitle().trim();
+    const storedTitle = dataString(selectedTaskCard()?.data?.title).trim();
+    const storedRaw = detailScheduleInput().trim();
+    if (storedRaw && currentTitle === storedTitle) {
+      return storedRaw;
+    }
+    return currentTitle;
+  });
+  const detailTokens = createMemo(() => tokenizeQuickAdd(detailPreviewInput()));
   const detailDueInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleInput(), "due"));
   const detailDeadlineInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleInput(), "deadline"));
   const detailVisibleLabels = createMemo(() =>
@@ -1686,6 +1813,127 @@ export default function BoardRoute() {
       }
     }
     return null;
+  }
+
+  function cardIDsHaveKind(cardIDs: string[], kind: string): boolean {
+    const current = state();
+    if (!current) return false;
+    const normalized = kind.trim().toLowerCase();
+    if (!normalized) return false;
+
+    for (const cardID of cardIDs) {
+      const card = current.cards[cardID];
+      if (!card) continue;
+      if (cardKind(card.defId).toLowerCase() === normalized) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function cardIDsHaveDefID(cardIDs: string[], defID: string): boolean {
+    const current = state();
+    if (!current) return false;
+    const normalized = defID.trim().toLowerCase();
+    if (!normalized) return false;
+
+    for (const cardID of cardIDs) {
+      const card = current.cards[cardID];
+      if (!card) continue;
+      if (card.defId.trim().toLowerCase() === normalized) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function stackHasUnlinkedBlankTask(stack: BoardStack | null): boolean {
+    const current = state();
+    if (!current || !stack) return false;
+
+    for (const cardID of stack.cards) {
+      const card = current.cards[cardID];
+      if (!card) continue;
+      if (card.defId.trim().toLowerCase() !== "task.blank") continue;
+      if (!dataString(card.data?.taskId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function cardIDsHaveUnlinkedBlankTask(cardIDs: string[]): boolean {
+    const current = state();
+    if (!current) return false;
+
+    for (const cardID of cardIDs) {
+      const card = current.cards[cardID];
+      if (!card) continue;
+      if (card.defId.trim().toLowerCase() !== "task.blank") continue;
+      if (!dataString(card.data?.taskId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function topDefIDFromCardIDs(cardIDs: string[]): string {
+    const top = cardFromCardIDs(cardIDs, state());
+    return top?.defId || "";
+  }
+
+  function mergeWouldPutVillagerOnLootParts(target: BoardStack | null, sourceCardIDs: string[]): boolean {
+    if (!target || sourceCardIDs.length === 0) return false;
+    const targetHasVillager = stackHasKind(target, "villager");
+    const sourceHasVillager = cardIDsHaveKind(sourceCardIDs, "villager");
+    if (!targetHasVillager && !sourceHasVillager) return false;
+
+    return stackHasCardDefID(target, "loot.parts") || cardIDsHaveDefID(sourceCardIDs, "loot.parts");
+  }
+
+  function mergeWouldPutModifierOnVillagerWithoutTask(target: BoardStack | null, sourceCardIDs: string[]): boolean {
+    if (!target || sourceCardIDs.length === 0) return false;
+
+    const hasModifier = stackHasKind(target, "mod") || cardIDsHaveKind(sourceCardIDs, "mod");
+    const hasVillager = stackHasKind(target, "villager") || cardIDsHaveKind(sourceCardIDs, "villager");
+    if (!hasModifier || !hasVillager) return false;
+
+    const hasTask = stackHasKind(target, "task") || cardIDsHaveKind(sourceCardIDs, "task");
+    return !hasTask;
+  }
+
+  function mergeWouldCombineResourceAndBlankTask(target: BoardStack | null, sourceCardIDs: string[]): boolean {
+    if (!target || sourceCardIDs.length === 0) return false;
+
+    const hasResource = stackHasKind(target, "resource") || cardIDsHaveKind(sourceCardIDs, "resource");
+    if (!hasResource) return false;
+
+    return stackHasUnlinkedBlankTask(target) || cardIDsHaveUnlinkedBlankTask(sourceCardIDs);
+  }
+
+  function canMergeDraggedCardsIntoTarget(target: BoardStack | null, sourceCardIDs: string[]): boolean {
+    if (!target || sourceCardIDs.length === 0) return false;
+    if (mergeWouldPutVillagerOnLootParts(target, sourceCardIDs)) return false;
+    if (mergeWouldCombineResourceAndBlankTask(target, sourceCardIDs)) return false;
+    if (mergeWouldPutModifierOnVillagerWithoutTask(target, sourceCardIDs)) return false;
+
+    const sourceDef = topDefIDFromCardIDs(sourceCardIDs);
+    if (!sourceDef) return false;
+
+    if (isCollectDeck(target)) {
+      return !isDeckDef(sourceDef) && !isPackDef(sourceDef);
+    }
+
+    const targetDef = topDefID(target);
+    if (!targetDef) return false;
+    if (isDeckDef(sourceDef) || isPackDef(sourceDef)) return false;
+    if (isDeckDef(targetDef) || isPackDef(targetDef)) return false;
+
+    return true;
   }
 
   function miningDurationMsForStack(stack: BoardStack | null): number | null {
@@ -2101,15 +2349,17 @@ export default function BoardRoute() {
     const baseY = rect ? Math.round(rect.height / 3 - CARD_HEIGHT / 2 - pan.y) : 160;
 
     for (let index = 0; index < missing.length; index += 1) {
-      const x = baseX + (index % 6) * 26;
-      const y = baseY + Math.floor(index / 6) * 32;
+      const spawnPoint = snapBoardPoint({
+        x: baseX + (index % 6) * 26,
+        y: baseY + Math.floor(index / 6) * 32,
+      });
       try {
         await sendCommand(
           {
             cmd: "task.spawn_existing",
             args: {
-              x,
-              y,
+              x: spawnPoint.x,
+              y: spawnPoint.y,
               taskId: missing[index].id,
             },
           },
@@ -2158,7 +2408,7 @@ export default function BoardRoute() {
     }
   }
 
-  async function addPendingBoardMember() {
+  async function addPendingBoardMember(boardID = managedBoardID()) {
     const userID = pendingBoardMemberID().trim();
     if (!userID) {
       toast.info("Select a team member to add.");
@@ -2166,8 +2416,8 @@ export default function BoardRoute() {
     }
     setBoardMembersBusy(true);
     try {
-      await api.board.addMember(userID, activeBoardID());
-      await loadBoardMembers(activeBoardID());
+      await api.board.addMember(userID, boardID);
+      await loadBoardMembers(boardID);
       setError("");
       setPendingBoardMemberID("");
       toast.success("Member added to board.");
@@ -2180,7 +2430,7 @@ export default function BoardRoute() {
     }
   }
 
-  async function removeBoardMember(userID: string) {
+  async function removeBoardMember(userID: string, boardID = managedBoardID()) {
     const targetID = userID.trim();
     if (!targetID || targetID === currentUserID()) {
       toast.info("You cannot remove yourself from this board.");
@@ -2188,8 +2438,8 @@ export default function BoardRoute() {
     }
     setBoardMembersBusy(true);
     try {
-      await api.board.removeMember(targetID, activeBoardID());
-      await loadBoardMembers(activeBoardID());
+      await api.board.removeMember(targetID, boardID);
+      await loadBoardMembers(boardID);
       setError("");
       toast.info("Member removed from board.");
     } catch (err) {
@@ -2201,9 +2451,26 @@ export default function BoardRoute() {
     }
   }
 
+  function setManagedBoard(boardID: string) {
+    const normalized = normalizeBoardID(boardID);
+    const choice = boardChoices().find((item) => item.boardID === normalized);
+    setManagedBoardID(normalized);
+    setManagedBoardName(choice?.name || "");
+    setPendingBoardMemberID("");
+    setBoardInviteEmail("");
+    void loadBoardMembers(normalized);
+  }
+
+  function handleBoardSelectorInput(nextBoardID: string) {
+    const normalized = normalizeBoardID(nextBoardID);
+    setBoardSelectorValue(normalized);
+    switchBoard(normalized);
+  }
+
   function switchBoard(nextBoardID: string) {
     const normalized = normalizeBoardID(nextBoardID);
     if (normalized === activeBoardID()) return;
+    writeStoredBoardSelection(normalized);
     setState(null); // Reset so the loading spinner shows for the new board.
     navigate(boardHref(normalized));
   }
@@ -2242,6 +2509,7 @@ export default function BoardRoute() {
       });
       setNewBoardName("");
       await loadProjects();
+      setManagedBoard(boardID);
       switchBoard(boardID);
       setError("");
       toast.success(`Board "${rawName}" created.`);
@@ -2256,25 +2524,80 @@ export default function BoardRoute() {
     }
   }
 
-  async function deleteActiveBoard() {
-    const boardID = activeBoardID();
-    if (boardID === DEFAULT_BOARD) {
+  async function deleteBoard(boardID: string) {
+    const normalized = normalizeBoardID(boardID);
+    if (normalized === DEFAULT_BOARD) {
       const message = "The default board cannot be deleted.";
+      setError(message);
+      toast.error(message);
+      return false;
+    }
+    const choice = boardChoices().find((item) => item.boardID === normalized);
+    const boardName = choice?.name || boardProjectIDForBoard(normalized);
+    const ok = window.confirm(`Delete "${boardName}"? This removes the board from your project list.`);
+    if (!ok) return false;
+
+    setBoardCrudBusy(true);
+    try {
+      await api.projects.remove(boardProjectIDForBoard(normalized));
+      await loadProjects();
+      if (activeBoardID() === normalized) {
+        switchBoard(DEFAULT_BOARD);
+      }
+      const nextManagedBoard = activeBoardID() === normalized ? DEFAULT_BOARD : activeBoardID();
+      setManagedBoard(nextManagedBoard);
+      setError("");
+      toast.info(`Board "${boardName}" deleted.`);
+      return true;
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message);
+      toast.error(message);
+      return false;
+    } finally {
+      setBoardCrudBusy(false);
+    }
+  }
+
+  function openCreateBoardModal() {
+    setNewBoardName("");
+    setBoardSelectorValue(activeBoardID());
+    setManagedBoard(activeBoardID());
+    setCreateBoardModalOpen(true);
+  }
+
+  function closeCreateBoardModal() {
+    if (boardCrudBusy()) return;
+    setBoardSelectorValue(activeBoardID());
+    setCreateBoardModalOpen(false);
+  }
+
+  async function submitCreateBoardFromModal() {
+    await createBoard();
+  }
+
+  async function renameManagedBoard() {
+    const choice = managedBoardChoice();
+    if (!choice) return;
+    const nextName = managedBoardName().trim();
+    if (!nextName) {
+      const message = "Board name is required.";
       setError(message);
       toast.error(message);
       return;
     }
-    const boardName = activeBoardChoice()?.name || boardProjectIDForBoard(boardID);
-    const ok = window.confirm(`Delete "${boardName}"? This removes the board from your project list.`);
-    if (!ok) return;
+    if (nextName === choice.name) {
+      toast.info("Board name is unchanged.");
+      return;
+    }
 
     setBoardCrudBusy(true);
     try {
-      await api.projects.remove(activeBoardProjectID());
+      await api.projects.update(managedBoardProjectID(), { name: nextName });
       await loadProjects();
-      switchBoard(DEFAULT_BOARD);
+      setManagedBoardName(nextName);
       setError("");
-      toast.info(`Board "${boardName}" deleted.`);
+      toast.success(`Board renamed to "${nextName}".`);
     } catch (err) {
       const message = (err as Error).message;
       setError(message);
@@ -2284,20 +2607,81 @@ export default function BoardRoute() {
     }
   }
 
-  function openCreateBoardModal() {
-    setNewBoardName("");
-    setCreateBoardModalOpen(true);
+  async function inviteBoardMembersByEmail() {
+    const boardID = managedBoardID();
+    const emails = parseEmailEntries(boardInviteEmail());
+    if (emails.length === 0) {
+      toast.info("Enter at least one email.");
+      return;
+    }
+
+    const settings = teamSettings();
+    if (!settings) {
+      toast.error("Team settings are not available yet.");
+      return;
+    }
+
+    setBoardMembersBusy(true);
+    try {
+      let addedCount = 0;
+      let invitedCount = 0;
+      let alreadyCount = 0;
+
+      for (const email of emails) {
+        const existingMember = settings.members.find((member) => member.email.trim().toLowerCase() === email);
+        if (existingMember) {
+          if (boardMemberIDs().has(existingMember.userId)) {
+            alreadyCount += 1;
+            continue;
+          }
+          await api.board.addMember(existingMember.userId, boardID);
+          addedCount += 1;
+          continue;
+        }
+
+        if (pendingTeamInvitesByEmail().has(email)) {
+          alreadyCount += 1;
+          continue;
+        }
+
+        if (!canManageBoardInvites()) {
+          throw new Error("Invite by email requires team invite access on this workspace.");
+        }
+
+        await api.team.invite(email, "editor");
+        invitedCount += 1;
+      }
+
+      await loadTeamSettings();
+      await loadBoardMembers(boardID);
+      setBoardInviteEmail("");
+      setError("");
+
+      if (addedCount > 0 && invitedCount > 0) {
+        toast.success(`Added ${addedCount} board member(s) and sent ${invitedCount} team invite(s).`);
+      } else if (addedCount > 0) {
+        toast.success(`Added ${addedCount} member(s) to this board.`);
+      } else if (invitedCount > 0) {
+        toast.success(`Sent ${invitedCount} team invite(s). Add them to this board after they accept.`);
+      } else if (alreadyCount > 0) {
+        toast.info("Those people already have access or already have pending invitations.");
+      }
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBoardMembersBusy(false);
+    }
   }
 
-  function closeCreateBoardModal() {
-    if (boardCrudBusy()) return;
-    setCreateBoardModalOpen(false);
-  }
-
-  async function submitCreateBoardFromModal() {
-    const created = await createBoard();
-    if (!created) return;
-    setCreateBoardModalOpen(false);
+  async function toggleManagedBoardMember(member: TeamMember, enabled: boolean) {
+    if (enabled) {
+      setPendingBoardMemberID(member.userId);
+      await addPendingBoardMember(managedBoardID());
+      return;
+    }
+    await removeBoardMember(member.userId, managedBoardID());
   }
 
   async function loadBoard(options: { syncTasks?: boolean; boardID?: string; silent?: boolean } = {}) {
@@ -2532,8 +2916,10 @@ export default function BoardRoute() {
 
     const rect = boardRef?.getBoundingClientRect();
     const pan = boardPan();
-    const x = rect ? Math.round(rect.width / 2 - CARD_WIDTH / 2 - pan.x) : 260;
-    const y = rect ? Math.round(rect.height / 2 - CARD_HEIGHT / 2 - pan.y) : 180;
+    const spawnPoint = snapBoardPoint({
+      x: rect ? Math.round(rect.width / 2 - CARD_WIDTH / 2 - pan.x) : 260,
+      y: rect ? Math.round(rect.height / 2 - CARD_HEIGHT / 2 - pan.y) : 180,
+    });
 
     try {
       const created = await api.tasks.quickAdd(normalizedQuickAdd);
@@ -2544,8 +2930,8 @@ export default function BoardRoute() {
       await sendCommand({
         cmd: "task.spawn_existing",
         args: {
-          x,
-          y,
+          x: spawnPoint.x,
+          y: spawnPoint.y,
           taskId: created.task.id,
           countAsCreated: true,
         },
@@ -2572,7 +2958,7 @@ export default function BoardRoute() {
     setDetailDescription(descriptionFromCard(card));
     const priority = dataNumber(card.data?.priority);
     setDetailPriority(priority && priority >= 1 && priority <= 4 ? priority : 4);
-    queueDetailParse(title);
+    queueDetailParse(dataString(card.data?.scheduleInput).trim() || title);
     setIsDetailOpen(true);
   }
 
@@ -2601,13 +2987,13 @@ export default function BoardRoute() {
     try {
       const recurrenceEnabled = recurringModifierEnabled();
       const deadlineEnabled = deadlineModifierEnabled();
-      const rawTitle = detailTitle().trim();
-      const parsed = await parseTaskTitleInput(rawTitle);
-      if (rawTitle && parsed && !parsed.content.trim()) {
+      const rawInput = detailPreviewInput().trim();
+      const parsed = await parseTaskTitleInput(rawInput);
+      if (rawInput && parsed && !parsed.content.trim()) {
         setError("Task title cannot be empty");
         return;
       }
-      let normalizedTitle = (parsed?.content ?? rawTitle).trim();
+      let normalizedTitle = (parsed?.content ?? rawInput).trim();
       const normalizedDescription = (parsed?.description || detailDescription()).trim();
       let normalizedContent = normalizedTitle || "Untitled task";
 
@@ -2633,7 +3019,7 @@ export default function BoardRoute() {
         }
 
         if ((recurrenceEnabled && recurrenceParsed) || (deadlineEnabled && deadlineParsed)) {
-          scheduleInput = rawTitle;
+          scheduleInput = rawInput;
         }
       }
 
@@ -2698,6 +3084,16 @@ export default function BoardRoute() {
         dueText,
         dueDeadline,
       });
+
+      await sendCommand(
+        {
+          cmd: "task.sync_from_task",
+          args: {
+            taskCardId: taskCard.id,
+          },
+        },
+        { refresh: false },
+      );
 
       await loadBoard({ syncTasks: false });
 
@@ -2795,15 +3191,17 @@ export default function BoardRoute() {
         return;
       }
       const pos = stackPosition(stack);
-      const spawnX = pos.x + CARD_WIDTH + 26;
-      const spawnY = Math.max(24, pos.y - 130);
+      const spawnPoint = snapBoardPoint({
+        x: pos.x + CARD_WIDTH + 26,
+        y: Math.max(24, pos.y - 130),
+      });
       try {
         await sendCommand({
           cmd: "deck.spawn_pack",
           args: {
             deckStackId: stack.id,
-            x: spawnX,
-            y: spawnY,
+            x: spawnPoint.x,
+            y: spawnPoint.y,
           },
         });
       } catch {
@@ -2835,6 +3233,8 @@ export default function BoardRoute() {
   function resolveMergeTarget(sourceID: string, sourcePos: BoardPoint, sourceCardCount: number): string | null {
     const source = state()?.stacks[sourceID];
     if (!source) return null;
+    const sourceCardIDs = trailingCardIDs(source.cards, sourceCardCount);
+    if (sourceCardIDs.length === 0) return null;
 
     const sourceRect = stackBounds(sourcePos, sourceCardCount);
 
@@ -2843,6 +3243,7 @@ export default function BoardRoute() {
 
     for (const stack of renderStacks()) {
       if (stack.id === sourceID) continue;
+      if (!canMergeDraggedCardsIntoTarget(stack, sourceCardIDs)) continue;
       const targetRect = stackBounds(stackPosition(stack), stack.cards.length);
       const area = overlapArea(sourceRect, targetRect);
       if (area > bestArea) {
@@ -2860,6 +3261,7 @@ export default function BoardRoute() {
 
     for (const stack of renderStacks()) {
       if (stack.id === sourceID) continue;
+      if (!canMergeDraggedCardsIntoTarget(stack, sourceCardIDs)) continue;
       const targetRect = stackBounds(stackPosition(stack), stack.cards.length);
       const gap = rectGap(sourceRect, targetRect);
       if (gap <= MERGE_GAP_DISTANCE && gap < nearestGap) {
@@ -3008,19 +3410,21 @@ export default function BoardRoute() {
       if (!drag || event.pointerId !== drag.pointerId || !boardRef) return;
 
       const pointerWorld = worldFromClient(event.clientX, event.clientY);
-      const x = Math.round(pointerWorld.x - drag.offsetX);
-      const y = Math.round(pointerWorld.y - drag.offsetY);
+      const snapped = snapBoardPoint({
+        x: Math.round(pointerWorld.x - drag.offsetX),
+        y: Math.round(pointerWorld.y - drag.offsetY),
+      });
 
       setLocalPositions((current) => ({
         ...current,
-        [drag.stackId]: { x, y },
+        [drag.stackId]: snapped,
       }));
 
-      if (Math.abs(x - drag.startX) > 3 || Math.abs(y - drag.startY) > 3) {
+      if (Math.abs(snapped.x - drag.startX) > 3 || Math.abs(snapped.y - drag.startY) > 3) {
         setDragMoved(true);
       }
 
-      setMergeTargetID(resolveMergeTarget(drag.stackId, { x, y }, drag.draggedCount));
+      setMergeTargetID(resolveMergeTarget(drag.stackId, snapped, drag.draggedCount));
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -3045,6 +3449,10 @@ export default function BoardRoute() {
 
       const sourceStack = state()?.stacks[drag.stackId] ?? null;
       const sourceDef = topDefID(sourceStack);
+      const draggedSourceCardIDs =
+        drag.mode === "split" && sourceStack
+          ? splitCardIDs(sourceStack.cards, drag.splitIndex).dragged
+          : (sourceStack?.cards ?? []);
 
       if (drag.mode === "split") {
         if (!moved) {
@@ -3121,8 +3529,10 @@ export default function BoardRoute() {
             if (targetID && targetID !== drag.stackId) {
               const targetStack = state()?.stacks[targetID] ?? null;
               const targetDef = topDefID(targetStack);
+              const newStack = state()?.stacks[newStackID] ?? null;
+              const newStackCardIDs = newStack?.cards ?? [];
 
-              if (targetStack && isCollectDeck(targetStack)) {
+              if (targetStack && canMergeDraggedCardsIntoTarget(targetStack, newStackCardIDs) && isCollectDeck(targetStack)) {
                 // Optimistic: remove the newly-split stack before collecting.
                 setState((current) => {
                   if (!current) return current;
@@ -3137,7 +3547,7 @@ export default function BoardRoute() {
                 return;
               }
 
-              if (!targetDef || cardKind(targetDef) !== "deck") {
+              if (targetStack && canMergeDraggedCardsIntoTarget(targetStack, newStackCardIDs) && (!targetDef || cardKind(targetDef) !== "deck")) {
                 // Optimistic: merge new stack cards into target.
                 setState((current) => {
                   if (!current) return current;
@@ -3167,8 +3577,9 @@ export default function BoardRoute() {
       if (targetID && targetID !== drag.stackId) {
         const targetStack = state()?.stacks[targetID] ?? null;
         const targetDef = topDefID(targetStack);
+        const canMergeIntoTarget = canMergeDraggedCardsIntoTarget(targetStack, draggedSourceCardIDs);
 
-        if (targetStack && isCollectDeck(targetStack) && sourceDef && !isDeckDef(sourceDef) && !isPackDef(sourceDef)) {
+        if (targetStack && canMergeIntoTarget && isCollectDeck(targetStack) && sourceDef && !isDeckDef(sourceDef) && !isPackDef(sourceDef)) {
           suppressStackClick(drag.stackId);
           // Optimistic: remove source stack so the card doesn't flash back.
           setState((current) => {
@@ -3185,7 +3596,7 @@ export default function BoardRoute() {
           return;
         }
 
-        if (sourceDef && targetDef && (cardKind(sourceDef) === "deck" || cardKind(targetDef) === "deck")) {
+        if (!canMergeIntoTarget || (sourceDef && targetDef && (cardKind(sourceDef) === "deck" || cardKind(targetDef) === "deck"))) {
           if (!moved) {
             clearLocalPosition(drag.stackId);
             return;
@@ -3362,147 +3773,173 @@ export default function BoardRoute() {
     window.setTimeout(() => createBoardInputRef?.focus(), 0);
   });
 
+  const boardSelectorFieldClass = "app-input-surface rounded-md px-2 py-1.5 text-sm text-[var(--text-main)]";
+  const boardChipClass =
+    "rounded-full border border-[var(--border-strong)] bg-[var(--panel-soft)] px-2.5 py-0.5 text-[11px] text-[var(--text-soft)]";
+  const boardSidebarClass =
+    "hidden h-full flex-col overflow-y-auto border-r border-[var(--border-strong)] bg-[var(--panel-strong-start)] text-[var(--text-main)] md:flex";
+  const boardSidebarSectionClass = "border-b border-[var(--border-strong)] px-4 py-3";
+  const boardSidebarHeadingClass = "text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]";
+  const boardSidebarCardClass = "app-panel-soft rounded-xl px-3 py-3";
+  const boardPerkChipClass =
+    "rounded-full border border-[var(--border-strong)] bg-[var(--panel)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-soft)]";
+  const boardHeaderButtonClass =
+    "app-button-secondary rounded-md px-3 py-1 text-xs font-semibold text-[var(--text-main)] disabled:opacity-60";
+  const boardWarningButtonClass =
+    "rounded-md border border-[rgba(223,173,87,0.24)] bg-[var(--warning-bg)] px-3 py-1 text-xs font-semibold text-[var(--warning)] transition disabled:opacity-60";
+  const boardDangerButtonClass =
+    "rounded-md border border-[rgba(196,98,91,0.28)] bg-[var(--danger-bg)] px-3 py-1 text-xs font-semibold text-[var(--danger)] transition disabled:opacity-60";
+  const boardModalPanelClass =
+    "app-panel-strong w-full max-w-6xl rounded-[28px] p-4 md:p-5";
+  const boardModalBackdropClass = () =>
+    isLightTheme()
+      ? "bg-[rgba(241,247,252,0.78)]"
+      : "bg-[rgba(5,7,15,0.84)]";
+  const boardModalBodyClass = "rounded-2xl border border-[var(--border-strong)] bg-[var(--panel)]";
+  const boardModalSubpanelClass = "app-panel-soft rounded-2xl p-4";
+  const boardModalHeaderBarClass =
+    "sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border-strong)] bg-[var(--panel-overlay)] px-5 py-4 backdrop-blur-sm";
+  const boardModalFooterBarClass =
+    "sticky bottom-0 flex items-center justify-between border-t border-[var(--border-strong)] bg-[var(--panel-overlay)] px-5 py-4 backdrop-blur-sm";
+  const boardModalSectionLabelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-dim)]";
+  const boardModalTextareaClass =
+    "app-input-surface w-full resize-none rounded-xl px-3 py-2 text-[var(--text-main)] outline-none";
+  const boardModalSoftNoteClass =
+    "rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-sm text-[var(--text-soft)]";
+  const boardModalWarningNoteClass =
+    "rounded-xl border border-[rgba(223,173,87,0.24)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]";
+  const boardModalChipClass =
+    "rounded-md border border-[var(--border-strong)] bg-[var(--panel-soft)] px-2 py-0.5 text-[11px] text-[var(--text-main)]";
+  const boardModalPrimaryTagClass =
+    "rounded-lg border border-[rgba(103,187,255,0.28)] bg-[rgba(103,187,255,0.14)] px-3 py-1 text-lg text-[var(--text-main)]";
+  const boardModalAccentTagClass =
+    "rounded-lg border border-[rgba(255,139,80,0.28)] bg-[var(--accent-wash)] px-3 py-1 text-lg text-[var(--accent-text)]";
+  const boardModalPriorityButtonClass = (selected: boolean) =>
+    selected
+      ? "rounded-lg border border-[rgba(255,139,80,0.3)] bg-[var(--accent-wash)] px-3 py-2 text-base font-semibold text-[var(--text-main)] transition"
+      : "app-button-secondary rounded-lg px-3 py-2 text-base font-semibold";
+  const showDeveloperBoardActions = BOARD_DEV_CONTROLS_ENABLED;
+  const boardMapToggleClass = () =>
+    isLightTheme()
+      ? "absolute right-3 top-3 z-40 rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.94)] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-main)] shadow-[0_12px_28px_rgba(56,88,124,0.16)] md:hidden"
+      : "absolute right-3 top-3 z-40 rounded-md border border-[#3d5273] bg-[#0b1321]/92 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#cfd9ee] shadow-[0_10px_26px_rgba(0,0,0,0.38)] md:hidden";
+  const boardMapPanelClass = () =>
+    isLightTheme()
+      ? "pointer-events-auto rounded-xl border border-[var(--border-strong)] bg-[rgba(255,255,255,0.95)] p-3 shadow-[0_16px_40px_rgba(56,88,124,0.16)] backdrop-blur-sm"
+      : "pointer-events-auto rounded-xl border border-[#334665] bg-[#0b1321]/94 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.45)] backdrop-blur-sm";
+  const boardMapTitleClass = () => (isLightTheme() ? "text-[var(--text-main)]" : "text-[#cfd9ee]");
+  const boardMapStatusClass = (hasOffscreen: boolean) =>
+    hasOffscreen
+      ? isLightTheme()
+        ? "text-[var(--warning)]"
+        : "text-[#f9c76f]"
+      : isLightTheme()
+        ? "text-[var(--text-soft)]"
+        : "text-[#8fa2c6]";
+  const boardMinimapSurfaceClass = () =>
+    isLightTheme()
+      ? "relative h-[144px] w-[220px] cursor-crosshair overflow-hidden rounded-lg border border-[rgba(82,111,145,0.3)] bg-[radial-gradient(circle_at_20%_0%,rgba(136,190,235,0.42),rgba(240,246,252,0.96))]"
+      : "relative h-[144px] w-[220px] cursor-crosshair overflow-hidden rounded-lg border border-[#415779] bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.28),rgba(8,14,24,0.95))]";
+  const boardMinimapGridClass = () =>
+    isLightTheme()
+      ? "pointer-events-none absolute inset-0 opacity-60 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(87,118,150,0.28)_1px,transparent_1.2px)]"
+      : "pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]";
+  const boardMinimapViewportClass = () =>
+    isLightTheme()
+      ? "pointer-events-none absolute rounded-[2px] border border-[rgba(42,74,110,0.42)] bg-[rgba(114,165,217,0.14)] shadow-[0_0_0_1px_rgba(114,165,217,0.2)]"
+      : "pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]";
+  const deckHubBackdropClass = () =>
+    isLightTheme()
+      ? "absolute inset-0 z-50 bg-[rgba(221,232,244,0.52)] backdrop-blur-[2px]"
+      : "absolute inset-0 z-50 bg-[#03060d]/55 backdrop-blur-[1px]";
+  const deckHubPanelClass = () =>
+    isLightTheme()
+      ? "absolute right-3 top-3 w-[min(460px,calc(100%-1.5rem))] rounded-xl border border-[var(--border-strong)] bg-[rgba(255,255,255,0.96)] p-3 shadow-[0_18px_48px_rgba(56,88,124,0.18)]"
+      : "absolute right-3 top-3 w-[min(460px,calc(100%-1.5rem))] rounded-xl border border-[#334865] bg-[#0c1525]/98 p-3 shadow-[0_16px_48px_rgba(0,0,0,0.55)]";
+  const deckHubTitleClass = () => (isLightTheme() ? "text-[var(--text-main)]" : "text-[#d4def1]");
+  const deckHubTextClass = () => (isLightTheme() ? "text-[var(--text-soft)]" : "text-[#93a7cc]");
+  const deckHubCloseClass = () =>
+    isLightTheme()
+      ? "rounded-md border border-[var(--border-strong)] px-2 py-1 text-xs text-[var(--text-main)] hover:border-[var(--accent)]"
+      : "rounded-md border border-[#435c84] px-2 py-1 text-xs text-[#d5e4ff] hover:border-[var(--accent)]";
+  const deckHubSectionTitleClass = () => (isLightTheme() ? "text-[var(--text-soft)]" : "text-[#9eb2d5]");
+  const deckHubSectionMetaClass = () => (isLightTheme() ? "text-[var(--text-muted)]" : "text-[#869abe]");
+  const deckHubRowZoneClass = () =>
+    isLightTheme()
+      ? "space-y-1 rounded-lg border border-[var(--border-strong)] bg-[rgba(235,242,249,0.92)] p-2"
+      : "space-y-1 rounded-lg border border-[#365073] bg-[#101f35]/85 p-2";
+  const deckHubReserveZoneClass = () =>
+    isLightTheme()
+      ? "space-y-1 rounded-lg border border-[var(--border-strong)] bg-[rgba(245,248,252,0.92)] p-2"
+      : "space-y-1 rounded-lg border border-[#304867] bg-[#0f1a2b]/85 p-2";
+  const boardCanvasClass = () =>
+    isLightTheme()
+      ? "relative h-full w-full touch-none overflow-hidden bg-[radial-gradient(circle_at_18%_0%,rgba(136,190,235,0.28),transparent_42%),linear-gradient(180deg,#f4f8fd,#e7eef6)]"
+      : "relative h-full w-full touch-none overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.22),transparent_45%),linear-gradient(180deg,#090b12,#05070d)]";
+  const boardGridOverlayClass = () =>
+    isLightTheme()
+      ? "pointer-events-none absolute inset-0 opacity-70 [background-size:22px_22px] [background-image:radial-gradient(circle_at_1px_1px,rgba(84,116,154,0.18)_1px,transparent_1.3px),radial-gradient(circle_at_1px_1px,rgba(84,116,154,0.08)_1px,transparent_1.3px)]"
+      : "pointer-events-none absolute inset-0 opacity-65 [background-size:22px_22px] [background-image:radial-gradient(circle_at_1px_1px,rgba(207,218,241,0.2)_1px,transparent_1.3px),radial-gradient(circle_at_1px_1px,rgba(207,218,241,0.1)_1px,transparent_1.3px)]";
+  const boardCanvasFadeClass = () =>
+    isLightTheme()
+      ? "pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[170px] bg-gradient-to-t from-[#d5e0ec] via-[#dbe6f0cc] to-transparent"
+      : "pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[170px] bg-gradient-to-t from-[#05070d] via-[#05070ddd] to-transparent";
+
+  const renderBoardSelectorOptions = () => (
+    <For each={boardChoices()}>
+      {(choice) => (
+        <option value={choice.boardID}>
+          {choice.name}
+          {choice.isTeamBoard ? " (Team)" : ""}
+        </option>
+      )}
+    </For>
+  );
+
   return (
     <AppShell
       activeView="board"
       accountPlacement="sidebar"
       mobileSidebar={
         <div class="space-y-3">
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Board</p>
+          <section class="app-panel-soft rounded-2xl px-3 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Board</p>
             <select
-              value={activeBoardID()}
-              onInput={(event) => switchBoard(event.currentTarget.value)}
-              class="mt-2 w-full rounded-md border border-[#395072] bg-[#0d182b] px-2 py-1.5 text-sm text-[#e0ebff] outline-none focus:border-[var(--accent)]"
+              value={boardSelectorValue()}
+              onInput={(event) => handleBoardSelectorInput(event.currentTarget.value)}
+              class={`mt-2 w-full ${boardSelectorFieldClass}`}
               data-testid="board-selector-mobile"
             >
-              <For each={boardChoices()}>
-                {(choice) => (
-                  <option value={choice.boardID}>
-                    {choice.name}
-                    {choice.isTeamBoard ? " (Team)" : ""}
-                  </option>
-                )}
-              </For>
+              {renderBoardSelectorOptions()}
             </select>
             <Show when={activeBoardChoice()?.isTeamBoard}>
-              <p class="mt-2 inline-flex rounded-md border border-[#4b5ea8] bg-[#1f2554] px-2 py-0.5 text-[11px] text-[#d5dcff]">
+              <p class={`mt-2 inline-flex ${boardChipClass}`}>
                 Team board
               </p>
             </Show>
-            <div class="mt-3 grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                onClick={openCreateBoardModal}
-                disabled={busy() || boardCrudBusy()}
-                data-testid="board-open-create-modal-mobile"
-              >
-                New board
-              </button>
-              <button
-                type="button"
-                class="rounded-md border border-[#8b6a32] bg-[#2b2111] px-2 py-1 text-xs text-[#f0d7a4] transition hover:border-[#d3a75a] disabled:opacity-60"
-                onClick={openStorePage}
-                disabled={busy()}
-                data-testid="board-open-store-mobile"
-              >
-                Store
-              </button>
-              <button
-                type="button"
-                class="rounded-md border border-[#4d5f87] bg-[#122038] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)]"
-                onClick={() => setNotificationHistoryOpen(true)}
-                data-testid="board-open-notifications-mobile"
-              >
-                Notes {toast.history().length}
-              </button>
-              <button
-                type="button"
-                class="rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
-                onClick={() => void deleteActiveBoard()}
-                disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
-              >
-                Delete
-              </button>
-            </div>
+            <p class="mt-2 text-xs text-[var(--text-soft)]">
+              Use board settings to create boards, rename them, remove them, or manage access.
+            </p>
+            <button
+              type="button"
+              class={`mt-3 ${boardHeaderButtonClass}`}
+              onClick={openCreateBoardModal}
+            >
+              Manage boards
+            </button>
+            <button
+              type="button"
+              class={`mt-2 ${boardHeaderButtonClass}`}
+              onClick={() => setNotificationHistoryOpen(true)}
+              data-testid="board-open-notifications-mobile"
+            >
+              Notes {toast.history().length}
+            </button>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Board Access</p>
-              <span class="text-[11px] text-[#9cb3d8]">{boardMembers().length} member(s)</span>
-            </div>
-
-            <Show when={!boardMembersLoading()} fallback={<p class="mt-2 text-xs text-[#9cb2d6]">Loading board members...</p>}>
-              <div class="mt-2 space-y-1.5">
-                <For each={boardMembers()}>
-                  {(member) => (
-                    <div class="rounded-md border border-[#304767] bg-[#101f35] px-2 py-1.5 text-xs text-[#dce8ff]">
-                      <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                          <p class="truncate font-semibold">{member.name || member.email}</p>
-                          <p class="truncate text-[11px] text-[#9cb2d6]">{member.email}</p>
-                        </div>
-                        <div class="flex shrink-0 items-center gap-1">
-                          <span class="rounded border border-[#3f567c] px-1 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#cddaf2]">
-                            {member.role}
-                          </span>
-                          <Show when={canManageBoardMembers() && member.userId !== currentUserID()}>
-                            <button
-                              type="button"
-                              class="rounded border border-[#6f3c3c] bg-[#2a1416] px-1.5 py-0.5 text-[10px] text-[#ffb3ad] disabled:opacity-50"
-                              onClick={() => void removeBoardMember(member.userId)}
-                              disabled={busy() || boardMembersBusy()}
-                            >
-                              Remove
-                            </button>
-                          </Show>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-
-            <Show when={canManageBoardMembers()}>
-              <div class="mt-2 flex gap-2">
-                <select
-                  value={pendingBoardMemberID()}
-                  onInput={(event) => setPendingBoardMemberID(event.currentTarget.value)}
-                  class="min-w-0 flex-1 rounded-md border border-[#3a4d6d] bg-[#0d182b] px-2 py-1.5 text-xs text-[#dce8ff] outline-none focus:border-[var(--accent)]"
-                  disabled={busy() || boardMembersBusy() || addableBoardMembers().length === 0}
-                >
-                  <For each={addableBoardMembers()}>
-                    {(member) => (
-                      <option value={member.userId}>
-                        {member.name || member.email}
-                      </option>
-                    )}
-                  </For>
-                </select>
-                <button
-                  type="button"
-                  class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                  onClick={() => void addPendingBoardMember()}
-                  disabled={busy() || boardMembersBusy() || !pendingBoardMemberID() || addableBoardMembers().length === 0}
-                >
-                  Add
-                </button>
-              </div>
-              <Show when={addableBoardMembers().length === 0}>
-                <p class="mt-2 text-[11px] text-[#9cb2d6]">All team members already have access.</p>
-              </Show>
-            </Show>
-            <Show when={!canManageBoardMembers()}>
-              <p class="mt-2 text-[11px] text-[#9cb2d6]">{boardMemberManagementNotice()}</p>
-            </Show>
-          </section>
-
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Task Summary</p>
-            <div class="mt-2 space-y-1 text-sm text-[#cfdaee]">
+          <section class="app-panel-soft rounded-2xl px-3 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Task Summary</p>
+            <div class="mt-2 space-y-1 text-sm text-[var(--text-soft)]">
               <p>
                 Danger:{" "}
                 <span class={summary().zombieCount > 0 ? "text-[#ff8c8c]" : "text-[#7ddf98]"}>
@@ -3515,29 +3952,89 @@ export default function BoardRoute() {
             </div>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
+          <section class="app-panel-soft rounded-2xl px-3 py-3">
             <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Villagers</p>
-              <span class="text-[11px] text-[#9cb3d8]">{villagerStatuses().length}</span>
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Progression</p>
+              <span class="text-[11px] text-[var(--text-soft)]">Lv 2-{state()?.meta?.progression?.maxLevel ?? 10}</span>
+            </div>
+
+            <Show
+              when={progressionLevels().length > 0}
+              fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">Progression data unavailable.</p>}
+            >
+              <div class="mt-2 space-y-1.5">
+                <For each={progressionLevels()}>
+                  {(level) => (
+                    <article class={boardSidebarCardClass}>
+                      <div class="flex items-center justify-between gap-2 text-xs">
+                        <span class="font-semibold text-[var(--text-main)]">Level {level.level}</span>
+                        <span class="text-[var(--text-soft)]">{level.threshold} XP</span>
+                      </div>
+                      <Show
+                        when={(level.perks ?? []).length > 0}
+                        fallback={<p class="mt-1 text-[11px] text-[var(--text-soft)]">No perk assigned.</p>}
+                      >
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                          <For each={level.perks ?? []}>
+                            {(perk) => (
+                              <span class={boardPerkChipClass} title={perk.summary || perk.label}>
+                                {perk.label}
+                              </span>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
+                      <Show when={(level.perks ?? []).some((perk) => dataString(perk.summary))}>
+                        <div class="mt-2 space-y-1">
+                          <For each={(level.perks ?? []).filter((perk) => dataString(perk.summary))}>
+                            {(perk) => (
+                              <p class="text-[10px] text-[var(--text-soft)]">{perk.summary}</p>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
+                    </article>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </section>
+
+          <section class="app-panel-soft rounded-2xl px-3 py-3">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Villagers</p>
+              <span class="text-[11px] text-[var(--text-soft)]">{villagerStatuses().length}</span>
             </div>
 
             <Show
               when={villagerStatuses().length > 0}
-              fallback={<p class="mt-2 text-xs text-[#9cb2d6]">No villagers on board.</p>}
+              fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">No villagers on board.</p>}
             >
               <div class="mt-2 space-y-1.5">
                 <For each={villagerStatuses()}>
                   {(villager) => (
-                    <div class="rounded-md border border-[#304767] bg-[#101f35] px-2 py-1.5 text-xs text-[#dce8ff]">
+                    <div class={boardSidebarCardClass}>
                       <div class="flex items-center justify-between gap-2">
                         <span class="truncate font-semibold">{villager.name}</span>
-                        <span class={villager.stamina <= 0 ? "text-[#ff9b9b]" : "text-[#f4d8a1]"}>STA {villager.stamina}</span>
+                        <span class={villager.stamina <= 0 ? "text-[var(--danger)]" : "text-[var(--warning)]"}>
+                          STA {villager.stamina}/{villager.maxStamina}
+                        </span>
                       </div>
-                      <p class="mt-0.5 text-[11px] text-[#9cb2d6]">
-                        Lv {villager.level} · XP {villager.xp}
+                      <p class="mt-0.5 text-[11px] text-[var(--text-soft)]">
+                        Lv {villager.level} · XP {villager.xp}/{villager.nextLevelXP}
                       </p>
+                      <p class="mt-1 text-[10px] text-[var(--text-soft)]">
+                        {villager.xpToNextLevel > 0 ? `+${villager.xpToNextLevel} to next level` : "Max level reached"}
+                      </p>
+                      <Show when={villager.perks.length > 0}>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                          <For each={villager.perks}>
+                            {(perkID) => <span class={boardPerkChipClass}>{villagerPerkLabel(perkID)}</span>}
+                          </For>
+                        </div>
+                      </Show>
                       <Show when={villager.stamina <= 0}>
-                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ff9b9b]">Needs action</p>
+                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--danger)]">Needs action</p>
                       </Show>
                     </div>
                   )}
@@ -3546,13 +4043,13 @@ export default function BoardRoute() {
             </Show>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
+          <section class="app-panel-soft rounded-2xl px-3 py-3">
             <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Quests</p>
-              <span class="text-[11px] text-[#9cb3d8]">{activeQuests().length} active</span>
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Quests</p>
+              <span class="text-[11px] text-[var(--text-soft)]">{activeQuests().length} active</span>
             </div>
 
-            <Show when={activeQuests().length > 0} fallback={<p class="mt-2 text-xs text-[#9cb2d6]">No active quests.</p>}>
+            <Show when={activeQuests().length > 0} fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">No active quests.</p>}>
               <div class="mt-2 space-y-2">
                 <For each={activeQuests().slice(0, 3)}>
                   {(quest) => {
@@ -3564,14 +4061,14 @@ export default function BoardRoute() {
                         .map((reward) => questRewardLabel(reward))
                         .join(" · ");
                     return (
-                      <article class="rounded-md border border-[#304767] bg-[#101f35] px-2 py-2">
+                      <article class="app-panel-soft rounded-xl px-2 py-2">
                         <div class="flex items-start justify-between gap-2">
-                          <p class="text-xs font-semibold text-[#e0ebff]">{quest.title}</p>
-                          <span class="rounded border border-[#3f567c] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#9fb2d8]">
+                          <p class="text-xs font-semibold text-[var(--text-main)]">{quest.title}</p>
+                          <span class={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] ${boardChipClass}`}>
                             {questTypeLabel(quest.type)}
                           </span>
                         </div>
-                        <p class="mt-1 text-[11px] text-[#99add1]">
+                        <p class="mt-1 text-[11px] text-[var(--text-soft)]">
                           {completedCount()}/{objectives().length || 1} objectives
                         </p>
                         <Show when={quest.howToComplete}>
@@ -3622,9 +4119,9 @@ export default function BoardRoute() {
             </Show>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Board Stats</p>
-            <div class="mt-2 space-y-1 text-sm text-[#cfdaee]">
+          <section class="app-panel-soft rounded-2xl px-3 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Board Stats</p>
+            <div class="mt-2 space-y-1 text-sm text-[var(--text-soft)]">
               <p>Decks: {summary().deckCount}</p>
               <p>Zombies: {summary().zombieCount}</p>
               <p>Day ticks: {summary().dayTicks}</p>
@@ -3632,9 +4129,9 @@ export default function BoardRoute() {
             </div>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Inventory</p>
-            <div class="mt-2 grid grid-cols-2 gap-1.5 text-sm text-[#cfdaee]">
+          <section class="app-panel-soft rounded-2xl px-3 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Inventory</p>
+            <div class="mt-2 grid grid-cols-2 gap-1.5 text-sm text-[var(--text-soft)]">
               <p>🪙 {summary().inventory.coin ?? 0}</p>
               <p>📄 {summary().inventory.paper ?? 0}</p>
               <p>🖋️ {summary().inventory.ink ?? 0}</p>
@@ -3643,7 +4140,7 @@ export default function BoardRoute() {
             </div>
           </section>
 
-          <p class="rounded-md border border-[#304767] bg-[#0f1a2f] px-3 py-2 text-xs text-[#9cb2d6]">
+          <p class="app-panel-soft rounded-xl px-3 py-2 text-xs text-[var(--text-soft)]">
             Deck row is pinned above the bottom tab bar on mobile.
           </p>
         </div>
@@ -3651,55 +4148,23 @@ export default function BoardRoute() {
       headerRight={
         <>
           <div class="hidden items-center gap-2 md:flex">
-            <select
-              value={activeBoardID()}
-              onInput={(event) => switchBoard(event.currentTarget.value)}
-              class="rounded-md border border-[#394b66] bg-[#131b2b] px-2 py-1 text-xs text-[#dbe7ff] outline-none focus:border-[var(--accent)]"
-              data-testid="board-selector"
-            >
-              <For each={boardChoices()}>
-                {(choice) => (
-                  <option value={choice.boardID}>
-                    {choice.name}
-                    {choice.isTeamBoard ? " (Team)" : ""}
-                  </option>
-                )}
-              </For>
-            </select>
             <Show when={activeBoardChoice()?.isTeamBoard}>
-              <span class="rounded-md border border-[#4b5ea8] bg-[#1f2554] px-2 py-0.5 text-[11px] text-[#d5dcff]">
+              <span class={boardChipClass}>
                 Team board
               </span>
             </Show>
             <button
               type="button"
-              class="rounded-md border border-[#435f83] bg-[#13253e] px-2 py-1 text-[11px] text-[#dce8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-              onClick={openCreateBoardModal}
-              disabled={busy() || boardCrudBusy()}
-              data-testid="board-open-create-modal-header"
-            >
-              New board
-            </button>
-            <button
-              type="button"
-              class="rounded-md border border-[#8b6a32] bg-[#2b2111] px-2 py-1 text-[11px] text-[#f0d7a4] transition hover:border-[#d3a75a] disabled:opacity-60"
+              class={boardWarningButtonClass}
               onClick={openStorePage}
               disabled={busy()}
               data-testid="board-open-store-header"
             >
               Store
             </button>
-            <button
-              type="button"
-              class="rounded-md border border-[#6f3c3c] bg-[#2a1416] px-2 py-1 text-[11px] text-[#ffb3ad] transition hover:border-[#a55e5a] disabled:opacity-60"
-              onClick={() => void deleteActiveBoard()}
-              disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
-            >
-              Delete board
-            </button>
           </div>
 
-          <div class="hidden items-center gap-3 text-xs text-[#aeb6c5] lg:flex">
+          <div class="hidden items-center gap-3 text-xs text-[var(--text-soft)] lg:flex">
             <span class="flex items-center gap-1" title="Coins">
               <span>🪙</span>
               <span class="tabular-nums">{summary().inventory.coin ?? 0}</span>
@@ -3724,170 +4189,77 @@ export default function BoardRoute() {
 
           <button
             type="button"
-            class="rounded-md border border-[#445f86] bg-[#122038] px-3 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)]"
+            class={boardHeaderButtonClass}
             onClick={() => setNotificationHistoryOpen(true)}
             data-testid="board-open-notifications"
           >
             Notifications {toast.history().length}
           </button>
-          <button
-            type="button"
-            class="rounded-md border border-[#7c3737] bg-[#2a1416] px-3 py-1 text-xs text-[#ff857f] transition hover:bg-[#37181b] disabled:opacity-50"
-            onClick={() => void endDay()}
-            disabled={busy()}
-            data-testid="board-end-day"
-          >
-            End Day
-          </button>
-          <button
-            type="button"
-            class="rounded-md border border-[#394357] bg-[#181f2a] px-3 py-1 text-xs text-[#d5dced] transition hover:border-[#546282] disabled:opacity-50"
-            onClick={() => void refreshBoard()}
-            disabled={busy()}
-            data-testid="board-refresh"
-          >
-            Refresh
-          </button>
+          <Show when={showDeveloperBoardActions}>
+            <>
+              <button
+                type="button"
+                class={boardDangerButtonClass}
+                onClick={() => void endDay()}
+                disabled={busy()}
+                data-testid="board-end-day"
+              >
+                End Day
+              </button>
+              <button
+                type="button"
+                class={boardHeaderButtonClass}
+                onClick={() => void refreshBoard()}
+                disabled={busy()}
+                data-testid="board-refresh"
+              >
+                Refresh
+              </button>
+            </>
+          </Show>
         </>
       }
     >
       <div class="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[280px_minmax(0,1fr)]">
-        <aside class="hidden h-full flex-col overflow-y-auto border-r border-[#252c39] bg-[#151a23] md:flex">
-          <div class="border-b border-[#252c39] px-4 py-3">
-            <p class="text-lg font-semibold tracking-wide">DONEGEON</p>
+        <aside class={boardSidebarClass}>
+          <div class={boardSidebarSectionClass}>
+            <p class="text-lg font-semibold tracking-wide text-[var(--text-main)]">DONEGEON</p>
           </div>
 
-          <section class="border-b border-[#252c39] px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Board</p>
+          <section class={boardSidebarSectionClass}>
+            <p class={boardSidebarHeadingClass}>Board</p>
             <select
-              value={activeBoardID()}
-              onInput={(event) => switchBoard(event.currentTarget.value)}
-              class="mt-2 w-full rounded-md border border-[#3a4d6d] bg-[#0f1728] px-2 py-1.5 text-sm text-[#dce8ff] outline-none focus:border-[var(--accent)]"
+              value={boardSelectorValue()}
+              onInput={(event) => handleBoardSelectorInput(event.currentTarget.value)}
+              class={`mt-2 w-full ${boardSelectorFieldClass}`}
               data-testid="board-selector-sidebar"
             >
-              <For each={boardChoices()}>
-                {(choice) => (
-                  <option value={choice.boardID}>
-                    {choice.name}
-                    {choice.isTeamBoard ? " (Team)" : ""}
-                  </option>
-                )}
-              </For>
+              {renderBoardSelectorOptions()}
             </select>
             <Show when={activeBoardChoice()?.isTeamBoard}>
-              <p class="mt-2 inline-flex rounded-md border border-[#4b5ea8] bg-[#1f2554] px-2 py-0.5 text-[11px] text-[#d5dcff]">
+              <p class={`mt-2 inline-flex ${boardChipClass}`}>
                 Team board
               </p>
             </Show>
-            <div class="mt-3 grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                onClick={openCreateBoardModal}
-                disabled={busy() || boardCrudBusy()}
-                data-testid="board-open-create-modal-sidebar"
-              >
-                New board
-              </button>
-              <button
-                type="button"
-                class="rounded-md border border-[#8b6a32] bg-[#2b2111] px-2 py-1 text-xs text-[#f0d7a4] transition hover:border-[#d3a75a] disabled:opacity-60"
-                onClick={openStorePage}
-                disabled={busy()}
-                data-testid="board-open-store-sidebar"
-              >
-                Store
-              </button>
-              <button
-                type="button"
-                class="rounded-md border border-[#6c3d3d] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#905656] disabled:opacity-60"
-                onClick={() => void deleteActiveBoard()}
-                disabled={busy() || boardCrudBusy() || activeBoardID() === DEFAULT_BOARD}
-              >
-                Delete
-              </button>
-            </div>
+            <p class="mt-2 text-xs text-[var(--text-soft)]">
+              Use board settings to create boards, rename them, remove them, or manage access.
+            </p>
+            <button
+              type="button"
+              class={`mt-3 ${boardHeaderButtonClass}`}
+              onClick={openCreateBoardModal}
+            >
+              Manage boards
+            </button>
           </section>
 
-          <section class="border-b border-[#252c39] px-4 py-3">
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Board Access</p>
-              <span class="text-[11px] text-[#8ea0ba]">{boardMembers().length} member(s)</span>
-            </div>
-
-            <Show when={!boardMembersLoading()} fallback={<p class="mt-2 text-xs text-[#8ea0ba]">Loading board members...</p>}>
-              <div class="mt-2 space-y-1.5">
-                <For each={boardMembers()}>
-                  {(member) => (
-                    <div class="rounded-md border border-[#304767] bg-[#111e30] px-2.5 py-2">
-                      <div class="flex items-start justify-between gap-2 text-xs">
-                        <div class="min-w-0">
-                          <p class="truncate font-semibold text-[#dce9ff]">{member.name || member.email}</p>
-                          <p class="truncate text-[11px] text-[#97a9c7]">{member.email}</p>
-                        </div>
-                        <div class="flex shrink-0 items-center gap-1">
-                          <span class="rounded border border-[#395278] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#9fb3d8]">
-                            {member.role}
-                          </span>
-                          <Show when={canManageBoardMembers() && member.userId !== currentUserID()}>
-                            <button
-                              type="button"
-                              class="rounded border border-[#6f3c3c] bg-[#2a1416] px-1.5 py-0.5 text-[10px] text-[#ffb3ad] disabled:opacity-50"
-                              onClick={() => void removeBoardMember(member.userId)}
-                              disabled={busy() || boardMembersBusy()}
-                            >
-                              Remove
-                            </button>
-                          </Show>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-
-            <Show when={canManageBoardMembers()}>
-              <div class="mt-2 flex gap-2">
-                <select
-                  value={pendingBoardMemberID()}
-                  onInput={(event) => setPendingBoardMemberID(event.currentTarget.value)}
-                  class="min-w-0 flex-1 rounded-md border border-[#3a4d6d] bg-[#0f1728] px-2 py-1.5 text-xs text-[#dce8ff] outline-none focus:border-[var(--accent)]"
-                  disabled={busy() || boardMembersBusy() || addableBoardMembers().length === 0}
-                >
-                  <For each={addableBoardMembers()}>
-                    {(member) => (
-                      <option value={member.userId}>
-                        {member.name || member.email}
-                      </option>
-                    )}
-                  </For>
-                </select>
-                <button
-                  type="button"
-                  class="rounded-md border border-[#406087] bg-[#162744] px-2 py-1 text-xs text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                  onClick={() => void addPendingBoardMember()}
-                  disabled={busy() || boardMembersBusy() || !pendingBoardMemberID() || addableBoardMembers().length === 0}
-                >
-                  Add
-                </button>
-              </div>
-              <Show when={addableBoardMembers().length === 0}>
-                <p class="mt-2 text-[11px] text-[#8ea0ba]">All team members already have access.</p>
-              </Show>
-            </Show>
-            <Show when={!canManageBoardMembers()}>
-              <p class="mt-2 text-[11px] text-[#8ea0ba]">{boardMemberManagementNotice()}</p>
-            </Show>
-          </section>
-
-          <div class="border-b border-[#252c39] px-4 py-3">
-            <p class="text-sm font-semibold uppercase tracking-[0.08em] text-[#d3d9e6]">Today&apos;s Goals</p>
+          <div class={boardSidebarSectionClass}>
+            <p class="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--text-main)]">Today&apos;s Goals</p>
           </div>
 
-          <section class="border-b border-[#252c39] px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Task Summary</p>
-            <div class="mt-2 space-y-1 text-sm text-[#c2cada]">
+          <section class={boardSidebarSectionClass}>
+            <p class={boardSidebarHeadingClass}>Task Summary</p>
+            <div class="mt-2 space-y-1 text-sm text-[var(--text-soft)]">
               <p>
                 Danger: <span class={summary().zombieCount > 0 ? "text-[#ff8c8c]" : "text-[#7ddf98]"}>{summary().zombieCount > 0 ? "HIGH" : "SAFE"}</span>
               </p>
@@ -3897,29 +4269,89 @@ export default function BoardRoute() {
             </div>
           </section>
 
-          <section class="border-b border-[#252c39] px-4 py-3">
+          <section class={boardSidebarSectionClass}>
             <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Villagers</p>
-              <span class="text-[11px] text-[#8ea0ba]">{villagerStatuses().length}</span>
+              <p class={boardSidebarHeadingClass}>Progression</p>
+              <span class="text-[11px] text-[var(--text-soft)]">Lv 2-{state()?.meta?.progression?.maxLevel ?? 10}</span>
+            </div>
+
+            <Show
+              when={progressionLevels().length > 0}
+              fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">Progression data unavailable.</p>}
+            >
+              <div class="mt-2 space-y-1.5">
+                <For each={progressionLevels()}>
+                  {(level) => (
+                    <article class={boardSidebarCardClass}>
+                      <div class="flex items-center justify-between gap-2 text-xs">
+                        <span class="font-semibold text-[var(--text-main)]">Level {level.level}</span>
+                        <span class="text-[var(--text-soft)]">{level.threshold} XP</span>
+                      </div>
+                      <Show
+                        when={(level.perks ?? []).length > 0}
+                        fallback={<p class="mt-1 text-[11px] text-[var(--text-soft)]">No perk assigned.</p>}
+                      >
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                          <For each={level.perks ?? []}>
+                            {(perk) => (
+                              <span class={boardPerkChipClass} title={perk.summary || perk.label}>
+                                {perk.label}
+                              </span>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
+                      <Show when={(level.perks ?? []).some((perk) => dataString(perk.summary))}>
+                        <div class="mt-2 space-y-1">
+                          <For each={(level.perks ?? []).filter((perk) => dataString(perk.summary))}>
+                            {(perk) => (
+                              <p class="text-[10px] text-[var(--text-soft)]">{perk.summary}</p>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
+                    </article>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </section>
+
+          <section class={boardSidebarSectionClass}>
+            <div class="flex items-center justify-between">
+              <p class={boardSidebarHeadingClass}>Villagers</p>
+              <span class="text-[11px] text-[var(--text-soft)]">{villagerStatuses().length}</span>
             </div>
 
             <Show
               when={villagerStatuses().length > 0}
-              fallback={<p class="mt-2 text-xs text-[#8ea0ba]">No villagers on board.</p>}
+              fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">No villagers on board.</p>}
             >
               <div class="mt-2 space-y-1.5">
                 <For each={villagerStatuses()}>
                   {(villager) => (
-                    <div class="rounded-md border border-[#304767] bg-[#111e30] px-2.5 py-2">
+                    <div class={boardSidebarCardClass}>
                       <div class="flex items-center justify-between gap-2 text-xs">
-                        <span class="truncate font-semibold text-[#dce9ff]">{villager.name}</span>
-                        <span class={villager.stamina <= 0 ? "text-[#ff9b9b]" : "text-[#ebcf8b]"}>STA {villager.stamina}</span>
+                        <span class="truncate font-semibold text-[var(--text-main)]">{villager.name}</span>
+                        <span class={villager.stamina <= 0 ? "text-[var(--danger)]" : "text-[var(--warning)]"}>
+                          STA {villager.stamina}/{villager.maxStamina}
+                        </span>
                       </div>
-                      <p class="mt-1 text-[11px] text-[#97a9c7]">
-                        Lv {villager.level} · XP {villager.xp}
+                      <p class="mt-1 text-[11px] text-[var(--text-soft)]">
+                        Lv {villager.level} · XP {villager.xp}/{villager.nextLevelXP}
                       </p>
+                      <p class="mt-1 text-[10px] text-[var(--text-soft)]">
+                        {villager.xpToNextLevel > 0 ? `+${villager.xpToNextLevel} to next level` : "Max level reached"}
+                      </p>
+                      <Show when={villager.perks.length > 0}>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                          <For each={villager.perks}>
+                            {(perkID) => <span class={boardPerkChipClass}>{villagerPerkLabel(perkID)}</span>}
+                          </For>
+                        </div>
+                      </Show>
                       <Show when={villager.stamina <= 0}>
-                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ff9b9b]">Needs action</p>
+                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--danger)]">Needs action</p>
                       </Show>
                     </div>
                   )}
@@ -3928,13 +4360,13 @@ export default function BoardRoute() {
             </Show>
           </section>
 
-          <section class="border-b border-[#252c39] px-4 py-3">
+          <section class={boardSidebarSectionClass}>
             <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Quests</p>
-              <span class="text-[11px] text-[#8ea0ba]">{activeQuests().length} active</span>
+              <p class={boardSidebarHeadingClass}>Quests</p>
+              <span class="text-[11px] text-[var(--text-soft)]">{activeQuests().length} active</span>
             </div>
 
-            <Show when={activeQuests().length > 0} fallback={<p class="mt-2 text-xs text-[#8ea0ba]">No active quests.</p>}>
+            <Show when={activeQuests().length > 0} fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">No active quests.</p>}>
               <div class="mt-2 space-y-2">
                 <For each={activeQuests().slice(0, 4)}>
                   {(quest) => {
@@ -3946,14 +4378,14 @@ export default function BoardRoute() {
                         .map((reward) => questRewardLabel(reward))
                         .join(" · ");
                     return (
-                      <article class="rounded-md border border-[#304767] bg-[#111e30] px-2.5 py-2">
+                      <article class={boardSidebarCardClass}>
                         <div class="flex items-start justify-between gap-2">
-                          <p class="text-xs font-semibold text-[#dce9ff]">{quest.title}</p>
-                          <span class="rounded border border-[#395278] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#9fb3d8]">
+                          <p class="text-xs font-semibold text-[var(--text-main)]">{quest.title}</p>
+                          <span class={boardChipClass}>
                             {questTypeLabel(quest.type)}
                           </span>
                         </div>
-                        <p class="mt-1 text-[11px] text-[#97a9c7]">
+                        <p class="mt-1 text-[11px] text-[var(--text-soft)]">
                           {completedCount()}/{objectives().length || 1} objectives
                         </p>
                         <Show when={quest.howToComplete}>
@@ -4004,9 +4436,9 @@ export default function BoardRoute() {
             </Show>
           </section>
 
-          <section class="border-b border-[#252c39] px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#8794a8]">Board Stats</p>
-            <div class="mt-2 space-y-1 text-sm text-[#c2cada]">
+          <section class={boardSidebarSectionClass}>
+            <p class={boardSidebarHeadingClass}>Board Stats</p>
+            <div class="mt-2 space-y-1 text-sm text-[var(--text-soft)]">
               <p>Decks: {summary().deckCount}</p>
               <p>Zombies: {summary().zombieCount}</p>
               <p data-testid="board-day-ticks">Day ticks: {summary().dayTicks}</p>
@@ -4014,22 +4446,22 @@ export default function BoardRoute() {
             </div>
           </section>
 
-          <div class="mt-auto border-t border-[#252c39] px-4 py-3">
+          <div class="mt-auto border-t border-[var(--border-strong)] px-4 py-3">
             <SidebarAccountCard />
           </div>
 
           <Show when={error()}>
-            <p class="mx-4 mb-4 rounded-md border border-[#7d3333] bg-[#351719] px-3 py-2 text-xs text-[#ffd0d0]">{error()}</p>
+            <p class="mx-4 mb-4 rounded-xl border border-[rgba(196,98,91,0.3)] bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger)]">{error()}</p>
           </Show>
         </aside>
 
-        <section class="relative h-full min-h-0 overflow-hidden bg-[#07090f]">
+        <section class="relative h-full min-h-0 overflow-hidden">
           <Show when={minimapModel()}>
             {(model) => (
               <>
                 <button
                   type="button"
-                  class="absolute right-3 top-3 z-40 rounded-md border border-[#3d5273] bg-[#0b1321]/92 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#cfd9ee] shadow-[0_10px_26px_rgba(0,0,0,0.38)] md:hidden"
+                  class={boardMapToggleClass()}
                   onClick={() => setMobileMapHubOpen((open) => !open)}
                   data-testid="board-mobile-map-toggle"
                 >
@@ -4038,23 +4470,23 @@ export default function BoardRoute() {
 
                 <Show when={mobileMapHubOpen()}>
                   <div class="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(240px,calc(100%-1.5rem))] -translate-x-1/2 md:hidden">
-                    <div class="pointer-events-auto rounded-xl border border-[#334665] bg-[#0b1321]/94 p-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+                    <div class={boardMapPanelClass()}>
                       <div class="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.1em]">
-                        <span class="text-[#cfd9ee]">Map Hub</span>
-                        <span class={model().offscreenCount > 0 ? "text-[#f9c76f]" : "text-[#8fa2c6]"}>
+                        <span class={boardMapTitleClass()}>Map Hub</span>
+                        <span class={boardMapStatusClass(model().offscreenCount > 0)}>
                           {model().offscreenCount > 0 ? `${model().offscreenCount} off-screen` : "All visible"}
                         </span>
                       </div>
 
                       <div
-                        class="relative mx-auto h-[144px] w-[220px] cursor-crosshair overflow-hidden rounded-lg border border-[#415779] bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.28),rgba(8,14,24,0.95))]"
+                        class={`mx-auto ${boardMinimapSurfaceClass()}`}
                         onPointerDown={onMinimapPointerDown}
                         onPointerMove={onMinimapPointerMove}
                         onPointerUp={onMinimapPointerUp}
                         title="Drag or click to recenter board"
                         data-testid="board-minimap-mobile"
                       >
-                        <div class="pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]" />
+                        <div class={boardMinimapGridClass()} />
 
                         <For each={model().dots}>
                           {(dot) => (
@@ -4071,7 +4503,7 @@ export default function BoardRoute() {
                         </For>
 
                         <div
-                          class="pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]"
+                          class={boardMinimapViewportClass()}
                           data-testid="board-minimap-mobile-viewport"
                           style={{
                             left: `${model().viewportRect.x}px`,
@@ -4086,23 +4518,23 @@ export default function BoardRoute() {
                 </Show>
 
                 <div class="pointer-events-none absolute right-3 top-3 z-40 hidden md:block">
-                  <div class="pointer-events-auto rounded-xl border border-[#334665] bg-[#0b1321]/94 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+                  <div class={boardMapPanelClass()}>
                     <div class="mb-2 flex items-center justify-between gap-4 text-[11px] uppercase tracking-[0.11em]">
-                      <span class="text-[#cfd9ee]">Map Hub</span>
-                      <span class={model().offscreenCount > 0 ? "text-[#f9c76f]" : "text-[#8fa2c6]"}>
+                      <span class={boardMapTitleClass()}>Map Hub</span>
+                      <span class={boardMapStatusClass(model().offscreenCount > 0)}>
                         {model().offscreenCount > 0 ? `${model().offscreenCount} off-screen` : "All visible"}
                       </span>
                     </div>
 
                     <div
-                      class="relative h-[144px] w-[220px] cursor-crosshair overflow-hidden rounded-lg border border-[#415779] bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.28),rgba(8,14,24,0.95))]"
+                      class={boardMinimapSurfaceClass()}
                       onPointerDown={onMinimapPointerDown}
                       onPointerMove={onMinimapPointerMove}
                       onPointerUp={onMinimapPointerUp}
                       title="Drag or click to recenter board"
                       data-testid="board-minimap-desktop"
                     >
-                      <div class="pointer-events-none absolute inset-0 opacity-45 [background-size:12px_12px] [background-image:radial-gradient(circle_at_1px_1px,rgba(188,201,230,0.35)_1px,transparent_1.2px)]" />
+                      <div class={boardMinimapGridClass()} />
 
                       <For each={model().dots}>
                         {(dot) => (
@@ -4119,7 +4551,7 @@ export default function BoardRoute() {
                       </For>
 
                       <div
-                        class="pointer-events-none absolute rounded-[2px] border border-[#f0f4ff] bg-[#dce7ff]/10 shadow-[0_0_0_1px_rgba(220,231,255,0.2)]"
+                        class={boardMinimapViewportClass()}
                         data-testid="board-minimap-desktop-viewport"
                         style={{
                           left: `${model().viewportRect.x}px`,
@@ -4137,25 +4569,25 @@ export default function BoardRoute() {
 
           <Show when={deckHubOpen()}>
             <div
-              class="absolute inset-0 z-50 bg-[#03060d]/55 backdrop-blur-[1px]"
+              class={deckHubBackdropClass()}
               onPointerDown={() => {
                 setDeckHubOpen(false);
                 setDeckHubDragDefID(null);
               }}
             >
               <div
-                class="absolute right-3 top-3 w-[min(460px,calc(100%-1.5rem))] rounded-xl border border-[#334865] bg-[#0c1525]/98 p-3 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+                class={deckHubPanelClass()}
                 onPointerDown={(event) => event.stopPropagation()}
                 data-testid="board-deck-hub-panel"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <div>
-                    <p class="text-sm font-semibold uppercase tracking-[0.16em] text-[#d4def1]">Deck Hub</p>
-                    <p class="text-xs text-[#93a7cc]">Drag decks between row and reserve.</p>
+                    <p class={`text-sm font-semibold uppercase tracking-[0.16em] ${deckHubTitleClass()}`}>Deck Hub</p>
+                    <p class={`text-xs ${deckHubTextClass()}`}>Drag decks between row and reserve.</p>
                   </div>
                   <button
                     type="button"
-                    class="rounded-md border border-[#435c84] px-2 py-1 text-xs text-[#d5e4ff] hover:border-[var(--accent)]"
+                    class={deckHubCloseClass()}
                     onClick={() => setDeckHubOpen(false)}
                   >
                     Close
@@ -4165,11 +4597,11 @@ export default function BoardRoute() {
                 <div class="space-y-3">
                   <section>
                     <div class="mb-1 flex items-center justify-between">
-                      <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9eb2d5]">Deck Row</p>
-                      <p class="text-[11px] text-[#869abe]">Visible: {deckRowDefIDs().length}</p>
+                      <p class={`text-[11px] font-semibold uppercase tracking-[0.12em] ${deckHubSectionTitleClass()}`}>Deck Row</p>
+                      <p class={`text-[11px] ${deckHubSectionMetaClass()}`}>Visible: {deckRowDefIDs().length}</p>
                     </div>
                     <div
-                      class="space-y-1 rounded-lg border border-[#365073] bg-[#101f35]/85 p-2"
+                      class={deckHubRowZoneClass()}
                       data-testid="board-deck-hub-row-dropzone"
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => handleDeckHubDropToRow(event)}
@@ -4204,7 +4636,7 @@ export default function BoardRoute() {
                       </For>
 
                       <Show when={deckRowDefIDs().length === 0}>
-                        <p class="rounded-md border border-dashed border-[#42628f] bg-[#13223a] px-2 py-2 text-[11px] text-[#8ca5cd]">
+                        <p class={`rounded-md border border-dashed px-2 py-2 text-[11px] ${isLightTheme() ? "border-[var(--border-strong)] bg-[rgba(255,255,255,0.8)] text-[var(--text-soft)]" : "border-[#42628f] bg-[#13223a] text-[#8ca5cd]"}`}>
                           No decks in row.
                         </p>
                       </Show>
@@ -4213,11 +4645,11 @@ export default function BoardRoute() {
 
                   <section>
                     <div class="mb-1 flex items-center justify-between">
-                      <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9eb2d5]">Reserve</p>
-                      <p class="text-[11px] text-[#869abe]">Hidden: {deckOverflowDefIDs().length}</p>
+                      <p class={`text-[11px] font-semibold uppercase tracking-[0.12em] ${deckHubSectionTitleClass()}`}>Reserve</p>
+                      <p class={`text-[11px] ${deckHubSectionMetaClass()}`}>Hidden: {deckOverflowDefIDs().length}</p>
                     </div>
                     <div
-                      class="space-y-1 rounded-lg border border-[#304867] bg-[#0f1a2b]/85 p-2"
+                      class={deckHubReserveZoneClass()}
                       data-testid="board-deck-hub-reserve-dropzone"
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => handleDeckHubDropToReserve(event)}
@@ -4252,7 +4684,7 @@ export default function BoardRoute() {
                       </For>
 
                       <Show when={deckOverflowDefIDs().length === 0}>
-                        <p class="rounded-md border border-dashed border-[#375172] bg-[#121f32] px-2 py-2 text-[11px] text-[#8ca5cd]">
+                        <p class={`rounded-md border border-dashed px-2 py-2 text-[11px] ${isLightTheme() ? "border-[var(--border-strong)] bg-[rgba(255,255,255,0.8)] text-[var(--text-soft)]" : "border-[#375172] bg-[#121f32] text-[#8ca5cd]"}`}>
                           No extra decks.
                         </p>
                       </Show>
@@ -4265,22 +4697,22 @@ export default function BoardRoute() {
 
           <div
             ref={boardRef}
-            class="relative h-full w-full touch-none overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(60,85,125,0.22),transparent_45%),linear-gradient(180deg,#090b12,#05070d)]"
+            class={boardCanvasClass()}
             onPointerDown={onBoardPointerDown}
             data-testid="board-canvas"
             data-pan-x={String(boardPan().x)}
             data-pan-y={String(boardPan().y)}
           >
             <div
-              class="pointer-events-none absolute inset-0 opacity-65 [background-size:22px_22px] [background-image:radial-gradient(circle_at_1px_1px,rgba(207,218,241,0.2)_1px,transparent_1.3px),radial-gradient(circle_at_1px_1px,rgba(207,218,241,0.1)_1px,transparent_1.3px)]"
+              class={boardGridOverlayClass()}
               style={{
                 "background-position": `${boardPan().x}px ${boardPan().y}px, ${boardPan().x + 11}px ${boardPan().y + 11}px`,
               }}
               data-testid="board-grid-overlay"
             />
-            <div class="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[170px] bg-gradient-to-t from-[#05070d] via-[#05070ddd] to-transparent" />
+            <div class={boardCanvasFadeClass()} />
 
-            <Show when={!loading()} fallback={<p class="p-4 text-sm text-[#a2adbf]">Loading board...</p>}>
+            <Show when={!loading()} fallback={<p class="p-4 text-sm text-[var(--text-soft)]">Loading board...</p>}>
               <div
                 class="absolute inset-0"
                 data-testid="board-world-layer"
@@ -4334,11 +4766,11 @@ export default function BoardRoute() {
                           topIsDeckLike() ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
                         } ${
                           isMergeTarget()
-                            ? "ring-2 ring-[#efb05f] ring-offset-2 ring-offset-[#07090f]"
+                            ? "ring-2 ring-[#efb05f] ring-offset-2 ring-offset-[var(--bg-base)]"
                             : isExhaustedVillager()
-                              ? "ring-2 ring-[#f87171] ring-offset-2 ring-offset-[#07090f] shadow-[0_0_0_1px_rgba(248,113,113,0.34),0_0_26px_rgba(248,113,113,0.28)]"
+                              ? "ring-2 ring-[#f87171] ring-offset-2 ring-offset-[var(--bg-base)] shadow-[0_0_0_1px_rgba(248,113,113,0.34),0_0_26px_rgba(248,113,113,0.28)]"
                               : hasNextActionModifier()
-                              ? "ring-2 ring-[#facc15]/90 ring-offset-2 ring-offset-[#07090f] shadow-[0_0_0_1px_rgba(250,204,21,0.36),0_0_26px_rgba(250,204,21,0.34)]"
+                              ? "ring-2 ring-[#facc15]/90 ring-offset-2 ring-offset-[var(--bg-base)] shadow-[0_0_0_1px_rgba(250,204,21,0.36),0_0_26px_rgba(250,204,21,0.34)]"
                               : ""
                         }`}
                         style={{
@@ -4583,22 +5015,22 @@ export default function BoardRoute() {
 
       <Show when={notificationHistoryOpen()}>
         <div
-          class="fixed inset-0 z-[78] flex items-center justify-center bg-[#05070fcc]/90 p-3 md:p-4"
+          class={`fixed inset-0 z-[78] flex items-center justify-center p-3 backdrop-blur-sm md:p-4 ${boardModalBackdropClass()}`}
           onClick={() => setNotificationHistoryOpen(false)}
         >
           <div
-            class="w-full max-w-lg rounded-2xl border border-[#2b3c57] bg-[linear-gradient(180deg,#101a2c,#0d1523)] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.55)]"
+            class="app-panel-strong w-full max-w-lg rounded-[28px] p-4"
             onClick={(event) => event.stopPropagation()}
             data-testid="board-notification-history"
           >
             <div class="flex items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Recent Notifications</p>
-                <p class="mt-1 text-sm text-[#b5c7e6]">Recent board alerts and status messages for this session.</p>
+                <p class="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Recent Notifications</p>
+                <p class="mt-1 text-sm text-[var(--text-soft)]">Recent board alerts and status messages for this session.</p>
               </div>
               <button
                 type="button"
-                class="rounded-md border border-[#435c84] px-2 py-1 text-xs text-[#d5e4ff] hover:border-[var(--accent)]"
+                class={boardHeaderButtonClass}
                 onClick={() => setNotificationHistoryOpen(false)}
               >
                 Close
@@ -4609,7 +5041,7 @@ export default function BoardRoute() {
               <Show
                 when={toast.history().length > 0}
                 fallback={
-                  <p class="rounded-lg border border-[#304867] bg-[#101f35]/85 px-3 py-3 text-sm text-[#a8bddf]">
+                  <p class={boardModalSoftNoteClass}>
                     No notifications yet.
                   </p>
                 }
@@ -4635,7 +5067,7 @@ export default function BoardRoute() {
             <div class="mt-4 flex justify-end">
               <button
                 type="button"
-                class="rounded-md border border-[#3f567c] bg-[#16253f] px-3 py-1.5 text-sm text-[#dbe8ff] transition hover:border-[var(--accent)]"
+                class={boardHeaderButtonClass}
                 onClick={() => toast.clearHistory()}
                 disabled={toast.history().length === 0}
               >
@@ -4648,78 +5080,292 @@ export default function BoardRoute() {
 
       <Show when={createBoardModalOpen()}>
         <div
-          class="fixed inset-0 z-[80] flex items-center justify-center bg-[#05070fcc]/90 p-3 md:p-4"
+          class={`fixed inset-0 z-[80] flex items-center justify-center p-3 backdrop-blur-sm md:p-4 ${boardModalBackdropClass()}`}
           onClick={closeCreateBoardModal}
         >
           <div
-            class="w-full max-w-md rounded-2xl border border-[#2b3c57] bg-[linear-gradient(180deg,#101a2c,#0d1523)] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.55)]"
+            class={boardModalPanelClass}
             onClick={(event) => event.stopPropagation()}
             data-testid="board-create-modal"
           >
-            <p class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Create Board</p>
-            <p class="mt-1 text-sm text-[#b5c7e6]">
-              Name your board. Spaces are allowed, and quick add will use a slug token.
-            </p>
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Board Settings</p>
+                <p class="mt-1 text-sm text-[var(--text-soft)]">
+                  Create boards, rename them, remove them, and manage which teammates can access each board.
+                </p>
+              </div>
+              <button
+                type="button"
+                class={boardHeaderButtonClass}
+                onClick={closeCreateBoardModal}
+                disabled={boardCrudBusy()}
+              >
+                Close
+              </button>
+            </div>
 
-            <form
-              class="mt-4 space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitCreateBoardFromModal();
-              }}
-            >
-              <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#8ca1c5]">
-                Board name
-                <input
-                  ref={createBoardInputRef}
-                  value={newBoardName()}
-                  onInput={(event) => setNewBoardName(event.currentTarget.value)}
-                  placeholder="Sprint Board"
-                  class="mt-1 w-full rounded-md border border-[#3a4d6d] bg-[#0f1728] px-2.5 py-2 text-sm text-[#dce8ff] outline-none focus:border-[var(--accent)]"
-                  data-testid="board-create-name-input"
-                />
-              </label>
-              <Show when={createBoardSlugHint()}>
-                {(slug) => (
-                  <p class="rounded-md border border-[#3a4d70] bg-[#121f34] px-2.5 py-1.5 text-xs text-[#d6e5ff]">
-                    Quick add token: <span class="font-semibold text-[#ecf3ff]">#{slug()}</span>
-                  </p>
+            <div class="mt-4 grid gap-4 md:grid-cols-[260px_minmax(0,1fr)]">
+              <div class="space-y-4">
+                <section class="app-panel-soft rounded-2xl p-4">
+                  <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Create board</p>
+                  <form
+                    class="mt-3 space-y-3"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void submitCreateBoardFromModal();
+                    }}
+                  >
+                    <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+                      Board name
+                      <input
+                        ref={createBoardInputRef}
+                        value={newBoardName()}
+                        onInput={(event) => setNewBoardName(event.currentTarget.value)}
+                        placeholder="Sprint Board"
+                        class="app-input-surface mt-1 w-full rounded-xl px-3 py-2 text-sm"
+                        data-testid="board-create-name-input"
+                      />
+                    </label>
+                    <Show when={createBoardSlugHint()}>
+                      {(slug) => (
+                        <p class="rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--text-soft)]">
+                          Quick add token: <span class="font-semibold text-[var(--text-main)]">#{slug()}</span>
+                        </p>
+                      )}
+                    </Show>
+                    <button
+                      type="submit"
+                      class="app-button-primary w-full rounded-xl border border-[rgba(255,139,80,0.28)] px-3 py-2 text-sm font-semibold disabled:opacity-60"
+                      disabled={boardCrudBusy() || !newBoardName().trim()}
+                      data-testid="board-create-submit"
+                    >
+                      {boardCrudBusy() ? "Creating..." : "Create board"}
+                    </button>
+                  </form>
+                </section>
+
+                <section class="app-panel-soft rounded-2xl p-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Boards</p>
+                    <span class="text-xs text-[var(--text-soft)]">{boardChoices().length}</span>
+                  </div>
+                  <div class="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                    <For each={boardChoices()}>
+                      {(choice) => {
+                        const selected = () => managedBoardID() === choice.boardID;
+                        const isActive = () => activeBoardID() === choice.boardID;
+                        return (
+                          <button
+                            type="button"
+                            class={`w-full rounded-2xl border px-3 py-3 text-left transition ${
+                              selected()
+                                ? "border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)]"
+                                : "border-[var(--border-strong)] bg-[var(--panel)] hover:border-[var(--border-hover)]"
+                            }`}
+                            onClick={() => setManagedBoard(choice.boardID)}
+                          >
+                            <div class="flex items-start justify-between gap-3">
+                              <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold text-[var(--text-main)]">{choice.name}</p>
+                                <p class="mt-1 text-xs text-[var(--text-soft)]">
+                                  {choice.isTeamBoard ? "Shared team board" : "Personal board"}
+                                </p>
+                              </div>
+                              <div class="flex shrink-0 flex-col items-end gap-1">
+                                <Show when={choice.isTeamBoard}>
+                                  <span class={boardChipClass}>Team</span>
+                                </Show>
+                                <Show when={isActive()}>
+                                  <span class={boardChipClass}>Open</span>
+                                </Show>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </section>
+              </div>
+
+              <Show
+                when={managedBoardChoice()}
+                fallback={
+                  <section class="app-panel-soft rounded-2xl p-4">
+                    <p class="text-sm text-[var(--text-soft)]">Select a board to manage.</p>
+                  </section>
+                }
+              >
+                {(choice) => (
+                  <div class="space-y-4">
+                    <section class="app-panel-soft rounded-2xl p-4">
+                      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Board details</p>
+                          <p class="mt-1 text-lg font-semibold text-[var(--text-main)]">{choice().name}</p>
+                          <p class="mt-1 text-sm text-[var(--text-soft)]">
+                            {choice().isTeamBoard ? "This board belongs to your team workspace." : "This board belongs to your personal workspace."}
+                          </p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                          <Show when={managedBoardID() !== activeBoardID()}>
+                            <button
+                              type="button"
+                              class={boardHeaderButtonClass}
+                              onClick={() => switchBoard(managedBoardID())}
+                            >
+                              Open board
+                            </button>
+                          </Show>
+                          <button
+                            type="button"
+                            class={boardDangerButtonClass}
+                            disabled={boardCrudBusy() || managedBoardID() === DEFAULT_BOARD}
+                            onClick={() => void deleteBoard(managedBoardID())}
+                          >
+                            Delete board
+                          </button>
+                        </div>
+                      </div>
+
+                      <form
+                        class="mt-4 flex flex-col gap-3 md:flex-row md:items-end"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void renameManagedBoard();
+                        }}
+                      >
+                        <label class="flex-1 text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+                          Board name
+                          <input
+                            value={managedBoardName()}
+                            onInput={(event) => setManagedBoardName(event.currentTarget.value)}
+                            class="app-input-surface mt-1 w-full rounded-xl px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <button
+                          type="submit"
+                          class={boardHeaderButtonClass}
+                          disabled={boardCrudBusy() || !managedBoardName().trim()}
+                        >
+                          {boardCrudBusy() ? "Saving..." : "Save name"}
+                        </button>
+                      </form>
+                      <Show when={managedBoardID() === DEFAULT_BOARD}>
+                        <p class="mt-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--text-soft)]">
+                          The default board can be renamed, but it cannot be deleted.
+                        </p>
+                      </Show>
+                    </section>
+
+                    <section class="app-panel-soft rounded-2xl p-4">
+                      <div class="flex items-center justify-between gap-3">
+                        <div>
+                          <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Board access</p>
+                          <p class="mt-1 text-sm text-[var(--text-soft)]">
+                            Select or deselect teammates to control access for <span class="font-semibold text-[var(--text-main)]">{choice().name}</span>.
+                          </p>
+                        </div>
+                        <span class={boardChipClass}>{boardMembers().length} member(s)</span>
+                      </div>
+
+                      <Show
+                        when={canManageBoardMembers()}
+                        fallback={
+                          <p class="mt-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-sm text-[var(--text-soft)]">
+                            {boardMemberManagementNotice()}
+                          </p>
+                        }
+                      >
+                        <>
+                          <Show
+                            when={teamSettings()?.members && teamSettings()!.members.length > 0}
+                            fallback={
+                              <p class="mt-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-sm text-[var(--text-soft)]">
+                                No team members are available yet.
+                              </p>
+                            }
+                          >
+                            <div class="mt-3 space-y-2">
+                              <For each={teamSettings()?.members ?? []}>
+                                {(member) => {
+                                  const checked = () => boardMemberIDs().has(member.userId);
+                                  const disabled = () => boardMembersBusy() || (member.userId === currentUserID() && checked());
+                                  return (
+                                    <label class="flex items-start gap-3 rounded-2xl border border-[var(--border-strong)] bg-[var(--panel)] px-3 py-3">
+                                      <input
+                                        type="checkbox"
+                                        class="mt-1 h-4 w-4 accent-[var(--accent)]"
+                                        checked={checked()}
+                                        disabled={disabled()}
+                                        onChange={(event) => void toggleManagedBoardMember(member, event.currentTarget.checked)}
+                                      />
+                                      <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-semibold text-[var(--text-main)]">{member.name || member.email}</p>
+                                        <p class="truncate text-xs text-[var(--text-soft)]">{member.email}</p>
+                                      </div>
+                                      <span class={boardChipClass}>{member.role}</span>
+                                    </label>
+                                  );
+                                }}
+                              </For>
+                            </div>
+                          </Show>
+
+                          <div class="mt-4 border-t border-[var(--border-strong)] pt-4">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+                              Add by email
+                              <textarea
+                                rows={3}
+                                value={boardInviteEmail()}
+                                onInput={(event) => setBoardInviteEmail(event.currentTarget.value)}
+                                class="app-input-surface mt-1 w-full rounded-xl px-3 py-2 text-sm"
+                                placeholder="teammate@company.com"
+                                disabled={boardMembersBusy()}
+                              />
+                            </label>
+                            <p class="mt-2 text-xs text-[var(--text-soft)]">
+                              Existing team members are added immediately. Unknown emails receive a team invite first, then they can be added to the board after accepting.
+                            </p>
+                            <Show when={!canManageBoardInvites()}>
+                              <p class="mt-2 rounded-xl border border-[rgba(223,173,87,0.24)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]">
+                                Invite-by-email requires team invite access on this workspace.
+                              </p>
+                            </Show>
+                            <button
+                              type="button"
+                              class={`mt-3 ${boardHeaderButtonClass}`}
+                              onClick={() => void inviteBoardMembersByEmail()}
+                              disabled={boardMembersBusy() || !boardInviteEmail().trim()}
+                            >
+                              {boardMembersBusy() ? "Working..." : "Add or invite"}
+                            </button>
+                          </div>
+                        </>
+                      </Show>
+                    </section>
+                  </div>
                 )}
               </Show>
-              <div class="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  class="rounded-md border border-[#3f567c] bg-[#16253f] px-3 py-1.5 text-sm text-[#dbe8ff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                  onClick={closeCreateBoardModal}
-                  disabled={boardCrudBusy()}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  class="rounded-md border border-[#406087] bg-[#1c3153] px-3 py-1.5 text-sm font-semibold text-[#e5efff] transition hover:border-[var(--accent)] disabled:opacity-60"
-                  disabled={boardCrudBusy() || !newBoardName().trim()}
-                  data-testid="board-create-submit"
-                >
-                  {boardCrudBusy() ? "Creating..." : "Create board"}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       </Show>
 
       <Show when={isDetailOpen() && !!selectedTaskCard()}>
-        <div class="fixed inset-0 z-[70] flex items-center justify-center bg-[#05070fcc]/90 p-2 pb-[calc(72px+env(safe-area-inset-bottom))] md:p-4">
+        <div
+          class={`fixed inset-0 z-[70] flex items-center justify-center p-2 pb-[calc(72px+env(safe-area-inset-bottom))] backdrop-blur-sm md:p-4 ${boardModalBackdropClass()}`}
+        >
           <div
-            class="w-full max-w-3xl max-h-[92dvh] overflow-y-auto rounded-2xl border border-[#2a3242] bg-[linear-gradient(180deg,#101825,#0b121d)] shadow-[0_24px_64px_rgba(0,0,0,0.55)] md:max-h-[92vh]"
+            class="app-panel-strong max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-[28px] md:max-h-[92vh]"
             data-testid="board-detail-modal"
           >
-            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[#273247] bg-[#101825]/96 px-5 py-4 backdrop-blur-sm">
-              <p class="text-2xl font-semibold tracking-tight">Task Details</p>
+            <div class={boardModalHeaderBarClass}>
+              <p class="font-display text-2xl font-semibold tracking-tight text-[var(--text-main)]">Task Details</p>
               <button
                 type="button"
-                class="rounded-lg border border-[#466083] px-3 py-1.5 text-sm text-[#dbe7ff] hover:border-[var(--accent)]"
+                class="app-button-secondary rounded-lg px-3 py-1.5 text-sm font-semibold"
                 onClick={closeDetail}
               >
                 ✕
@@ -4727,24 +5373,26 @@ export default function BoardRoute() {
             </div>
 
             <div class="space-y-6 p-5 md:p-6">
-              <section class="rounded-xl border border-[#2b446d] bg-[#0d172a]/90 p-4">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#8c99af]">Task</p>
-                <div class="rounded-xl border border-[#334b73] bg-[#0b1426] p-4">
+              <section class={boardModalSubpanelClass}>
+                <p class={`${boardModalSectionLabelClass} mb-3`}>Task</p>
+                <div class={`${boardModalBodyClass} p-4`}>
                   <div class="mb-3 flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-[#355077] bg-[#121f36] text-xl">📋</div>
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] text-xl text-[var(--text-main)]">
+                      📋
+                    </div>
                     <div class="min-w-0 flex-1">
                       <textarea
                         rows={3}
                         value={detailTitle()}
                         onInput={(event) => onDetailTitleInput(event.currentTarget.value)}
-                        class="w-full resize-none rounded-lg border border-[#355077] bg-[#0f1828] px-3 py-2 text-base leading-tight font-semibold text-[#edf3ff] outline-none focus:border-[var(--accent)] md:text-2xl"
+                        class={`${boardModalTextareaClass} text-base leading-tight font-semibold md:text-2xl`}
                         data-testid="board-detail-title"
                       />
                     </div>
                   </div>
 
                   <Show when={detailTokens().length > 0}>
-                    <div class="mb-3 rounded-lg border border-[#30496f] bg-[#0e1a30] px-3 py-2 text-sm leading-relaxed text-[#d8e4fb]">
+                    <div class="mb-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-sm leading-relaxed text-[var(--text-soft)]">
                       <For each={detailTokens()}>
                         {(token) => (
                           <span class={token.kind === "text" ? "" : `rounded-[4px] ${tokenClass(token.kind)}`}>
@@ -4756,14 +5404,14 @@ export default function BoardRoute() {
                   </Show>
 
                   <Show when={detailParsing()}>
-                    <p class="mb-2 text-xs text-[#8fa6cb]">Parsing schedule…</p>
+                    <p class="mb-2 text-xs text-[var(--text-dim)]">Parsing schedule…</p>
                   </Show>
 
                   <Show when={detailParsedChips().length > 0}>
                     <div class="mb-3 flex flex-wrap gap-1.5">
                       <For each={detailParsedChips()}>
                         {(chip) => (
-                          <span class="rounded-md border border-[#3a4d70] bg-[#121f34] px-2 py-0.5 text-[11px] text-[var(--text-main)]">
+                          <span class={boardModalChipClass}>
                             {chip}
                           </span>
                         )}
@@ -4775,7 +5423,7 @@ export default function BoardRoute() {
                     <div class="mb-3 space-y-1">
                       <For each={detailModifierHints()}>
                         {(hint) => (
-                          <p class="rounded-md border border-[#5f4a2a] bg-[#2b2112] px-2.5 py-1.5 text-xs text-[#f7d9a1]">
+                          <p class={boardModalWarningNoteClass}>
                             {hint}
                           </p>
                         )}
@@ -4784,23 +5432,23 @@ export default function BoardRoute() {
                   </Show>
 
                   <Show when={detailScheduleInput() || detailStoredDue() || detailStoredDeadline()}>
-                    <div class="mb-3 space-y-1 rounded-md border border-[#2d4b73] bg-[#0d1a30] px-2.5 py-2 text-xs text-[#c9daf8]">
+                    <div class="mb-3 space-y-1 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--text-soft)]">
                       <Show when={detailScheduleInput()}>
                         <p>
-                          Input: <span class="text-[#e8f1ff]">{detailScheduleInput()}</span>
+                          Input: <span class="text-[var(--text-main)]">{detailScheduleInput()}</span>
                         </p>
                       </Show>
                       <Show when={detailDueInputToken() || detailStoredDue()}>
                         <p>
                           Due:
                           <Show when={detailDueInputToken()}>
-                            <span class="ml-1 text-[#9ec1ff]">{detailDueInputToken()}</span>
+                            <span class="ml-1 text-[var(--accent-text)]">{detailDueInputToken()}</span>
                           </Show>
                           <Show when={detailDueInputToken() && detailStoredDue()}>
-                            <span class="mx-1 text-[#88a4d1]">{"->"}</span>
+                            <span class="mx-1 text-[var(--text-dim)]">{"->"}</span>
                           </Show>
                           <Show when={detailStoredDue()}>
-                            <span class="text-[#e8f1ff]">
+                            <span class="text-[var(--text-main)]">
                               {formatScheduleDateTime(detailStoredDue()) ?? detailStoredDue()}
                             </span>
                           </Show>
@@ -4810,13 +5458,13 @@ export default function BoardRoute() {
                         <p>
                           Deadline:
                           <Show when={detailDeadlineInputToken()}>
-                            <span class="ml-1 text-[#b8b5ff]">{detailDeadlineInputToken()}</span>
+                            <span class="ml-1 text-[var(--accent-text)]">{detailDeadlineInputToken()}</span>
                           </Show>
                           <Show when={detailDeadlineInputToken() && detailStoredDeadline()}>
-                            <span class="mx-1 text-[#88a4d1]">{"->"}</span>
+                            <span class="mx-1 text-[var(--text-dim)]">{"->"}</span>
                           </Show>
                           <Show when={detailStoredDeadline()}>
-                            <span class="text-[#e8f1ff]">
+                            <span class="text-[var(--text-main)]">
                               {formatScheduleDateTime(detailStoredDeadline()) ?? detailStoredDeadline()}
                             </span>
                           </Show>
@@ -4825,7 +5473,7 @@ export default function BoardRoute() {
                     </div>
                   </Show>
                   <Show when={detailScheduleWarning()}>
-                    <p class="mb-3 rounded-md border border-[#5f4a2a] bg-[#2b2112] px-2.5 py-1.5 text-xs text-[#f7d9a1]">
+                    <p class={`mb-3 ${boardModalWarningNoteClass}`}>
                       {detailScheduleWarning()}
                     </p>
                   </Show>
@@ -4834,13 +5482,13 @@ export default function BoardRoute() {
                     rows={5}
                     value={detailDescription()}
                     onInput={(event) => setDetailDescription(event.currentTarget.value)}
-                    class="w-full rounded-lg border border-[#355077] bg-[#0f1828] px-3 py-2 text-[15px] text-[#dbe6f8] outline-none focus:border-[var(--accent)]"
+                    class={`${boardModalTextareaClass} text-[15px]`}
                     data-testid="board-detail-description"
                   />
 
                   <button
                     type="button"
-                    class="mt-3 w-full rounded-lg border border-[#3c4f74] bg-[#1b2941] px-4 py-2 text-base font-semibold text-[#e6efff] hover:border-[var(--accent)]"
+                    class="app-button-secondary mt-3 w-full rounded-xl px-4 py-2 text-base font-semibold"
                     onClick={openInTaskPage}
                   >
                     View in Tasks Page
@@ -4849,17 +5497,13 @@ export default function BoardRoute() {
               </section>
 
               <section>
-                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#8c99af]">Priority</p>
+                <p class={`${boardModalSectionLabelClass} mb-2`}>Priority</p>
                 <div class="grid grid-cols-5 gap-2">
                   <For each={[0, 1, 2, 3, 4]}>
                     {(value) => (
                       <button
                         type="button"
-                        class={`rounded-lg border px-3 py-2 text-base font-semibold transition ${
-                          detailPriority() === value || (value === 0 && detailPriority() <= 0)
-                            ? "border-[#6a83ad] bg-[#3b4d6a] text-[#eef3ff]"
-                            : "border-[#334763] bg-[#0c1526] text-[#7f90ad] hover:border-[#4a5f83]"
-                        }`}
+                        class={boardModalPriorityButtonClass(detailPriority() === value || (value === 0 && detailPriority() <= 0))}
                         onClick={() => setDetailPriority(value === 0 ? 4 : value)}
                       >
                         {value === 0 ? "None" : `P${value}`}
@@ -4870,33 +5514,33 @@ export default function BoardRoute() {
               </section>
 
               <section>
-                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#8c99af]">Tags</p>
+                <p class={`${boardModalSectionLabelClass} mb-2`}>Tags</p>
                 <div class="flex flex-wrap gap-2">
-                  <span class="rounded-lg border border-[#4b5d8e] bg-[#1d2d4a] px-3 py-1 text-lg text-[#d8e5ff]">
+                  <span class={boardModalPrimaryTagClass}>
                     #{activeBoardProjectID()}
                   </span>
                   <For each={detailVisibleLabels()}>
                     {(tag) => (
-                      <span class="rounded-lg border border-[#6243a4] bg-[#281a46] px-3 py-1 text-lg text-[#e4d7ff]">@{tag}</span>
+                      <span class={boardModalAccentTagClass}>@{tag}</span>
                     )}
                   </For>
                 </div>
               </section>
 
               <section>
-                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#8c99af]">Modifier Slots</p>
+                <p class={`${boardModalSectionLabelClass} mb-2`}>Modifier Slots</p>
                 <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <For each={[0, 1, 2, 3]}>
                     {(slotIndex) => {
                       const card = createMemo(() => selectedModifierCards()[slotIndex] ?? null);
                       return (
-                        <div class="rounded-xl border border-[#324a71] bg-[#0f1a2e] px-3 py-2">
+                        <div class={boardModalSubpanelClass}>
                           <Show
                             when={card()}
-                            fallback={<p class="text-sm text-[#7f90ad]">Slot {slotIndex + 1}: empty</p>}
+                            fallback={<p class="text-sm text-[var(--text-dim)]">Slot {slotIndex + 1}: empty</p>}
                           >
                             {(value) => (
-                              <p class="text-sm font-semibold text-[#d9e8ff]">
+                              <p class="text-sm font-semibold text-[var(--text-main)]">
                                 Slot {slotIndex + 1}: {prettifyDefID(value().defId)}
                               </p>
                             )}
@@ -4907,7 +5551,7 @@ export default function BoardRoute() {
                   </For>
                 </div>
 
-                <p class="mt-3 text-xs text-[#8c99af]">
+                <p class="mt-3 text-xs text-[var(--text-dim)]">
                   {recurringModifierEnabled() || deadlineModifierEnabled()
                     ? `Parsing enabled on save: ${
                         recurringModifierEnabled() ? "recurrence phrases" : ""
@@ -4919,19 +5563,19 @@ export default function BoardRoute() {
               </section>
 
               <section>
-                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#8c99af]">Assigned Villager</p>
-                <div class="rounded-xl border border-[#304d7c] bg-[#0c1a2f] p-4">
-                  <p class="text-lg font-semibold text-[#e3efff]">
+                <p class={`${boardModalSectionLabelClass} mb-2`}>Assigned Villager</p>
+                <div class={boardModalSubpanelClass}>
+                  <p class="text-lg font-semibold text-[var(--text-main)]">
                     {dataString(selectedTaskCard()?.data?.assignedVillagerId) || "Unassigned"}
                   </p>
                 </div>
               </section>
             </div>
 
-            <div class="sticky bottom-0 flex items-center justify-between border-t border-[#273247] bg-[#101825]/96 px-5 py-4 backdrop-blur-sm">
+            <div class={boardModalFooterBarClass}>
               <button
                 type="button"
-                class="rounded-xl border border-[#466083] px-4 py-2 text-sm text-[#dbe7ff] hover:border-[var(--accent)]"
+                class="app-button-secondary rounded-xl px-4 py-2 text-sm font-semibold"
                 onClick={() => {
                   const id = selectedStackID();
                   if (id) void completeStack(id);

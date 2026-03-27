@@ -18,10 +18,33 @@ type Pan struct {
 }
 
 type VillagerProgress struct {
-	Stamina int      `json:"stamina"`
-	XP      int      `json:"xp"`
-	Level   int      `json:"level"`
-	Perks   []string `json:"perks,omitempty"`
+	Stamina     int      `json:"stamina"`
+	XP          int      `json:"xp"`
+	Level       int      `json:"level"`
+	Perks       []string `json:"perks,omitempty"`
+	MaxStamina  int      `json:"maxStamina,omitempty"`
+	NextLevel   int      `json:"nextLevel,omitempty"`
+	NextLevelXP int      `json:"nextLevelXP,omitempty"`
+	XPToNext    int      `json:"xpToNextLevel,omitempty"`
+}
+
+type ProgressionPerk struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Summary string `json:"summary,omitempty"`
+}
+
+type ProgressionLevel struct {
+	Level     int               `json:"level"`
+	Threshold int               `json:"threshold"`
+	Perks     []ProgressionPerk `json:"perks,omitempty"`
+}
+
+type ProgressionState struct {
+	MaxLevel     int                          `json:"maxLevel"`
+	Thresholds   map[string]int               `json:"thresholds,omitempty"`
+	PerksByLevel map[string][]ProgressionPerk `json:"perksByLevel,omitempty"`
+	Levels       []ProgressionLevel           `json:"levels,omitempty"`
 }
 
 type QuestObjectiveState struct {
@@ -114,6 +137,7 @@ type QuestState struct {
 type BoardMeta struct {
 	Inventory     map[string]int               `json:"inventory,omitempty"`
 	Villagers     map[string]*VillagerProgress `json:"villagers,omitempty"`
+	Progression   *ProgressionState            `json:"progression,omitempty"`
 	Metrics       map[string]int               `json:"metrics,omitempty"`
 	DeckOpen      map[string]int               `json:"deckOpen,omitempty"`
 	StoreReceipts map[string]*StoreReceipt     `json:"storeReceipts,omitempty"`
@@ -209,7 +233,7 @@ func (s *State) normalize() {
 	for villagerID, progress := range s.Meta.Villagers {
 		if progress == nil {
 			s.Meta.Villagers[villagerID] = &VillagerProgress{
-				Stamina: 6,
+				Stamina: defaultVillagerStamina,
 				Level:   1,
 			}
 			continue

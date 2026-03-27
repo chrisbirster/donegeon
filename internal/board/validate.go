@@ -196,6 +196,18 @@ func (v *Validator) ValidateStackMerge(state *State, targetID, sourceID string) 
 		return ErrInvalidStackPair
 	}
 
+	if villagerMergeTouchesLootParts(state, target, source) {
+		return ErrInvalidStackPair
+	}
+
+	if resourceMergeTouchesBlankTask(state, target, source) {
+		return ErrInvalidStackPair
+	}
+
+	if mergeWouldCombineModifierAndVillagerWithoutTask(targetKinds, sourceKinds) {
+		return ErrInvalidStackPair
+	}
+
 	for _, pair := range v.rules.DisallowedPairs {
 		if hasTaskAcrossMerge &&
 			((pair[0] == "modifier" && pair[1] == "villager") || (pair[0] == "villager" && pair[1] == "modifier")) {
@@ -220,6 +232,35 @@ func (v *Validator) ValidateStackMerge(state *State, targetID, sourceID string) 
 	}
 
 	return nil
+}
+
+func villagerMergeTouchesLootParts(state *State, target *Stack, source *Stack) bool {
+	if state == nil || target == nil || source == nil {
+		return false
+	}
+	hasVillager := stackHasKind(state, target, "villager") || stackHasKind(state, source, "villager")
+	if !hasVillager {
+		return false
+	}
+	return stackHasCardDefID(state, target, "loot.parts") || stackHasCardDefID(state, source, "loot.parts")
+}
+
+func resourceMergeTouchesBlankTask(state *State, target *Stack, source *Stack) bool {
+	if state == nil || target == nil || source == nil {
+		return false
+	}
+	hasResource := stackHasKind(state, target, "resource") || stackHasKind(state, source, "resource")
+	if !hasResource {
+		return false
+	}
+	return stackHasUnlinkedBlankTask(state, target) || stackHasUnlinkedBlankTask(state, source)
+}
+
+func mergeWouldCombineModifierAndVillagerWithoutTask(targetKinds map[string]bool, sourceKinds map[string]bool) bool {
+	hasModifier := targetKinds["modifier"] || sourceKinds["modifier"]
+	hasVillager := targetKinds["villager"] || sourceKinds["villager"]
+	hasTask := targetKinds["task"] || sourceKinds["task"]
+	return hasModifier && hasVillager && !hasTask
 }
 
 func resourceMergeWouldCreateMultipleVillagers(state *State, target *Stack, source *Stack) bool {
@@ -316,6 +357,22 @@ func pairMatchesKinds(pair [2]string, targetKinds map[string]bool, sourceKinds m
 			if (targetKind == pair[0] && sourceKind == pair[1]) || (targetKind == pair[1] && sourceKind == pair[0]) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func stackHasUnlinkedBlankTask(state *State, stack *Stack) bool {
+	if state == nil || stack == nil {
+		return false
+	}
+	for _, cardID := range stack.Cards {
+		card := state.GetCard(cardID)
+		if card == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(card.DefID), "task.blank") && cardTaskID(card) == "" {
+			return true
 		}
 	}
 	return false

@@ -36,16 +36,16 @@ function formatDate(value: string): string {
 function roleBadgeClass(role: string): string {
   switch (role) {
     case "owner":
-      return "border-[#4a6bc7] bg-[#1e2b57] text-[#d8e1ff]";
+      return "border-[rgba(80,110,196,0.28)] bg-[rgba(80,110,196,0.12)] text-[var(--text-soft)]";
     case "admin":
-      return "border-[#4f7287] bg-[#173245] text-[#c9ecff]";
+      return "border-[rgba(72,133,166,0.28)] bg-[rgba(72,133,166,0.12)] text-[var(--text-soft)]";
     case "editor":
     case "member":
-      return "border-[#53724e] bg-[#1c3720] text-[#d7f2d2]";
+      return "border-[rgba(71,138,91,0.28)] bg-[rgba(71,138,91,0.12)] text-[var(--text-soft)]";
     case "reader":
-      return "border-[#5a5572] bg-[#272145] text-[#e2dcff]";
+      return "border-[rgba(123,112,168,0.28)] bg-[rgba(123,112,168,0.12)] text-[var(--text-soft)]";
     default:
-      return "border-[#3b4f73] bg-[#152238] text-[#cfe0ff]";
+      return "border-[var(--border-strong)] bg-[var(--panel-soft)] text-[var(--text-soft)]";
   }
 }
 
@@ -396,86 +396,115 @@ export default function TeamSettingsRoute() {
     }
   }
 
+  const mobileSidebarSectionClass = "app-panel rounded-2xl px-3 py-3";
+  const heroClass = "app-panel-strong rounded-[30px] px-5 py-5 text-center md:px-8 md:py-6";
+  const sectionClass = "app-panel rounded-[28px] p-5";
+  const subCardClass = "app-panel-soft rounded-2xl p-4";
+  const highlightCardClass =
+    "rounded-2xl border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] p-4 shadow-[var(--shadow-elevated)]";
+  const badgeClass =
+    "rounded-full border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-text)]";
+  const chipClass =
+    "rounded-full border border-[var(--border-strong)] bg-[var(--panel-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-soft)]";
+  const inputClass = "app-input-surface mt-2 w-full rounded-xl px-3 py-2 text-sm";
+  const primaryButtonClass =
+    "app-button-primary rounded-xl border border-[rgba(255,139,80,0.3)] px-4 py-2 text-sm font-semibold transition disabled:opacity-60";
+  const secondaryButtonClass =
+    "app-button-secondary rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-60";
+  const secondaryButtonSmallClass =
+    "app-button-secondary rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-60";
+  const dangerButtonClass =
+    "rounded-lg border border-[rgba(196,98,91,0.28)] bg-[var(--danger-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] transition hover:border-[rgba(196,98,91,0.42)] disabled:opacity-60";
+  const infoBannerClass =
+    "rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-4 py-3 text-sm text-[var(--text-soft)]";
+  const warningBannerClass =
+    "rounded-xl border border-[rgba(223,173,87,0.24)] bg-[var(--warning-bg)] px-4 py-3 text-sm text-[var(--warning)]";
+  const errorBannerClass =
+    "rounded-xl border border-[rgba(196,98,91,0.3)] bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger)]";
+  const successBannerClass =
+    "rounded-xl border border-[rgba(49,122,86,0.26)] bg-[var(--success-bg)] px-4 py-3 text-sm text-[var(--success)]";
+  const sectionHeadingClass = "text-sm font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]";
+
   return (
     <AppShell
       activeView="team"
       mobileSidebar={
-        <div class="space-y-3 text-sm text-[#c5d2ea]">
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Team</p>
-            <p class="mt-2 text-sm text-[#e3edff]">{settings()?.team.name || "Team settings"}</p>
+        <div class="space-y-3 text-sm text-[var(--text-soft)]">
+          <section class={mobileSidebarSectionClass}>
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Team</p>
+            <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.team.name || "Team settings"}</p>
             <Show when={settings()}>
               {(current) => (
-                <p class="mt-1 text-xs text-[#97a8c8]">Role: {formatRoleLabel(current().currentUserRole)}</p>
+                <p class="mt-1 text-xs text-[var(--text-soft)]">Role: {formatRoleLabel(current().currentUserRole)}</p>
               )}
             </Show>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Members</p>
-            <p class="mt-2 text-sm text-[#e3edff]">{settings()?.members.length || 0}</p>
+          <section class={mobileSidebarSectionClass}>
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Members</p>
+            <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.members.length || 0}</p>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Pending Invites</p>
-            <p class="mt-2 text-sm text-[#e3edff]">{settings()?.invitations.length || 0}</p>
+          <section class={mobileSidebarSectionClass}>
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Pending Invites</p>
+            <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.invitations.length || 0}</p>
           </section>
         </div>
       }
     >
       <section class="h-full overflow-y-auto px-4 py-4 md:px-6 md:py-6">
         <div class="mx-auto flex w-full max-w-5xl flex-col gap-4">
-          <header class="rounded-2xl border border-[#2a3750] bg-[#0f1728] px-5 py-4 text-center">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Donegeon Command Settings</p>
-            <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">
+          <header class={heroClass}>
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Donegeon Command Settings</p>
+            <h1 class="font-display mt-2 text-2xl font-semibold tracking-tight text-[var(--text-main)] md:text-4xl">
               {settings()?.team.name || "Team"} Command Ledger
             </h1>
-            <p class="mt-1 text-sm text-[#9fb0cc]">
+            <p class="mx-auto mt-2 max-w-2xl text-sm text-[var(--text-soft)]">
               Every account starts on Free. Team powers unlock by board membership and role.
             </p>
             <div class="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
-              <a href="#plan" class="rounded-md border border-[#3b4f73] bg-[#16263f] px-2 py-1 text-[#d6e5ff]">Plan & Billing</a>
-              <a href="#team-profile" class="rounded-md border border-[#3b4f73] bg-[#16263f] px-2 py-1 text-[#d6e5ff]">Team Profile</a>
-              <a href="#team-members" class="rounded-md border border-[#3b4f73] bg-[#16263f] px-2 py-1 text-[#d6e5ff]">Members & Invites</a>
+              <a href="#plan" class={secondaryButtonSmallClass}>Plan & Billing</a>
+              <a href="#team-profile" class={secondaryButtonSmallClass}>Team Profile</a>
+              <a href="#team-members" class={secondaryButtonSmallClass}>Members & Invites</a>
             </div>
           </header>
 
           <Show when={!loading() && settings()}>
-            <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+            <section class={sectionClass}>
               <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Access & Entitlements</h2>
-                <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
+                <h2 class={sectionHeadingClass}>Access & Entitlements</h2>
+                <span class={badgeClass}>
                   {currentPlanBadge()} / {formatRoleLabel(currentRole())}
                 </span>
               </div>
 
               <div class="mt-3 grid gap-3 md:grid-cols-3">
-                <article class="rounded-xl border border-[#334b70] bg-[#132238] p-3">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#b9d6ff]">Personal Board</p>
-                  <p class="mt-1 text-sm font-medium text-[#edf4ff]">Free by default</p>
-                  <p class="mt-2 text-xs text-[#9fb0cc]">
+                <article class={subCardClass}>
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Personal Board</p>
+                  <p class="mt-1 text-sm font-medium text-[var(--text-main)]">Free by default</p>
+                  <p class="mt-2 text-xs text-[var(--text-soft)]">
                     Every user starts on Free for their personal Donegeon board after login.
                   </p>
                 </article>
 
-                <article class="rounded-xl border border-[#47658f] bg-[#152742] p-3">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#cddfff]">Active Team Workspace</p>
-                  <p class="mt-1 text-sm font-medium text-[#edf4ff]">{settings()!.team.name}</p>
-                  <p class="mt-2 text-xs text-[#aebfd8]">{roleSummary()}</p>
+                <article class={highlightCardClass}>
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-text)]">Active Team Workspace</p>
+                  <p class="mt-1 text-sm font-medium text-[var(--text-main)]">{settings()!.team.name}</p>
+                  <p class="mt-2 text-xs text-[var(--text-soft)]">{roleSummary()}</p>
                 </article>
 
-                <article class="rounded-xl border border-[#49607f] bg-[#142133] p-3">
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#d3e1f8]">Plan Scope</p>
-                  <p class="mt-1 text-sm font-medium text-[#edf4ff]">{currentPlan()}</p>
-                  <p class="mt-2 text-xs text-[#aebfd8]">{planSummary()}</p>
+                <article class={subCardClass}>
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Plan Scope</p>
+                  <p class="mt-1 text-sm font-medium text-[var(--text-main)]">{currentPlan()}</p>
+                  <p class="mt-2 text-xs text-[var(--text-soft)]">{planSummary()}</p>
                 </article>
               </div>
 
-              <div class="mt-3 rounded-lg border border-[#2f4568] bg-[#101c2e] px-3 py-2 text-xs text-[#bcd0ef]">
+              <div class={`mt-3 ${infoBannerClass}`}>
                 Team board access is role-based per workspace. Billing and team-admin actions are limited to owner/admin accounts.
               </div>
               <Show when={teamAdminFrozen()}>
-                <p class="mt-3 rounded-lg border border-[#7c6042] bg-[#2d2016] px-3 py-2 text-xs text-[#ffd5af]">
+                <p class={`mt-3 ${warningBannerClass}`}>
                   This workspace is on Free. Existing members and boards stay accessible, but invitations, role changes, board-member management, and other team admin actions are frozen until you return to Pro.
                 </p>
               </Show>
@@ -483,58 +512,58 @@ export default function TeamSettingsRoute() {
           </Show>
 
           <Show when={loading()}>
-            <p class="rounded-xl border border-[#2d3c57] bg-[#0f1728] px-4 py-3 text-sm text-[#b8c8e4]">Loading team settings...</p>
+            <p class={infoBannerClass}>Loading team settings...</p>
           </Show>
 
           <Show when={error()}>
-            <p class="rounded-xl border border-[#643434] bg-[#2b1618] px-4 py-3 text-sm text-[#ffc0bd]">{error()}</p>
+            <p class={errorBannerClass}>{error()}</p>
           </Show>
 
           <Show when={actionError()}>
-            <p class="rounded-xl border border-[#643434] bg-[#2b1618] px-4 py-3 text-sm text-[#ffc0bd]">{actionError()}</p>
+            <p class={errorBannerClass}>{actionError()}</p>
           </Show>
 
           <Show when={actionNotice()}>
-            <p class="rounded-xl border border-[#355940] bg-[#14241b] px-4 py-3 text-sm text-[#baf2cc]">{actionNotice()}</p>
+            <p class={successBannerClass}>{actionNotice()}</p>
           </Show>
 
           <Show when={!loading() && settings()}>
             <>
-              <section id="plan" class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+              <section id="plan" class={sectionClass}>
                 <div class="flex items-center justify-between gap-3">
-                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Billing</h2>
-                  <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
+                  <h2 class={sectionHeadingClass}>Billing</h2>
+                  <span class={badgeClass}>
                     {currentPlanBadge()}
                   </span>
                 </div>
-                <p class="mt-2 text-xs text-[#9fb0cc]">
+                <p class="mt-2 text-sm text-[var(--text-soft)]">
                   {billingSummary()}
                 </p>
                 <Show when={currentBillingState() === "trial" && settings()!.team.trialEndsAt}>
                   {(trialEndsAt) => (
-                    <p class="mt-2 text-xs text-[#9fb0cc]">
+                    <p class="mt-2 text-sm text-[var(--text-soft)]">
                       Trial ends on {formatDate(trialEndsAt())}
                     </p>
                   )}
                 </Show>
                 <div class="mt-4 grid gap-3 md:grid-cols-3">
-                  <article class="rounded-xl border border-[#334b70] bg-[#132238] p-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#b9d6ff]">Free</p>
-                    <p class="mt-1 text-xl font-semibold text-[#edf4ff]">$0</p>
-                    <p class="mt-2 text-xs text-[#9fb0cc]">Core task workflow, personal board gameplay, and calendar sync.</p>
+                  <article class={subCardClass}>
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Free</p>
+                    <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">$0</p>
+                    <p class="mt-2 text-sm text-[var(--text-soft)]">Core task workflow, personal board gameplay, and calendar sync.</p>
                     <button
                       type="button"
-                      class="mt-3 w-full rounded-lg border border-[#3f5a83] bg-[#1a2b46] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] opacity-80"
+                      class={`mt-3 w-full ${secondaryButtonClass} opacity-80`}
                       disabled
                     >
                       {freeCardLabel()}
                     </button>
                   </article>
 
-                  <article class="rounded-xl border border-[#546fa1] bg-[#172947] p-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#d7e5ff]">Pro</p>
-                    <p class="mt-1 text-xl font-semibold text-[#edf4ff]">$12/user/mo</p>
-                    <p class="mt-2 text-xs text-[#b3c4df]">Shared boards, invitations, role controls, and board member management.</p>
+                  <article class={highlightCardClass}>
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--accent-text)]">Pro</p>
+                    <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">$12/user/mo</p>
+                    <p class="mt-2 text-sm text-[var(--text-soft)]">Shared boards, invitations, role controls, and board member management.</p>
                     <Show
                       when={currentPlanFamily() === "pro" && currentBillingState() === "trial"}
                       fallback={
@@ -547,7 +576,7 @@ export default function TeamSettingsRoute() {
                                 <div class="mt-3 flex gap-2">
                                   <button
                                     type="button"
-                                    class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                                    class={`flex-1 ${primaryButtonClass}`}
                                     disabled={billingLoading() || !canManage()}
                                     onClick={() => void startBilling("pro_trial")}
                                   >
@@ -555,7 +584,7 @@ export default function TeamSettingsRoute() {
                                   </button>
                                   <button
                                     type="button"
-                                    class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                                    class={`flex-1 ${secondaryButtonClass}`}
                                     disabled={billingLoading() || !canManage()}
                                     onClick={() => void startBilling("pro")}
                                   >
@@ -566,7 +595,7 @@ export default function TeamSettingsRoute() {
                             >
                               <button
                                 type="button"
-                                class="mt-3 w-full rounded-lg border border-[#5f7eb5] bg-[#20385f] px-3 py-1.5 text-xs font-semibold text-[#e2eeff] opacity-80"
+                                class={`mt-3 w-full ${secondaryButtonClass} opacity-80`}
                                 disabled
                               >
                                 Included in Enterprise
@@ -577,7 +606,7 @@ export default function TeamSettingsRoute() {
                           <div class="mt-3 flex gap-2">
                             <button
                               type="button"
-                              class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-3 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                              class={`flex-1 ${secondaryButtonClass}`}
                               disabled={billingLoading() || !canManage() || !hasPaidSubscription()}
                               onClick={() => void openBillingPortal()}
                             >
@@ -585,7 +614,7 @@ export default function TeamSettingsRoute() {
                             </button>
                             <button
                               type="button"
-                              class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-3 py-1.5 text-xs font-semibold text-[#e2eeff] opacity-80"
+                              class={`flex-1 ${secondaryButtonClass} opacity-80`}
                               disabled
                             >
                               Current plan
@@ -597,7 +626,7 @@ export default function TeamSettingsRoute() {
                       <div class="mt-3 flex gap-2">
                         <button
                           type="button"
-                          class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[#f0b86a] disabled:opacity-60"
+                          class={`flex-1 ${secondaryButtonClass}`}
                           disabled={billingLoading() || !canManage()}
                           onClick={() => void endTrial()}
                         >
@@ -605,7 +634,7 @@ export default function TeamSettingsRoute() {
                         </button>
                         <button
                           type="button"
-                          class="flex-1 rounded-lg border border-[#5f7eb5] bg-[#20385f] px-2 py-1.5 text-xs font-semibold text-[#e2eeff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                          class={`flex-1 ${primaryButtonClass}`}
                           disabled={billingLoading() || !canManage()}
                           onClick={() => void startBilling("pro")}
                         >
@@ -615,13 +644,13 @@ export default function TeamSettingsRoute() {
                     </Show>
                   </article>
 
-                  <article class="rounded-xl border border-[#49607f] bg-[#142133] p-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#d3e1f8]">Enterprise</p>
-                    <p class="mt-1 text-xl font-semibold text-[#edf4ff]">Custom</p>
-                    <p class="mt-2 text-xs text-[#aebfd8]">Pro product access with sales-led rollout, security review, and procurement support.</p>
+                  <article class={subCardClass}>
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Enterprise</p>
+                    <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">Custom</p>
+                    <p class="mt-2 text-sm text-[var(--text-soft)]">Pro product access with sales-led rollout, security review, and procurement support.</p>
                     <button
                       type="button"
-                      class="mt-3 w-full rounded-lg border border-[#566f93] bg-[#1b2d47] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] transition hover:border-[#6f88a8] disabled:opacity-60"
+                      class={`mt-3 w-full ${secondaryButtonClass}`}
                       disabled={currentPlanFamily() === "enterprise" || billingLoading() || !canManage()}
                       onClick={() => void startBilling("enterprise")}
                     >
@@ -630,58 +659,58 @@ export default function TeamSettingsRoute() {
                   </article>
                 </div>
                 <Show when={currentPlanFamily() !== "free"}>
-                  <p class="mt-3 text-xs text-[#9fb0cc]">
+                  <p class="mt-3 text-sm text-[var(--text-soft)]">
                     Free remains the fallback after cancellation. Existing boards and members stay in place, but new invites and other team-admin actions freeze until the workspace returns to Pro.
                   </p>
                 </Show>
                 <Show when={currentPlanFamily() === "pro" && currentBillingState() === "paid"}>
-                  <p class="mt-2 text-xs text-[#9fb0cc]">
+                  <p class="mt-2 text-sm text-[var(--text-soft)]">
                     Manage billing opens Stripe so owners/admins can cancel at period end, update payment details, or review invoices.
                   </p>
                 </Show>
                 <Show when={!canManage()}>
-                  <p class="mt-3 text-xs text-[#9fb0cc]">
+                  <p class="mt-3 text-sm text-[var(--text-soft)]">
                     You can use team features on boards you were invited to. Only owners/admins can change team billing.
                   </p>
                 </Show>
               </section>
 
-              <section id="team-profile" class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+              <section id="team-profile" class={sectionClass}>
                 <div class="flex items-center justify-between gap-3">
-                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Team Profile</h2>
-                  <span class="rounded-md border border-[#3b4f73] bg-[#152238] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
+                  <h2 class={sectionHeadingClass}>Team Profile</h2>
+                  <span class={chipClass}>
                     {formatRoleLabel(settings()!.currentUserRole)}
                   </span>
                 </div>
                 <form class="mt-3 flex flex-col gap-3 md:flex-row md:items-end" onSubmit={(event) => void saveTeamName(event)}>
-                  <label class="flex-1 text-xs uppercase tracking-[0.12em] text-[#93a3bf]">
+                  <label class="flex-1 text-xs uppercase tracking-[0.12em] text-[var(--text-dim)]">
                     Team name
                     <input
                       value={teamNameInput()}
                       onInput={(event) => setTeamNameInput(event.currentTarget.value)}
-                      class="mt-2 w-full rounded-lg border border-[#3a4d6f] bg-[#0c1524] px-3 py-2 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
+                      class={inputClass}
                       disabled={!canManageTeamProfile() || saveTeamLoading()}
                     />
                   </label>
                   <button
                     type="submit"
-                    class="rounded-lg border border-[#3e5680] bg-[#172845] px-4 py-2 text-sm font-semibold text-[#d7e6ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                    class={primaryButtonClass}
                     disabled={!canManageTeamProfile() || saveTeamLoading()}
                   >
                     {saveTeamLoading() ? "Saving..." : "Save team"}
                   </button>
                 </form>
                 <Show when={canManage() && !canManageTeamProfile()}>
-                  <p class="mt-3 text-xs text-[#ffd5af]">
+                  <p class={`mt-3 ${warningBannerClass}`}>
                     Team profile changes are frozen on Free. Upgrade to Pro to rename or manage this shared workspace.
                   </p>
                 </Show>
               </section>
 
-              <section id="team-members" class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+              <section id="team-members" class={sectionClass}>
                 <div class="flex items-center justify-between">
-                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Team Members</h2>
-                  <span class="text-xs text-[#9cb0d1]">{settings()!.members.length} member(s)</span>
+                  <h2 class={sectionHeadingClass}>Team Members</h2>
+                  <span class="text-xs text-[var(--text-soft)]">{settings()!.members.length} member(s)</span>
                 </div>
 
                 <div class="mt-3 space-y-2">
@@ -694,12 +723,12 @@ export default function TeamSettingsRoute() {
                         canManageRoles() && !isCurrentUser() && member.role !== "owner";
 
                       return (
-                        <article class="rounded-xl border border-[#2c3f61] bg-[#111c30] px-3 py-3">
+                        <article class={subCardClass}>
                           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div class="min-w-0">
-                              <p class="truncate text-sm font-medium text-[#e8f0ff]">{member.name || member.email}</p>
-                              <p class="truncate text-xs text-[#9fb0cc]">{member.email}</p>
-                              <p class="mt-1 text-[11px] text-[#8ca2c6]">Joined {formatDate(member.createdAt)}</p>
+                              <p class="truncate text-sm font-medium text-[var(--text-main)]">{member.name || member.email}</p>
+                              <p class="truncate text-xs text-[var(--text-soft)]">{member.email}</p>
+                              <p class="mt-1 text-[11px] text-[var(--text-dim)]">Joined {formatDate(member.createdAt)}</p>
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2">
@@ -710,7 +739,7 @@ export default function TeamSettingsRoute() {
                               <Show when={canEditMemberRole()}>
                                 <select
                                   value={member.role}
-                                  class="rounded-md border border-[#395072] bg-[#0d182b] px-2 py-1 text-xs text-[#e0ebff] outline-none focus:border-[var(--accent)] disabled:opacity-60"
+                                  class="app-input-surface rounded-lg px-2 py-1 text-xs disabled:opacity-60"
                                   disabled={!!roleSavingByUserID()[member.userId]}
                                   onChange={(event) => {
                                     const nextRole = event.currentTarget.value;
@@ -730,7 +759,7 @@ export default function TeamSettingsRoute() {
                               <Show when={canRemove()}>
                                 <button
                                   type="button"
-                                  class="rounded-md border border-[#6a3a3a] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#925151] disabled:opacity-60"
+                                  class={dangerButtonClass}
                                   disabled={removingUserID() === member.userId}
                                   onClick={() => void removeMember(member)}
                                 >
@@ -739,7 +768,7 @@ export default function TeamSettingsRoute() {
                               </Show>
 
                               <Show when={isCurrentUser()}>
-                                <span class="rounded-md border border-[#3a4f74] bg-[#16243b] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
+                                <span class={chipClass}>
                                   You
                                 </span>
                               </Show>
@@ -751,20 +780,20 @@ export default function TeamSettingsRoute() {
                   </For>
                 </div>
                 <Show when={settings()!.currentUserRole === "owner" && !canManageRoles()}>
-                  <p class="mt-3 text-xs text-[#ffd5af]">
+                  <p class={`mt-3 ${warningBannerClass}`}>
                     Role changes and member removal are frozen on Free. Upgrade to Pro to manage team membership again.
                   </p>
                 </Show>
               </section>
 
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
+              <section class={sectionClass}>
                 <div class="flex items-center justify-between gap-3">
-                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Invitations</h2>
-                  <span class="text-xs text-[#9cb0d1]">{settings()!.invitations.length} pending</span>
+                  <h2 class={sectionHeadingClass}>Invitations</h2>
+                  <span class="text-xs text-[var(--text-soft)]">{settings()!.invitations.length} pending</span>
                 </div>
 
                 <form class="mt-3" onSubmit={(event) => void inviteMembers(event)}>
-                  <label class="text-xs uppercase tracking-[0.12em] text-[#93a3bf]">
+                  <label class="block text-xs uppercase tracking-[0.12em] text-[var(--text-dim)]">
                     Invite role
                     <select
                       value={inviteRole()}
@@ -772,7 +801,7 @@ export default function TeamSettingsRoute() {
                         const nextRole = event.currentTarget.value;
                         setInviteRole(nextRole === "admin" || nextRole === "reader" ? nextRole : "editor");
                       }}
-                      class="mt-2 w-full rounded-lg border border-[#3a4d6f] bg-[#0c1524] px-3 py-2 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
+                      class={inputClass}
                       disabled={!canManageInvites() || inviteLoading()}
                     >
                       <option value="editor">Editor</option>
@@ -780,28 +809,28 @@ export default function TeamSettingsRoute() {
                       <option value="admin">Admin</option>
                     </select>
                   </label>
-                  <label class="text-xs uppercase tracking-[0.12em] text-[#93a3bf]">
+                  <label class="mt-3 block text-xs uppercase tracking-[0.12em] text-[var(--text-dim)]">
                     Invite by email
                     <textarea
                       rows={3}
                       value={inviteInput()}
                       onInput={(event) => setInviteInput(event.currentTarget.value)}
-                      class="mt-2 w-full rounded-lg border border-[#3a4d6f] bg-[#0c1524] px-3 py-2 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
+                      class={inputClass}
                       placeholder="teammate@company.com"
                       disabled={!canManageInvites() || inviteLoading()}
                     />
                   </label>
-                  <p class="mt-1 text-xs text-[#8ea3c7]">Use commas or new lines for multiple invite emails.</p>
+                  <p class="mt-2 text-xs text-[var(--text-dim)]">Use commas or new lines for multiple invite emails.</p>
                   <button
                     type="submit"
-                    class="mt-3 rounded-lg border border-[#3e5680] bg-[#172845] px-4 py-2 text-sm font-semibold text-[#d7e6ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                    class={`mt-3 ${primaryButtonClass}`}
                     disabled={!canManageInvites() || inviteLoading()}
                   >
                     {inviteLoading() ? "Sending..." : "Send invite"}
                   </button>
                 </form>
                 <Show when={canManage() && !canManageInvites()}>
-                  <p class="mt-3 text-xs text-[#ffd5af]">
+                  <p class={`mt-3 ${warningBannerClass}`}>
                     Invitations are frozen on Free. Existing members keep access, but new invites require Pro.
                   </p>
                 </Show>
@@ -809,27 +838,27 @@ export default function TeamSettingsRoute() {
                 <div class="mt-4 space-y-2">
                   <Show
                     when={settings()!.invitations.length > 0}
-                    fallback={<p class="rounded-lg border border-[#2c3f61] bg-[#111c30] px-3 py-2 text-sm text-[#9fb0cc]">No pending invitations.</p>}
+                    fallback={<p class={infoBannerClass}>No pending invitations.</p>}
                   >
                     <For each={settings()!.invitations}>
                       {(invitation) => (
-                        <article class="flex flex-col gap-2 rounded-lg border border-[#2c3f61] bg-[#111c30] px-3 py-2 md:flex-row md:items-center md:justify-between">
+                        <article class={`${subCardClass} flex flex-col gap-2 md:flex-row md:items-center md:justify-between`}>
                           <div class="min-w-0">
-                            <p class="truncate text-sm text-[#e8f0ff]">{invitation.email}</p>
-                            <p class="text-[11px] text-[#8ca2c6]">Invited {formatDate(invitation.createdAt)}</p>
+                            <p class="truncate text-sm text-[var(--text-main)]">{invitation.email}</p>
+                            <p class="text-[11px] text-[var(--text-dim)]">Invited {formatDate(invitation.createdAt)}</p>
                           </div>
 
                           <div class="flex flex-wrap items-center gap-2">
                             <span class={`rounded-md border px-2 py-0.5 text-[11px] ${roleBadgeClass(invitation.role)}`}>
                               {formatRoleLabel(invitation.role)}
                             </span>
-                            <span class="rounded-md border border-[#3a4f74] bg-[#16243b] px-2 py-0.5 text-[11px] text-[#cfe0ff]">
+                            <span class={chipClass}>
                               {invitation.status}
                             </span>
                             <Show when={canManageInvites()}>
                               <button
                                 type="button"
-                                class="rounded-md border border-[#6a3a3a] bg-[#2b1618] px-2 py-1 text-xs text-[#ffb8b5] transition hover:border-[#925151] disabled:opacity-60"
+                                class={dangerButtonClass}
                                 disabled={cancelingInviteCode() === invitation.invitationCode}
                                 onClick={() => void cancelInvitation(invitation)}
                               >

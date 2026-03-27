@@ -71,10 +71,12 @@ type VillagerDefaultsConfig struct {
 }
 
 type VillagerLevelingConfig struct {
-	XPSources       VillagerXPSourcesConfig `yaml:"xp_sources" json:"xp_sources"`
-	Thresholds      map[int]int             `yaml:"thresholds" json:"thresholds"`
-	ChoicesPerLevel int                     `yaml:"choices_per_level" json:"choices_per_level"`
-	PerkPool        []PerkConfig            `yaml:"perk_pool" json:"perk_pool"`
+	XPSources             VillagerXPSourcesConfig `yaml:"xp_sources" json:"xp_sources"`
+	Thresholds            map[int]int             `yaml:"thresholds" json:"thresholds"`
+	ChoicesPerLevel       int                     `yaml:"choices_per_level" json:"choices_per_level"`
+	PerkPool              []PerkConfig            `yaml:"perk_pool" json:"perk_pool"`
+	PerksByLevel          map[int][]string        `yaml:"perks_by_level" json:"perks_by_level"`
+	TaskCompletionRewards RewardTableConfig       `yaml:"task_completion_rewards" json:"task_completion_rewards"`
 }
 
 type VillagerXPSourcesConfig struct {
@@ -161,7 +163,8 @@ type ResourceChargesConfig struct {
 }
 
 type ResourceGatherConfig struct {
-	BaseTimeS int `yaml:"base_time_s" json:"base_time_s"`
+	BaseTimeS int               `yaml:"base_time_s" json:"base_time_s"`
+	Rewards   RewardTableConfig `yaml:"rewards" json:"rewards"`
 }
 
 type FoodConfig struct {
@@ -219,20 +222,25 @@ type ZombieTypeConfig struct {
 }
 
 type ZombieCleanupConfig struct {
-	StaminaCost   int           `yaml:"stamina_cost" json:"stamina_cost"`
-	RewardOnClear RNGPoolConfig `yaml:"reward_on_clear" json:"reward_on_clear"`
+	StaminaCost   int               `yaml:"stamina_cost" json:"stamina_cost"`
+	RewardOnClear RewardTableConfig `yaml:"reward_on_clear" json:"reward_on_clear"`
 }
 
-type RNGPoolConfig struct {
-	RNGPool []RNGPoolEntryConfig `yaml:"rng_pool" json:"rng_pool"`
+type RewardTableConfig struct {
+	Guaranteed []RewardTableEntryConfig `yaml:"guaranteed" json:"guaranteed"`
+	BonusRolls int                      `yaml:"bonus_rolls" json:"bonus_rolls"`
+	RNGPool    []RewardTableEntryConfig `yaml:"rng_pool" json:"rng_pool"`
 }
 
-type RNGPoolEntryConfig struct {
+type RewardTableEntryConfig struct {
 	ID     string `yaml:"id,omitempty" json:"id,omitempty"`
 	Type   string `yaml:"type" json:"type"`
 	Amount int    `yaml:"amount,omitempty" json:"amount,omitempty"`
 	Weight int    `yaml:"weight" json:"weight"`
 }
+
+type RNGPoolConfig = RewardTableConfig
+type RNGPoolEntryConfig = RewardTableEntryConfig
 
 type UIHintsConfig struct {
 	Board UIBoardConfig `yaml:"board" json:"board"`
@@ -253,12 +261,14 @@ type UIZombiesLayoutConfig struct {
 }
 
 func LoadGameplayConfig(path string) (GameplayConfig, error) {
-	cfg := DefaultGameplayConfig()
 	path = strings.TrimSpace(path)
 	if path == "" {
+		cfg := DefaultGameplayConfig()
 		cfg.Normalize()
 		return cfg, nil
 	}
+
+	var cfg GameplayConfig
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -301,30 +311,110 @@ func DefaultGameplayConfig() GameplayConfig {
 		Villagers: VillagersConfig{
 			Defaults: VillagerDefaultsConfig{
 				MaxLevel:       10,
-				BaseMaxStamina: 6,
+				BaseMaxStamina: 8,
 			},
 			Leveling: VillagerLevelingConfig{
 				XPSources: VillagerXPSourcesConfig{
-					CompleteTask:        CompleteTaskXPConfig{BaseXP: 1, ByPriority: map[string]int{}},
-					ClearZombie:         BaseXPConfig{BaseXP: 1},
-					GatherResourceCycle: BaseXPConfig{BaseXP: 1},
+					CompleteTask: CompleteTaskXPConfig{
+						BaseXP: 12,
+						ByPriority: map[string]int{
+							"none":   0,
+							"low":    1,
+							"medium": 3,
+							"high":   6,
+						},
+					},
+					ClearZombie:         BaseXPConfig{BaseXP: 8},
+					GatherResourceCycle: BaseXPConfig{BaseXP: 4},
 				},
 				Thresholds: map[int]int{
-					2: 10,
-					3: 20,
-					4: 30,
-					5: 40,
-					6: 50,
+					1:  0,
+					2:  20,
+					3:  45,
+					4:  75,
+					5:  110,
+					6:  150,
+					7:  195,
+					8:  245,
+					9:  300,
+					10: 360,
 				},
 				ChoicesPerLevel: 1,
 				PerkPool: []PerkConfig{
-					{ID: "perk_stamina_plus_1", Apply: map[string]any{"max_stamina_add": 1}},
-					{ID: "perk_zombie_slayer", Apply: map[string]any{"zombie_clear_stamina_cost_add": -1, "min_zombie_clear_cost": 1}},
+					{
+						ID:    "perk_heartier",
+						Label: "Heartier",
+						Apply: map[string]any{"max_stamina_add": 2},
+					},
+					{
+						ID:    "perk_bounty_hunter",
+						Label: "Bounty Hunter",
+						Apply: map[string]any{"task_complete_currency_add": 1},
+					},
+					{
+						ID:    "perk_focused_worker",
+						Label: "Focused Worker",
+						Apply: map[string]any{"task_complete_xp_add": 2},
+					},
+					{
+						ID:    "perk_endurance_1",
+						Label: "Endurance I",
+						Apply: map[string]any{"max_stamina_add": 1},
+					},
+					{
+						ID:    "perk_zombie_slayer",
+						Label: "Zombie Slayer",
+						Apply: map[string]any{"zombie_clear_stamina_cost_add": -1, "min_zombie_clear_cost": 1},
+					},
+					{
+						ID:    "perk_salvager",
+						Label: "Salvager",
+						Apply: map[string]any{"resource_drop_amount_add": 1},
+					},
+					{
+						ID:    "perk_endurance_2",
+						Label: "Endurance II",
+						Apply: map[string]any{"max_stamina_add": 1},
+					},
+					{
+						ID:    "perk_field_snacks",
+						Label: "Field Snacks",
+						Apply: map[string]any{"food_stamina_restore_add": 1},
+					},
+					{
+						ID:    "perk_closer",
+						Label: "Closer",
+						Apply: map[string]any{"task_complete_currency_add": 1, "task_complete_xp_add": 2},
+					},
+				},
+				PerksByLevel: map[int][]string{
+					2:  {"perk_heartier"},
+					3:  {"perk_bounty_hunter"},
+					4:  {"perk_focused_worker"},
+					5:  {"perk_endurance_1"},
+					6:  {"perk_zombie_slayer"},
+					7:  {"perk_salvager"},
+					8:  {"perk_endurance_2"},
+					9:  {"perk_field_snacks"},
+					10: {"perk_closer"},
+				},
+				TaskCompletionRewards: RewardTableConfig{
+					Guaranteed: []RewardTableEntryConfig{
+						{Type: "loot", ID: "coin", Amount: 1},
+					},
+					BonusRolls: 1,
+					RNGPool: []RewardTableEntryConfig{
+						{Type: "none", Amount: 0, Weight: 45},
+						{Type: "loot", ID: "parts", Amount: 1, Weight: 20},
+						{Type: "food", ID: "berries", Amount: 1, Weight: 20},
+						{Type: "loot", ID: "paper", Amount: 1, Weight: 10},
+						{Type: "loot", ID: "coin", Amount: 2, Weight: 5},
+					},
 				},
 			},
 			Actions: VillagerActionsConfig{
 				ClearZombie: ClearZombieActionConfig{StaminaCost: 2, MinCostAfterPerks: 1},
-				GatherStart: ActionCostConfig{StaminaCost: 1},
+				GatherStart: ActionCostConfig{StaminaCost: 0},
 				EatFood:     ActionCostConfig{StaminaCost: 0},
 			},
 		},
@@ -348,17 +438,60 @@ func DefaultGameplayConfig() GameplayConfig {
 		},
 		Resources: ResourcesConfig{
 			Nodes: []ResourceNodeConfig{
-				{ID: "tree", Charges: ResourceChargesConfig{Min: 3, Max: 3}},
-				{ID: "ore", Charges: ResourceChargesConfig{Min: 3, Max: 3}},
-				{ID: "paper", Charges: ResourceChargesConfig{Min: 3, Max: 3}},
+				{
+					ID:      "tree",
+					Charges: ResourceChargesConfig{Min: 3, Max: 3},
+					Gather: ResourceGatherConfig{
+						Rewards: RewardTableConfig{
+							Guaranteed: []RewardTableEntryConfig{{Type: "loot", ID: "parts", Amount: 1}},
+							BonusRolls: 1,
+							RNGPool: []RewardTableEntryConfig{
+								{Type: "none", Amount: 0, Weight: 40},
+								{Type: "loot", ID: "coin", Amount: 1, Weight: 30},
+								{Type: "food", ID: "berries", Amount: 1, Weight: 30},
+							},
+						},
+					},
+				},
+				{
+					ID:      "ore",
+					Charges: ResourceChargesConfig{Min: 3, Max: 3},
+					Gather: ResourceGatherConfig{
+						Rewards: RewardTableConfig{
+							Guaranteed: []RewardTableEntryConfig{{Type: "loot", ID: "gear", Amount: 1}},
+							BonusRolls: 1,
+							RNGPool: []RewardTableEntryConfig{
+								{Type: "none", Amount: 0, Weight: 40},
+								{Type: "loot", ID: "parts", Amount: 1, Weight: 35},
+								{Type: "loot", ID: "coin", Amount: 1, Weight: 25},
+							},
+						},
+					},
+				},
+				{
+					ID:      "paper",
+					Charges: ResourceChargesConfig{Min: 3, Max: 3},
+					Gather: ResourceGatherConfig{
+						Rewards: RewardTableConfig{
+							Guaranteed: []RewardTableEntryConfig{{Type: "loot", ID: "paper", Amount: 1}},
+							BonusRolls: 1,
+							RNGPool: []RewardTableEntryConfig{
+								{Type: "none", Amount: 0, Weight: 40},
+								{Type: "food", ID: "berries", Amount: 1, Weight: 30},
+								{Type: "loot", ID: "coin", Amount: 1, Weight: 30},
+							},
+						},
+					},
+				},
 			},
 		},
 		Food: FoodConfig{
 			Items: []FoodItemConfig{
-				{ID: "apple", StaminaRestore: 1},
-				{ID: "bread", StaminaRestore: 3},
-				{ID: "berries", StaminaRestore: 2},
-				{ID: "berry", StaminaRestore: 2},
+				{ID: "apple", StaminaRestore: 3},
+				{ID: "bread", StaminaRestore: 5},
+				{ID: "berries", StaminaRestore: 3},
+				{ID: "berry", StaminaRestore: 3},
+				{ID: "mushroom", StaminaRestore: 4},
 			},
 		},
 		Decks: DecksConfig{
@@ -375,7 +508,7 @@ func DefaultGameplayConfig() GameplayConfig {
 					ID: "default_zombie",
 					Cleanup: ZombieCleanupConfig{
 						StaminaCost: 2,
-						RewardOnClear: RNGPoolConfig{RNGPool: []RNGPoolEntryConfig{
+						RewardOnClear: RewardTableConfig{RNGPool: []RewardTableEntryConfig{
 							{Type: "loot", ID: "coin", Amount: 1, Weight: 100},
 						}},
 					},
@@ -501,11 +634,47 @@ func (c *GameplayConfig) Normalize() {
 		c.World.DayTick.OverdueRules.ZombieSpawn.SpawnChance = &chance
 	}
 	if c.Villagers.Defaults.BaseMaxStamina <= 0 {
-		c.Villagers.Defaults.BaseMaxStamina = 6
+		c.Villagers.Defaults.BaseMaxStamina = 8
 	}
 	if c.Villagers.Defaults.MaxLevel <= 0 {
 		c.Villagers.Defaults.MaxLevel = 10
 	}
+	if c.Villagers.Leveling.XPSources.CompleteTask.BaseXP <= 0 {
+		c.Villagers.Leveling.XPSources.CompleteTask.BaseXP = 12
+	}
+	if c.Villagers.Leveling.XPSources.CompleteTask.ByPriority == nil {
+		c.Villagers.Leveling.XPSources.CompleteTask.ByPriority = map[string]int{}
+	}
+	defaultPriorityXP := map[string]int{"none": 0, "low": 1, "medium": 3, "high": 6}
+	for key, value := range defaultPriorityXP {
+		if _, ok := c.Villagers.Leveling.XPSources.CompleteTask.ByPriority[key]; !ok {
+			c.Villagers.Leveling.XPSources.CompleteTask.ByPriority[key] = value
+		}
+	}
+	if c.Villagers.Leveling.XPSources.ClearZombie.BaseXP <= 0 {
+		c.Villagers.Leveling.XPSources.ClearZombie.BaseXP = 8
+	}
+	if c.Villagers.Leveling.XPSources.GatherResourceCycle.BaseXP <= 0 {
+		c.Villagers.Leveling.XPSources.GatherResourceCycle.BaseXP = 4
+	}
+	if len(c.Villagers.Leveling.Thresholds) == 0 {
+		c.Villagers.Leveling.Thresholds = map[int]int{
+			1:  0,
+			2:  20,
+			3:  45,
+			4:  75,
+			5:  110,
+			6:  150,
+			7:  195,
+			8:  245,
+			9:  300,
+			10: 360,
+		}
+	}
+	if len(c.Villagers.Leveling.PerkPool) == 0 {
+		c.Villagers.Leveling.PerkPool = DefaultGameplayConfig().Villagers.Leveling.PerkPool
+	}
+	normalizeRewardTable(&c.Villagers.Leveling.TaskCompletionRewards)
 	if c.Villagers.Actions.ClearZombie.StaminaCost <= 0 {
 		c.Villagers.Actions.ClearZombie.StaminaCost = 2
 	}
@@ -547,11 +716,25 @@ func (c *GameplayConfig) Normalize() {
 	if len(c.Resources.Nodes) == 0 {
 		c.Resources.Nodes = DefaultGameplayConfig().Resources.Nodes
 	}
+	for i := range c.Resources.Nodes {
+		node := &c.Resources.Nodes[i]
+		normalizeRewardTable(&node.Gather.Rewards)
+	}
 	if len(c.Food.Items) == 0 {
 		c.Food.Items = DefaultGameplayConfig().Food.Items
 	}
+	for i := range c.Food.Items {
+		if c.Food.Items[i].StaminaRestore <= 0 {
+			if item := DefaultGameplayConfig().FoodByID(c.Food.Items[i].ID); item != nil {
+				c.Food.Items[i].StaminaRestore = item.StaminaRestore
+			}
+		}
+	}
 	if len(c.Zombies.Types) == 0 {
 		c.Zombies.Types = DefaultGameplayConfig().Zombies.Types
+	}
+	for i := range c.Zombies.Types {
+		normalizeRewardTable(&c.Zombies.Types[i].Cleanup.RewardOnClear)
 	}
 	if c.UIHints.Board.DefaultSpawnLayout.Zombies.DX == 0 {
 		c.UIHints.Board.DefaultSpawnLayout.Zombies.DX = 150
@@ -602,6 +785,25 @@ func (c GameplayConfig) PerkByID(perkID string) *PerkConfig {
 		}
 	}
 	return nil
+}
+
+func (c GameplayConfig) PerksForLevel(level int) []string {
+	if len(c.Villagers.Leveling.PerksByLevel) == 0 {
+		return nil
+	}
+	perks := c.Villagers.Leveling.PerksByLevel[level]
+	if len(perks) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(perks))
+	for _, perkID := range perks {
+		perkID = strings.TrimSpace(perkID)
+		if perkID == "" {
+			continue
+		}
+		out = append(out, perkID)
+	}
+	return out
 }
 
 func (c GameplayConfig) ProgressionDeckDefIDs() []string {
@@ -656,6 +858,29 @@ func (c GameplayConfig) RewardFromPool(pool []RNGPoolEntryConfig, fallbackType s
 		return "", 0
 	}
 	return strings.TrimSpace(fallbackType), fallbackAmount
+}
+
+func normalizeRewardTable(table *RewardTableConfig) {
+	if table == nil {
+		return
+	}
+	if table.BonusRolls < 0 {
+		table.BonusRolls = 0
+	}
+	for i := range table.Guaranteed {
+		if table.Guaranteed[i].Amount <= 0 && !strings.EqualFold(strings.TrimSpace(table.Guaranteed[i].Type), "none") {
+			table.Guaranteed[i].Amount = 1
+		}
+	}
+	for i := range table.RNGPool {
+		entry := &table.RNGPool[i]
+		if entry.Weight <= 0 {
+			entry.Weight = 1
+		}
+		if entry.Amount <= 0 && !strings.EqualFold(strings.TrimSpace(entry.Type), "none") {
+			entry.Amount = 1
+		}
+	}
 }
 
 func normalizeCollectLoot(raw string) string {

@@ -62,7 +62,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
             {accountInitials()}
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-semibold text-white">{accountName()}</span>
+            <span class="block truncate text-sm font-semibold text-[var(--text-main)]">{accountName()}</span>
             <span class="mt-0.5 inline-flex rounded border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--accent-text)]">
               {accountPlan()}
             </span>

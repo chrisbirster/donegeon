@@ -25,8 +25,10 @@ const DefaultBoardID = "default"
 var boardIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 const (
-	defaultVillagerStamina = 6
+	defaultVillagerStamina = 8
 	xpPerLevel             = 10
+	boardGridSpacing       = 22
+	boardGridOriginOffset  = 1
 )
 
 var defaultLootTypes = []string{"coin", "paper", "ink", "gear", "parts"}
@@ -86,6 +88,12 @@ type CommandResult struct {
 	Patch      any    `json:"patch,omitempty"`
 }
 
+type resolvedReward struct {
+	Kind   string
+	ID     string
+	Amount int
+}
+
 type VersionConflictError struct {
 	ServerVersion string
 }
@@ -129,7 +137,7 @@ func (s *Service) GetState(ctx context.Context, boardID string) (StateResponse, 
 	return StateResponse{
 		Stacks:  state.Stacks,
 		Cards:   state.Cards,
-		Meta:    state.Meta,
+		Meta:    s.responseMeta(state.Meta),
 		Version: state.Version(),
 	}, nil
 }
@@ -234,6 +242,8 @@ func (s *Service) executeCommand(ctx context.Context, state *State, boardID stri
 		return s.cmdTaskSetPriority(ctx, state, args)
 	case "task.set_task_id":
 		return s.cmdTaskSetTaskID(ctx, state, args)
+	case "task.sync_from_task":
+		return s.cmdTaskSyncFromTask(ctx, state, args)
 	case "task.add_modifier":
 		return s.cmdTaskAddModifier(ctx, state, args)
 	case "task.assign_villager":
@@ -273,7 +283,7 @@ func cmdStackMove(state *State, args map[string]any) (any, error) {
 		return nil, err
 	}
 
-	if err := state.MoveStack(stackID, Point{X: x, Y: y}); err != nil {
+	if err := state.MoveStack(stackID, snapBoardPoint(Point{X: x, Y: y})); err != nil {
 		return nil, err
 	}
 
@@ -436,7 +446,7 @@ func cmdStackSplit(state *State, args map[string]any) (any, error) {
 	ensurePriorityFaceCard(state, source)
 	ensurePriorityFaceCard(state, newStack)
 	if newX != nil && newY != nil {
-		newStack.Pos = Point{X: *newX, Y: *newY}
+		newStack.Pos = snapBoardPoint(Point{X: *newX, Y: *newY})
 	}
 
 	return map[string]any{
@@ -482,6 +492,17 @@ func cmdStackRemove(state *State, args map[string]any) (any, error) {
 		"removedStack": stackID,
 		"removedCards": removedCards,
 	}, nil
+}
+
+func snapBoardCoordinate(value int) int {
+	return int(math.Round(float64(value-boardGridOriginOffset)/float64(boardGridSpacing)))*boardGridSpacing + boardGridOriginOffset
+}
+
+func snapBoardPoint(pos Point) Point {
+	return Point{
+		X: snapBoardCoordinate(pos.X),
+		Y: snapBoardCoordinate(pos.Y),
+	}
 }
 
 func (s *Service) cmdTaskCreateBlank(ctx context.Context, state *State, boardID string, args map[string]any) (any, error) {
@@ -719,6 +740,42 @@ func (s *Service) cmdTaskSetTaskID(ctx context.Context, state *State, args map[s
 	}, nil
 }
 
+func (s *Service) cmdTaskSyncFromTask(ctx context.Context, state *State, args map[string]any) (any, error) {
+	if s.tasks == nil {
+		return nil, fmt.Errorf("task service unavailable")
+	}
+
+	cardID, err := getString(args, "taskCardId")
+	if err != nil {
+		return nil, err
+	}
+
+	card := state.GetCard(cardID)
+	if card == nil {
+		return nil, fmt.Errorf("card not found: %s", cardID)
+	}
+	if !isTaskCard(card) {
+		return nil, fmt.Errorf("card is not a task: %s", cardID)
+	}
+
+	taskID := cardTaskID(card)
+	if taskID == "" {
+		return nil, fmt.Errorf("task card is not linked to a task: %s", cardID)
+	}
+
+	row, err := s.tasks.Get(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	card.DefID = "task.instance"
+	syncTaskCardDataFromTaskRow(card, row)
+
+	return map[string]any{
+		"card": card,
+	}, nil
+}
+
 func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args map[string]any) (any, error) {
 	stackID, err := getString(args, "stackId")
 	if err != nil {
@@ -741,6 +798,7 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 	seenTaskIDs := map[string]struct{}{}
 	removedCards := make([]string, 0, len(stack.Cards))
 	survivorCards := make([]string, 0, len(stack.Cards))
+	completedTaskCards := make([]*Card, 0, len(stack.Cards))
 	completedTaskCardCount := 0
 	basePos := stack.Pos
 	offset := 18
@@ -752,6 +810,7 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 		}
 		if isTaskCard(card) {
 			completedTaskCardCount++
+			completedTaskCards = append(completedTaskCards, card)
 			removedCards = append(removedCards, cardID)
 			if taskID := cardTaskID(card); taskID != "" {
 				if _, exists := seenTaskIDs[taskID]; !exists {
@@ -802,21 +861,19 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 	meta.Metrics["tasks_completed"] += completedCount
 	incrementQuestMetric(meta, "complete_task", "", completedCount)
 
+	var progressBefore *VillagerProgress
+	if hasVillager {
+		progressBefore = ensureVillager(meta, villagerID)
+	}
+
 	var rewardPatch map[string]any
-	if rewardType, rewardAmount := s.taskCompleteReward(completedCount); rewardType != "" && rewardAmount > 0 {
-		rewardStack := createSingleCardStack(state, "loot."+rewardType, Point{
+	if rewards := s.taskCompletionRewards(progressBefore, completedTaskCards, stack.ID, basePos); len(rewards) > 0 {
+		rewardStacks := s.spawnResolvedRewards(state, rewards, Point{
 			X: basePos.X + len(createdStacks)*offset + 28,
 			Y: basePos.Y + len(createdStacks)*offset + 12,
-		}, map[string]any{
-			"amount": rewardAmount,
 		})
-		createdStacks = append(createdStacks, rewardStack)
-		rewardPatch = map[string]any{
-			"type":    rewardType,
-			"amount":  rewardAmount,
-			"mode":    "spawned",
-			"stackId": rewardStack.ID,
-		}
+		createdStacks = append(createdStacks, rewardStacks...)
+		rewardPatch = rewardPatchFromResolvedRewards(rewards, rewardStacks, "spawned")
 	}
 
 	xpGained := 0
@@ -829,11 +886,16 @@ func (s *Service) cmdTaskCompleteStack(ctx context.Context, state *State, args m
 		"newPerks": []string{},
 	}
 	if hasVillager {
-		xpGained = s.taskCompleteXP(completedCount)
+		xpGained = s.taskCompletionXP(progressBefore, completedTaskCards)
 		progress, newPerks := s.awardVillagerXP(meta, villagerID, xpGained)
 		villagerProgressPatch["xp"] = progress.XP
 		villagerProgressPatch["level"] = progress.Level
 		villagerProgressPatch["perks"] = append([]string{}, progress.Perks...)
+		villagerProgressPatch["maxStamina"] = s.villagerMaxStamina(progress)
+		nextLevel, nextLevelXP, xpToNext := s.nextLevelProgress(progress)
+		villagerProgressPatch["nextLevel"] = nextLevel
+		villagerProgressPatch["nextLevelXP"] = nextLevelXP
+		villagerProgressPatch["xpToNextLevel"] = xpToNext
 		villagerProgressPatch["xpGained"] = xpGained
 		villagerProgressPatch["newPerks"] = newPerks
 	}
@@ -886,13 +948,14 @@ func (s *Service) cmdTaskCompleteByTaskID(ctx context.Context, state *State, arg
 	incrementQuestMetric(meta, "complete_task", "", 1)
 
 	var rewardPatch map[string]any
-	if rewardType, rewardAmount := s.taskCompleteReward(1); rewardType != "" && rewardAmount > 0 {
-		meta.Inventory[rewardType] += rewardAmount
-		rewardPatch = map[string]any{
-			"type":   rewardType,
-			"amount": rewardAmount,
-			"mode":   "inventory",
+	if rewards := s.taskCompletionInventoryRewards(1); len(rewards) > 0 {
+		for _, reward := range rewards {
+			if reward.Kind != "loot" {
+				continue
+			}
+			meta.Inventory[reward.ID] += reward.Amount
 		}
+		rewardPatch = rewardPatchFromResolvedRewards(rewards, nil, "inventory")
 	}
 
 	return map[string]any{
@@ -1764,8 +1827,10 @@ func (s *Service) cmdZombieClear(state *State, args map[string]any) (any, error)
 		villagerStack.Pos = origin
 	}
 
-	rewardType, rewardAmount := s.zombieClearReward()
-	meta.Inventory[rewardType] += rewardAmount
+	rewardType, rewardAmount := s.zombieClearReward(zombieStackID, actualVillagerID, meta.Metrics["zombies_cleared"])
+	if rewardType != "" && rewardAmount > 0 {
+		meta.Inventory[rewardType] += rewardAmount
+	}
 	meta.Metrics["zombies_cleared"]++
 	meta.Metrics["overrun_level"] = countZombieStacks(state)
 	incrementQuestMetric(meta, "clear_zombie", "", 1)
@@ -1786,10 +1851,23 @@ func (s *Service) cmdZombieClear(state *State, args map[string]any) (any, error)
 		},
 		"inventory": inventory,
 		"villagerProgress": map[string]any{
-			"id":       actualVillagerID,
-			"xp":       updatedVillager.XP,
-			"level":    updatedVillager.Level,
-			"perks":    append([]string{}, updatedVillager.Perks...),
+			"id":         actualVillagerID,
+			"xp":         updatedVillager.XP,
+			"level":      updatedVillager.Level,
+			"perks":      append([]string{}, updatedVillager.Perks...),
+			"maxStamina": s.villagerMaxStamina(updatedVillager),
+			"nextLevel": func() int {
+				level, _, _ := s.nextLevelProgress(updatedVillager)
+				return level
+			}(),
+			"nextLevelXP": func() int {
+				_, xp, _ := s.nextLevelProgress(updatedVillager)
+				return xp
+			}(),
+			"xpToNextLevel": func() int {
+				_, _, xpToNext := s.nextLevelProgress(updatedVillager)
+				return xpToNext
+			}(),
 			"xpGained": xpGained,
 			"newPerks": newPerks,
 		},
@@ -1884,12 +1962,10 @@ func (s *Service) cmdResourceGather(state *State, args map[string]any) (any, err
 		resourceCard.Data["charges"] = charges
 	}
 
-	dropDefID := resourceDropDefID(resourceCard.DefID)
-	dropStack := createSingleCardStack(state, dropDefID, Point{
+	rewardStacks := s.spawnResolvedRewards(state, s.resourceGatherRewards(progress, resourceCard, actualVillagerID, resourceStackID, charges), Point{
 		X: resourceStack.Pos.X + 98,
 		Y: resourceStack.Pos.Y + 28,
-	}, map[string]any{"amount": 1})
-	dropStack = s.finalizeSpawnedStack(state, dropStack)
+	})
 
 	xpGained := s.gatherResourceXP()
 	updatedVillager, newPerks := s.awardVillagerXP(meta, actualVillagerID, xpGained)
@@ -1902,12 +1978,25 @@ func (s *Service) cmdResourceGather(state *State, args map[string]any) (any, err
 		"resourceChargesRemaining": maxInt(charges, 0),
 		"resourceDepleted":         charges <= 0,
 		"stackHasMoreResources":    stackHasKind(state, resourceStack, "resource"),
-		"createdStacks":            []*Stack{dropStack},
+		"createdStacks":            rewardStacks,
 		"villagerProgress": map[string]any{
-			"id":       actualVillagerID,
-			"xp":       updatedVillager.XP,
-			"level":    updatedVillager.Level,
-			"perks":    append([]string{}, updatedVillager.Perks...),
+			"id":         actualVillagerID,
+			"xp":         updatedVillager.XP,
+			"level":      updatedVillager.Level,
+			"perks":      append([]string{}, updatedVillager.Perks...),
+			"maxStamina": s.villagerMaxStamina(updatedVillager),
+			"nextLevel": func() int {
+				level, _, _ := s.nextLevelProgress(updatedVillager)
+				return level
+			}(),
+			"nextLevelXP": func() int {
+				_, xp, _ := s.nextLevelProgress(updatedVillager)
+				return xp
+			}(),
+			"xpToNextLevel": func() int {
+				_, _, xpToNext := s.nextLevelProgress(updatedVillager)
+				return xpToNext
+			}(),
 			"xpGained": xpGained,
 			"newPerks": newPerks,
 		},
@@ -1983,7 +2072,7 @@ func (s *Service) cmdFoodConsume(state *State, args map[string]any) (any, error)
 		foodCard.Data["amount"] = amount
 	}
 
-	restore := s.staminaRestoreForFood(foodCard.DefID)
+	restore := s.staminaRestoreForFood(foodCard.DefID, progress)
 	staminaRemaining := restoreVillagerStamina(progress, restore, s.villagerMaxStamina(progress))
 
 	if targetStackID == foodStackID && villagerStackID != foodStackID {
@@ -2755,6 +2844,38 @@ func taskCardDataFromTaskRow(row task.Task) map[string]any {
 	return data
 }
 
+func syncTaskCardDataFromTaskRow(card *Card, row task.Task) {
+	if card == nil {
+		return
+	}
+	if card.Data == nil {
+		card.Data = map[string]any{}
+	}
+
+	next := taskCardDataFromTaskRow(row)
+	syncedKeys := []string{
+		"taskId",
+		"title",
+		"description",
+		"priority",
+		"project",
+		"recurrence",
+		"dueText",
+		"dueDeadline",
+		"scheduleInput",
+		"labels",
+	}
+
+	for _, key := range syncedKeys {
+		value, ok := next[key]
+		if !ok {
+			delete(card.Data, key)
+			continue
+		}
+		card.Data[key] = value
+	}
+}
+
 func cardQuestCreateCounted(card *Card) bool {
 	if card == nil || card.Data == nil {
 		return false
@@ -3517,6 +3638,96 @@ func resourceDropDefID(resourceDefID string) string {
 	}
 }
 
+func (s *Service) responseMeta(meta BoardMeta) BoardMeta {
+	out := meta
+	out.Inventory = copyIntMap(meta.Inventory)
+	out.Metrics = copyIntMap(meta.Metrics)
+	out.DeckOpen = copyIntMap(meta.DeckOpen)
+	if meta.StoreReceipts != nil {
+		out.StoreReceipts = make(map[string]*StoreReceipt, len(meta.StoreReceipts))
+		for key, value := range meta.StoreReceipts {
+			out.StoreReceipts[key] = value
+		}
+	}
+	out.Villagers = make(map[string]*VillagerProgress, len(meta.Villagers))
+	for villagerID, progress := range meta.Villagers {
+		if progress == nil {
+			progress = &VillagerProgress{
+				Stamina: defaultVillagerStamina,
+				Level:   1,
+			}
+		}
+		clone := &VillagerProgress{
+			Stamina: progress.Stamina,
+			XP:      progress.XP,
+			Level:   progress.Level,
+		}
+		if len(progress.Perks) > 0 {
+			clone.Perks = append([]string{}, progress.Perks...)
+		}
+		s.decorateVillagerProgress(clone)
+		out.Villagers[villagerID] = clone
+	}
+	out.Progression = s.progressionState()
+	return out
+}
+
+func (s *Service) decorateVillagerProgress(progress *VillagerProgress) {
+	if progress == nil {
+		return
+	}
+	progress.MaxStamina = s.villagerMaxStamina(progress)
+	nextLevel, nextLevelXP, xpToNext := s.nextLevelProgress(progress)
+	progress.NextLevel = nextLevel
+	progress.NextLevelXP = nextLevelXP
+	progress.XPToNext = xpToNext
+}
+
+func (s *Service) progressionState() *ProgressionState {
+	maxLevel := s.cfg.Villagers.Defaults.MaxLevel
+	if maxLevel <= 0 {
+		maxLevel = 10
+	}
+
+	thresholds := make(map[string]int, len(s.cfg.Villagers.Leveling.Thresholds))
+	for level, threshold := range s.cfg.Villagers.Leveling.Thresholds {
+		thresholds[fmt.Sprintf("%d", level)] = threshold
+	}
+
+	perksByLevel := map[string][]ProgressionPerk{}
+	levels := make([]ProgressionLevel, 0, maxInt(maxLevel-1, 0))
+	for level := 2; level <= maxLevel; level++ {
+		perkIDs := s.cfg.PerksForLevel(level)
+		perks := make([]ProgressionPerk, 0, len(perkIDs))
+		for _, perkID := range perkIDs {
+			perk := s.cfg.PerkByID(perkID)
+			if perk == nil {
+				continue
+			}
+			perks = append(perks, ProgressionPerk{
+				ID:      perk.ID,
+				Label:   perk.Label,
+				Summary: perkSummary(perk),
+			})
+		}
+		if len(perks) > 0 {
+			perksByLevel[fmt.Sprintf("%d", level)] = perks
+		}
+		levels = append(levels, ProgressionLevel{
+			Level:     level,
+			Threshold: s.cfg.Villagers.Leveling.Thresholds[level],
+			Perks:     perks,
+		})
+	}
+
+	return &ProgressionState{
+		MaxLevel:     maxLevel,
+		Thresholds:   thresholds,
+		PerksByLevel: perksByLevel,
+		Levels:       levels,
+	}
+}
+
 func ensureMeta(state *State) *BoardMeta {
 	if state == nil {
 		return &BoardMeta{
@@ -3631,6 +3842,43 @@ func (s *Service) villagerMaxStamina(progress *VillagerProgress) int {
 	return maxStamina
 }
 
+func (s *Service) nextLevelProgress(progress *VillagerProgress) (int, int, int) {
+	if progress == nil {
+		return 1, 0, 0
+	}
+
+	maxLevel := s.cfg.Villagers.Defaults.MaxLevel
+	if maxLevel <= 0 {
+		maxLevel = 10
+	}
+
+	currentLevel := progress.Level
+	if currentLevel <= 0 {
+		currentLevel = 1
+	}
+	if currentLevel >= maxLevel {
+		return maxLevel, progress.XP, 0
+	}
+
+	thresholdLevels := s.cfg.LevelThresholdsSorted()
+	for _, level := range thresholdLevels {
+		threshold := s.cfg.Villagers.Leveling.Thresholds[level]
+		if threshold > progress.XP {
+			return level, threshold, threshold - progress.XP
+		}
+	}
+
+	nextLevel := currentLevel + 1
+	if nextLevel > maxLevel {
+		nextLevel = maxLevel
+	}
+	nextXP := (nextLevel - 1) * xpPerLevel
+	if nextXP < progress.XP {
+		nextXP = progress.XP
+	}
+	return nextLevel, nextXP, maxInt(nextXP-progress.XP, 0)
+}
+
 func spendVillagerStamina(progress *VillagerProgress, cost int) (bool, int) {
 	if progress == nil {
 		return false, 0
@@ -3740,7 +3988,17 @@ func (s *Service) awardVillagerXP(meta *BoardMeta, villagerID string, xp int) (*
 	}
 
 	newPerks := []string{}
-	if len(s.cfg.Villagers.Leveling.PerkPool) > 0 {
+	if len(s.cfg.Villagers.Leveling.PerksByLevel) > 0 {
+		for lvl := progress.Level + 1; lvl <= newLevel; lvl++ {
+			for _, perkID := range s.cfg.PerksForLevel(lvl) {
+				if perkID == "" || villagerHasPerk(progress, perkID) {
+					continue
+				}
+				progress.Perks = append(progress.Perks, perkID)
+				newPerks = append(newPerks, perkID)
+			}
+		}
+	} else if len(s.cfg.Villagers.Leveling.PerkPool) > 0 {
 		choicesPerLevel := s.cfg.Villagers.Leveling.ChoicesPerLevel
 		if choicesPerLevel <= 0 {
 			choicesPerLevel = 1
@@ -3760,13 +4018,6 @@ func (s *Service) awardVillagerXP(meta *BoardMeta, villagerID string, xp int) (*
 				}
 			}
 		}
-	} else {
-		for lvl := progress.Level + 1; lvl <= newLevel; lvl++ {
-			if perkID := perkForLevel(lvl); perkID != "" && !villagerHasPerk(progress, perkID) {
-				progress.Perks = append(progress.Perks, perkID)
-				newPerks = append(newPerks, perkID)
-			}
-		}
 	}
 	progress.Level = newLevel
 	maxStamina := s.villagerMaxStamina(progress)
@@ -3776,26 +4027,125 @@ func (s *Service) awardVillagerXP(meta *BoardMeta, villagerID string, xp int) (*
 	return progress, newPerks
 }
 
-func (s *Service) taskCompleteXP(completedCount int) int {
+func taskCardPriority(card *Card) int {
+	if card == nil {
+		return 4
+	}
+	priority := intFromAny(card.Data["priority"])
+	if priority < 1 || priority > 4 {
+		return 4
+	}
+	return priority
+}
+
+func (s *Service) taskPriorityXPBonus(priority int) int {
+	key := "none"
+	switch priority {
+	case 1:
+		key = "high"
+	case 2:
+		key = "medium"
+	case 3:
+		key = "low"
+	}
+	return maxInt(s.cfg.Villagers.Leveling.XPSources.CompleteTask.ByPriority[key], 0)
+}
+
+func (s *Service) taskCompleteXPBonus(progress *VillagerProgress) int {
+	if progress == nil {
+		return 0
+	}
+	bonus := 0
+	for _, perkID := range progress.Perks {
+		perk := s.cfg.PerkByID(perkID)
+		if perk == nil || perk.Apply == nil {
+			continue
+		}
+		bonus += intFromAny(perk.Apply["task_complete_xp_add"])
+	}
+	return maxInt(bonus, 0)
+}
+
+func (s *Service) taskCompleteCurrencyBonus(progress *VillagerProgress) int {
+	if progress == nil {
+		return 0
+	}
+	bonus := 0
+	for _, perkID := range progress.Perks {
+		perk := s.cfg.PerkByID(perkID)
+		if perk == nil || perk.Apply == nil {
+			continue
+		}
+		bonus += intFromAny(perk.Apply["task_complete_currency_add"])
+	}
+	return maxInt(bonus, 0)
+}
+
+func (s *Service) resourceDropAmountBonus(progress *VillagerProgress) int {
+	if progress == nil {
+		return 0
+	}
+	bonus := 0
+	for _, perkID := range progress.Perks {
+		perk := s.cfg.PerkByID(perkID)
+		if perk == nil || perk.Apply == nil {
+			continue
+		}
+		bonus += intFromAny(perk.Apply["resource_drop_amount_add"])
+	}
+	return maxInt(bonus, 0)
+}
+
+func (s *Service) foodStaminaRestoreBonus(progress *VillagerProgress) int {
+	if progress == nil {
+		return 0
+	}
+	bonus := 0
+	for _, perkID := range progress.Perks {
+		perk := s.cfg.PerkByID(perkID)
+		if perk == nil || perk.Apply == nil {
+			continue
+		}
+		bonus += intFromAny(perk.Apply["food_stamina_restore_add"])
+	}
+	return maxInt(bonus, 0)
+}
+
+func (s *Service) taskCompletionXP(progress *VillagerProgress, cards []*Card) int {
 	baseXP := s.cfg.Villagers.Leveling.XPSources.CompleteTask.BaseXP
 	if baseXP <= 0 {
 		baseXP = 1
 	}
-	if completedCount <= 0 {
-		completedCount = 1
+	total := 0
+	for _, card := range cards {
+		total += baseXP + s.taskPriorityXPBonus(taskCardPriority(card)) + s.taskCompleteXPBonus(progress)
 	}
-	total := baseXP * completedCount
+	if total == 0 && len(cards) == 0 {
+		total = baseXP + s.taskCompleteXPBonus(progress)
+	}
 	if total < 0 {
 		return 0
 	}
 	return total
 }
 
-func (s *Service) taskCompleteReward(completedCount int) (string, int) {
-	if completedCount <= 0 {
-		return "", 0
+func normalizeResolvedReward(kind, id string, amount int) (resolvedReward, bool) {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	id = strings.TrimSpace(id)
+	switch kind {
+	case "", "none":
+		return resolvedReward{}, false
+	case "loot":
+		id = normalizeCollectLoot(id)
+	case "food":
+		id = strings.TrimSpace(strings.TrimPrefix(strings.ToLower(id), "food."))
+	default:
+		return resolvedReward{}, false
 	}
-	return "coin", completedCount
+	if id == "" || amount <= 0 {
+		return resolvedReward{}, false
+	}
+	return resolvedReward{Kind: kind, ID: id, Amount: amount}, true
 }
 
 func (s *Service) gatherResourceXP() int {
@@ -3814,11 +4164,246 @@ func (s *Service) zombieClearXP() int {
 	return xp
 }
 
-func (s *Service) zombieClearReward() (string, int) {
-	if len(s.cfg.Zombies.Types) > 0 {
-		return s.cfg.RewardFromPool(s.cfg.Zombies.Types[0].Cleanup.RewardOnClear.RNGPool, "coin", 1)
+func deterministicRewardSeed(parts ...string) int64 {
+	hasher := fnv.New64a()
+	for _, part := range parts {
+		_, _ = hasher.Write([]byte(part))
+		_, _ = hasher.Write([]byte("|"))
 	}
-	return "coin", 1
+	return int64(hasher.Sum64())
+}
+
+func weightedRewardRoll(entries []RewardTableEntryConfig, seed int64) (resolvedReward, bool) {
+	totalWeight := 0
+	for _, entry := range entries {
+		if entry.Weight > 0 {
+			totalWeight += entry.Weight
+		}
+	}
+	if totalWeight <= 0 {
+		return resolvedReward{}, false
+	}
+	rng := rand.New(rand.NewSource(seed))
+	target := rng.Intn(totalWeight)
+	running := 0
+	for _, entry := range entries {
+		if entry.Weight <= 0 {
+			continue
+		}
+		running += entry.Weight
+		if target >= running {
+			continue
+		}
+		return normalizeResolvedReward(entry.Type, entry.ID, entry.Amount)
+	}
+	return resolvedReward{}, false
+}
+
+func collapseResolvedRewards(rewards []resolvedReward) []resolvedReward {
+	if len(rewards) == 0 {
+		return nil
+	}
+	order := make([]string, 0, len(rewards))
+	merged := map[string]resolvedReward{}
+	for _, reward := range rewards {
+		if reward.Kind == "" || reward.ID == "" || reward.Amount <= 0 {
+			continue
+		}
+		key := reward.Kind + ":" + reward.ID
+		if existing, ok := merged[key]; ok {
+			existing.Amount += reward.Amount
+			merged[key] = existing
+			continue
+		}
+		order = append(order, key)
+		merged[key] = reward
+	}
+	out := make([]resolvedReward, 0, len(order))
+	for _, key := range order {
+		out = append(out, merged[key])
+	}
+	return out
+}
+
+func resolveRewardTable(table RewardTableConfig, repeats int, seedParts ...string) []resolvedReward {
+	if repeats <= 0 {
+		return nil
+	}
+	rewards := make([]resolvedReward, 0, repeats*(len(table.Guaranteed)+maxInt(table.BonusRolls, 0)))
+	for repeat := 0; repeat < repeats; repeat++ {
+		for _, entry := range table.Guaranteed {
+			if reward, ok := normalizeResolvedReward(entry.Type, entry.ID, entry.Amount); ok {
+				rewards = append(rewards, reward)
+			}
+		}
+		for roll := 0; roll < table.BonusRolls; roll++ {
+			seed := deterministicRewardSeed(append(seedParts, fmt.Sprintf("repeat:%d", repeat), fmt.Sprintf("roll:%d", roll))...)
+			if reward, ok := weightedRewardRoll(table.RNGPool, seed); ok {
+				rewards = append(rewards, reward)
+			}
+		}
+	}
+	return collapseResolvedRewards(rewards)
+}
+
+func resolvedRewardDefID(reward resolvedReward) string {
+	switch reward.Kind {
+	case "loot":
+		return "loot." + reward.ID
+	case "food":
+		return "food." + reward.ID
+	default:
+		return ""
+	}
+}
+
+func rewardPatchFromResolvedRewards(rewards []resolvedReward, stacks []*Stack, mode string) map[string]any {
+	if len(rewards) == 0 {
+		return nil
+	}
+	primary := rewards[0]
+	patch := map[string]any{
+		"type":   primary.ID,
+		"amount": primary.Amount,
+		"mode":   mode,
+	}
+	if len(stacks) > 0 {
+		patch["stackId"] = stacks[0].ID
+	}
+	if primary.Kind != "" {
+		patch["kind"] = primary.Kind
+	}
+	if len(rewards) > 1 {
+		items := make([]map[string]any, 0, len(rewards))
+		for _, reward := range rewards {
+			items = append(items, map[string]any{
+				"kind":   reward.Kind,
+				"type":   reward.ID,
+				"amount": reward.Amount,
+			})
+		}
+		patch["items"] = items
+	}
+	return patch
+}
+
+func (s *Service) spawnResolvedRewards(state *State, rewards []resolvedReward, pos Point) []*Stack {
+	if len(rewards) == 0 {
+		return nil
+	}
+	created := make([]*Stack, 0, len(rewards))
+	for index, reward := range rewards {
+		defID := resolvedRewardDefID(reward)
+		if defID == "" {
+			continue
+		}
+		stack := createSingleCardStack(state, defID, Point{
+			X: pos.X + index*18,
+			Y: pos.Y + (index%2)*12,
+		}, map[string]any{
+			"amount": reward.Amount,
+		})
+		created = append(created, s.finalizeSpawnedStack(state, stack))
+	}
+	return created
+}
+
+func (s *Service) taskCompletionRewards(progress *VillagerProgress, cards []*Card, stackID string, basePos Point) []resolvedReward {
+	repeats := len(cards)
+	if repeats <= 0 {
+		return nil
+	}
+	table := s.cfg.Villagers.Leveling.TaskCompletionRewards
+	rewards := resolveRewardTable(
+		table,
+		repeats,
+		"task.complete",
+		stackID,
+		fmt.Sprintf("%d:%d", basePos.X, basePos.Y),
+	)
+	if len(rewards) == 0 {
+		rewards = []resolvedReward{{Kind: "loot", ID: "coin", Amount: repeats}}
+	}
+	if bonusCurrency := s.taskCompleteCurrencyBonus(progress); bonusCurrency > 0 {
+		rewards = append(rewards, resolvedReward{
+			Kind:   "loot",
+			ID:     "coin",
+			Amount: bonusCurrency * repeats,
+		})
+	}
+	return collapseResolvedRewards(rewards)
+}
+
+func (s *Service) taskCompletionInventoryRewards(completedCount int) []resolvedReward {
+	if completedCount <= 0 {
+		return nil
+	}
+	filtered := make([]resolvedReward, 0, completedCount*len(s.cfg.Villagers.Leveling.TaskCompletionRewards.Guaranteed))
+	for repeat := 0; repeat < completedCount; repeat++ {
+		for _, entry := range s.cfg.Villagers.Leveling.TaskCompletionRewards.Guaranteed {
+			if reward, ok := normalizeResolvedReward(entry.Type, entry.ID, entry.Amount); ok && reward.Kind == "loot" {
+				filtered = append(filtered, reward)
+			}
+		}
+	}
+	if len(filtered) == 0 {
+		filtered = append(filtered, resolvedReward{Kind: "loot", ID: "coin", Amount: completedCount})
+	}
+	return collapseResolvedRewards(filtered)
+}
+
+func (s *Service) resourceGatherRewards(progress *VillagerProgress, resourceCard *Card, villagerID string, stackID string, chargesRemaining int) []resolvedReward {
+	if resourceCard == nil {
+		return nil
+	}
+	resourceID := strings.TrimSpace(strings.TrimPrefix(resourceCard.DefID, "resource."))
+	var rewards []resolvedReward
+	if node := s.cfg.ResourceNodeByID(resourceID); node != nil {
+		rewards = resolveRewardTable(
+			node.Gather.Rewards,
+			1,
+			"resource.gather",
+			resourceCard.ID,
+			villagerID,
+			stackID,
+			resourceID,
+			fmt.Sprintf("charges:%d", chargesRemaining),
+		)
+	}
+	if len(rewards) == 0 {
+		if fallback, ok := normalizeResolvedReward("loot", strings.TrimPrefix(resourceDropDefID(resourceCard.DefID), "loot."), 1); ok {
+			rewards = []resolvedReward{fallback}
+		}
+	}
+	bonus := s.resourceDropAmountBonus(progress)
+	if bonus > 0 {
+		for index := range rewards {
+			if rewards[index].Kind == "loot" {
+				rewards[index].Amount += bonus
+			}
+		}
+	}
+	return collapseResolvedRewards(rewards)
+}
+
+func (s *Service) zombieClearReward(zombieStackID, villagerID string, clearedCount int) (string, int) {
+	if len(s.cfg.Zombies.Types) == 0 {
+		return "coin", 1
+	}
+	rewards := resolveRewardTable(
+		s.cfg.Zombies.Types[0].Cleanup.RewardOnClear,
+		1,
+		"zombie.clear",
+		zombieStackID,
+		villagerID,
+		fmt.Sprintf("cleared:%d", clearedCount),
+	)
+	for _, reward := range rewards {
+		if reward.Kind == "loot" {
+			return reward.ID, reward.Amount
+		}
+	}
+	return "", 0
 }
 
 func (s *Service) taskDueGraceHours() int {
@@ -3829,30 +4414,49 @@ func (s *Service) taskDueGraceHours() int {
 	return grace
 }
 
-func perkForLevel(level int) string {
-	switch level {
-	case 2:
-		return "perk_stamina_plus_1"
-	case 3:
-		return "perk_zombie_slayer"
-	default:
-		return ""
-	}
-}
-
-func (s *Service) staminaRestoreForFood(foodDefID string) int {
+func (s *Service) staminaRestoreForFood(foodDefID string, progress *VillagerProgress) int {
 	foodID := strings.TrimSpace(strings.TrimPrefix(foodDefID, "food."))
 	if item := s.cfg.FoodByID(foodID); item != nil && item.StaminaRestore > 0 {
-		return item.StaminaRestore
+		return item.StaminaRestore + s.foodStaminaRestoreBonus(progress)
 	}
 	switch strings.TrimSpace(foodDefID) {
 	case "food.bread":
-		return 3
+		return 3 + s.foodStaminaRestoreBonus(progress)
 	case "food.berries", "food.berry":
-		return 2
+		return 2 + s.foodStaminaRestoreBonus(progress)
 	default:
-		return 1
+		return 1 + s.foodStaminaRestoreBonus(progress)
 	}
+}
+
+func perkSummary(perk *PerkConfig) string {
+	if perk == nil || perk.Apply == nil {
+		return ""
+	}
+	parts := []string{}
+	if value := intFromAny(perk.Apply["max_stamina_add"]); value != 0 {
+		parts = append(parts, fmt.Sprintf("%+d max stamina", value))
+	}
+	if value := intFromAny(perk.Apply["task_complete_currency_add"]); value != 0 {
+		parts = append(parts, fmt.Sprintf("%+d coin on task completion", value))
+	}
+	if value := intFromAny(perk.Apply["task_complete_xp_add"]); value != 0 {
+		parts = append(parts, fmt.Sprintf("%+d XP on task completion", value))
+	}
+	if value := intFromAny(perk.Apply["zombie_clear_stamina_cost_add"]); value != 0 {
+		summary := fmt.Sprintf("%+d zombie clear stamina cost", value)
+		if minCost := intFromAny(perk.Apply["min_zombie_clear_cost"]); minCost > 0 {
+			summary += fmt.Sprintf(" (min %d)", minCost)
+		}
+		parts = append(parts, summary)
+	}
+	if value := intFromAny(perk.Apply["resource_drop_amount_add"]); value != 0 {
+		parts = append(parts, fmt.Sprintf("%+d resource loot", value))
+	}
+	if value := intFromAny(perk.Apply["food_stamina_restore_add"]); value != 0 {
+		parts = append(parts, fmt.Sprintf("%+d stamina from food", value))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func copyIntMap(src map[string]int) map[string]int {

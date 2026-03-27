@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import { Show, createSignal, type JSX } from "solid-js";
 
+import { storedBoardHref } from "../lib/boardSelection";
 import SidebarAccountCard from "./SidebarAccountCard";
 
 type ShellProps = {
@@ -8,33 +9,60 @@ type ShellProps = {
   headerRight?: JSX.Element;
   mobileSidebar?: JSX.Element;
   accountPlacement?: "floating" | "sidebar";
+  chromeTone?: "default" | "board";
   children: JSX.Element;
 };
 
 export default function AppShell(props: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
   const accountPlacement = () => props.accountPlacement || "floating";
+  const chromeTone = () => props.chromeTone || "default";
+  const boardTone = () => chromeTone() === "board";
+  const boardHref = () => storedBoardHref();
   const navItemClass = (active: boolean) =>
-    active
-      ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
-      : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.04)] hover:text-white";
+    boardTone()
+      ? active
+        ? "bg-[rgba(255,139,80,0.14)] text-[#ffd7b7]"
+        : "text-[#b7c4d7] hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
+      : active
+        ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
+        : "text-[var(--text-muted)] hover:bg-[var(--panel-soft)] hover:text-[var(--text-main)]";
   const mobileActionClass = (active: boolean) =>
-    active
-      ? "border-[rgba(255,139,80,0.28)] bg-[var(--accent-wash)] text-[var(--accent-text)]"
-      : "app-button-secondary text-[var(--text-soft)]";
+    boardTone()
+      ? active
+        ? "border-[rgba(255,139,80,0.28)] bg-[rgba(255,139,80,0.14)] text-[#ffd7b7]"
+        : "border-[#31445f] bg-[#131b27] text-[#c9d4e3] hover:border-[#466684]"
+      : active
+        ? "border-[rgba(255,139,80,0.28)] bg-[var(--accent-wash)] text-[var(--accent-text)]"
+        : "app-button-secondary text-[var(--text-soft)]";
 
   function closeMobileMenu() {
     setMobileMenuOpen(false);
   }
 
+  const bottomNavItemClass = (active: boolean) =>
+    boardTone()
+      ? active
+        ? "bg-[rgba(255,139,80,0.14)] text-[#ffd7b7]"
+        : "text-[#b7c4d7] hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
+      : active
+        ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
+        : "text-[var(--text-muted)] hover:bg-[var(--panel-soft)] hover:text-[var(--text-main)]";
+
   return (
     <main class="h-screen overflow-hidden text-[var(--text-main)]">
-      <header class="flex h-12 items-center justify-between border-b border-[var(--border-strong)] bg-[var(--panel-overlay)] px-3 backdrop-blur-xl">
+      <header
+        class={`flex h-12 items-center justify-between px-3 backdrop-blur-xl ${
+          boardTone()
+            ? "border-b border-[#252c39] bg-[#11161e]/96 text-[#edf4ff]"
+            : "border-b border-[var(--border-strong)] bg-[var(--panel-overlay)]"
+        }`}
+      >
         <div class="flex items-center gap-4">
           <Show when={props.mobileSidebar}>
             <button
               type="button"
-              class="app-button-secondary rounded-md p-1.5 text-[var(--text-main)] md:hidden"
+              class={`rounded-md p-1.5 md:hidden ${boardTone() ? "border border-[#31445f] bg-[#131b27] text-[#edf4ff] hover:border-[#466684]" : "app-button-secondary text-[var(--text-main)]"}`}
               aria-label="Open sidebar"
               onClick={() => setMobileMenuOpen(true)}
               data-testid="appshell-mobile-menu"
@@ -42,7 +70,7 @@ export default function AppShell(props: ShellProps) {
               ☰
             </button>
           </Show>
-          <span class="font-display text-sm font-semibold tracking-[0.08em] text-white">Donegeon</span>
+          <span class={`font-display text-sm font-semibold tracking-[0.08em] ${boardTone() ? "text-white" : "text-[var(--text-main)]"}`}>Donegeon</span>
           <nav class="hidden items-center gap-1 text-xs md:flex">
             <A
               href="/task/inbox"
@@ -51,7 +79,7 @@ export default function AppShell(props: ShellProps) {
               Tasks
             </A>
             <A
-              href="/board"
+              href={boardHref()}
               class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "board")}`}
             >
               Board
@@ -92,26 +120,24 @@ export default function AppShell(props: ShellProps) {
         {props.children}
       </div>
 
-      <nav class="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border-strong)] bg-[rgba(4,8,12,0.92)] px-2 pb-[max(env(safe-area-inset-bottom),0px)] pt-1 backdrop-blur-xl md:hidden">
+      <nav
+        class={`fixed inset-x-0 bottom-0 z-50 px-2 pb-[max(env(safe-area-inset-bottom),0px)] pt-1 backdrop-blur-xl md:hidden ${
+          boardTone()
+            ? "border-t border-[#252c39] bg-[#11161e]/96"
+            : "border-t border-[var(--border-strong)] bg-[rgba(4,8,12,0.92)]"
+        }`}
+      >
         <div class="grid grid-cols-2 gap-1">
           <A
             href="/task/inbox"
-            class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${
-              props.activeView === "task"
-                ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
-                : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
-            }`}
+            class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${bottomNavItemClass(props.activeView === "task")}`}
           >
             <span class="text-sm">✓</span>
             <span>Tasks</span>
           </A>
           <A
-            href="/board"
-            class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${
-              props.activeView === "board"
-                ? "bg-[var(--accent-wash)] text-[var(--accent-text)]"
-                : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
-            }`}
+            href={boardHref()}
+            class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${bottomNavItemClass(props.activeView === "board")}`}
           >
             <span class="text-sm">▦</span>
             <span>Board</span>
@@ -127,12 +153,24 @@ export default function AppShell(props: ShellProps) {
             aria-label="Close sidebar"
             onClick={closeMobileMenu}
           />
-          <aside class="absolute left-0 top-0 h-full w-[min(84vw,320px)] overflow-y-auto border-r border-[var(--border-strong)] bg-[var(--panel-strong-start)] shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border-strong)] bg-[var(--panel-overlay)] px-3 py-2 backdrop-blur-sm">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Sidebar</p>
+          <aside
+            class={`absolute left-0 top-0 h-full w-[min(84vw,320px)] overflow-y-auto border-r shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-xl ${
+              boardTone()
+                ? "border-[#252c39] bg-[#151a23]"
+                : "border-[var(--border-strong)] bg-[var(--panel-strong-start)]"
+            }`}
+          >
+            <div
+              class={`sticky top-0 z-10 flex items-center justify-between px-3 py-2 backdrop-blur-sm ${
+                boardTone()
+                  ? "border-b border-[#252c39] bg-[#151a23]/96"
+                  : "border-b border-[var(--border-strong)] bg-[var(--panel-overlay)]"
+              }`}
+            >
+              <p class={`text-xs font-semibold uppercase tracking-[0.12em] ${boardTone() ? "text-[#b9c8e3]" : "text-[#9db8d3]"}`}>Sidebar</p>
               <button
                 type="button"
-                class="app-button-secondary rounded-md px-2 py-1 text-xs"
+                class={`rounded-md px-2 py-1 text-xs ${boardTone() ? "border border-[#31445f] bg-[#131b27] text-[#dce8ff] hover:border-[#466684]" : "app-button-secondary"}`}
                 onClick={closeMobileMenu}
               >
                 Close

@@ -4,6 +4,7 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import AppShell from "../components/AppShell";
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
+import { writeStoredBoardSelection } from "../lib/boardSelection";
 import { type BoardStateResponse, type Project, type StoreCatalogItem } from "../server/api";
 
 const DEFAULT_BOARD = "default";
@@ -160,6 +161,10 @@ export default function BoardStorePage() {
     return [...groups.entries()];
   });
 
+  createEffect(() => {
+    writeStoredBoardSelection(activeBoardID());
+  });
+
   async function loadStorePage(boardID = activeBoardID()) {
     setLoading(true);
     setError("");
@@ -182,7 +187,8 @@ export default function BoardStorePage() {
   }
 
   function switchBoard(nextBoardID: string) {
-    navigate(boardStoreHref(nextBoardID));
+    const normalized = writeStoredBoardSelection(nextBoardID);
+    navigate(boardStoreHref(normalized));
   }
 
   async function startCheckout(item: StoreCatalogItem) {
@@ -284,21 +290,6 @@ export default function BoardStorePage() {
       headerRight={
         <>
           <div class="hidden items-center gap-2 md:flex">
-            <select
-              value={activeBoardID()}
-              onInput={(event) => switchBoard(event.currentTarget.value)}
-              class="rounded-md border border-[#405777] bg-[#101d31] px-2 py-1 text-xs text-[#e5eeff] outline-none focus:border-[#d4a95f]"
-              data-testid="board-store-selector"
-            >
-              <For each={boardChoices()}>
-                {(choice) => (
-                  <option value={choice.boardID}>
-                    {choice.name}
-                    {choice.isTeamBoard ? " (Team)" : ""}
-                  </option>
-                )}
-              </For>
-            </select>
             <button
               type="button"
               class="rounded-md border border-[#6b7c97] bg-[#162337] px-3 py-1 text-xs text-[#dfe8fa] transition hover:border-[#d4a95f]"

@@ -22,48 +22,113 @@ world:
 villagers:
   defaults:
     max_level: 10
-    base_max_stamina: 6
+    base_max_stamina: 8
   leveling:
     xp_sources:
       complete_task:
-        base_xp: 10
+        base_xp: 12
         by_priority:
           none: 0
-          low: 0
-          medium: 2
-          high: 5
+          low: 1
+          medium: 3
+          high: 6
       clear_zombie:
-        base_xp: 6
+        base_xp: 8
       gather_resource_cycle:
-        base_xp: 2
+        base_xp: 4
     thresholds:
       1: 0
-      2: 40
-      3: 100
-      4: 180
-      5: 280
-      6: 400
-      7: 540
-      8: 700
-      9: 880
-      10: 1080
+      2: 20
+      3: 45
+      4: 75
+      5: 110
+      6: 150
+      7: 195
+      8: 245
+      9: 300
+      10: 360
     choices_per_level: 1
     perk_pool:
-      - id: perk_stamina_plus_1
-        label: "+1 max stamina"
+      - id: perk_heartier
+        label: Heartier
+        apply:
+          max_stamina_add: 2
+      - id: perk_bounty_hunter
+        label: Bounty Hunter
+        apply:
+          task_complete_currency_add: 1
+      - id: perk_focused_worker
+        label: Focused Worker
+        apply:
+          task_complete_xp_add: 2
+      - id: perk_endurance_1
+        label: Endurance I
         apply:
           max_stamina_add: 1
       - id: perk_zombie_slayer
-        label: "Zombie slayer"
+        label: Zombie Slayer
         apply:
           zombie_clear_stamina_cost_add: -1
           min_zombie_clear_cost: 1
+      - id: perk_salvager
+        label: Salvager
+        apply:
+          resource_drop_amount_add: 1
+      - id: perk_endurance_2
+        label: Endurance II
+        apply:
+          max_stamina_add: 1
+      - id: perk_field_snacks
+        label: Field Snacks
+        apply:
+          food_stamina_restore_add: 1
+      - id: perk_closer
+        label: Closer
+        apply:
+          task_complete_currency_add: 1
+          task_complete_xp_add: 2
+    perks_by_level:
+      2: [perk_heartier]
+      3: [perk_bounty_hunter]
+      4: [perk_focused_worker]
+      5: [perk_endurance_1]
+      6: [perk_zombie_slayer]
+      7: [perk_salvager]
+      8: [perk_endurance_2]
+      9: [perk_field_snacks]
+      10: [perk_closer]
+    task_completion_rewards:
+      guaranteed:
+        - type: loot
+          id: coin
+          amount: 1
+      bonus_rolls: 1
+      rng_pool:
+        - type: none
+          amount: 0
+          weight: 45
+        - type: loot
+          id: parts
+          amount: 1
+          weight: 20
+        - type: food
+          id: berries
+          amount: 1
+          weight: 20
+        - type: loot
+          id: paper
+          amount: 1
+          weight: 10
+        - type: loot
+          id: coin
+          amount: 2
+          weight: 5
   actions:
     clear_zombie:
       stamina_cost: 2
       min_cost_after_perks: 1
     gather_start:
-      stamina_cost: 1
+      stamina_cost: 0
     eat_food:
       stamina_cost: 0
 
@@ -106,29 +171,83 @@ resources:
         max: 5
       gather:
         base_time_s: 6
+        rewards:
+          guaranteed:
+            - type: food
+              id: berries
+              amount: 1
+          bonus_rolls: 1
+          rng_pool:
+            - type: none
+              amount: 0
+              weight: 40
+            - type: loot
+              id: parts
+              amount: 1
+              weight: 35
+            - type: loot
+              id: coin
+              amount: 1
+              weight: 25
     - id: mushroom_patch
       charges:
         min: 2
         max: 4
       gather:
         base_time_s: 8
+        rewards:
+          guaranteed:
+            - type: food
+              id: mushroom
+              amount: 1
+          bonus_rolls: 1
+          rng_pool:
+            - type: none
+              amount: 0
+              weight: 35
+            - type: loot
+              id: parts
+              amount: 1
+              weight: 40
+            - type: loot
+              id: paper
+              amount: 1
+              weight: 25
     - id: scrap_pile
       charges:
         min: 3
         max: 6
       gather:
         base_time_s: 10
+        rewards:
+          guaranteed:
+            - type: loot
+              id: parts
+              amount: 1
+          bonus_rolls: 1
+          rng_pool:
+            - type: none
+              amount: 0
+              weight: 40
+            - type: loot
+              id: gear
+              amount: 1
+              weight: 35
+            - type: loot
+              id: coin
+              amount: 1
+              weight: 25
 
 food:
   items:
     - id: berries
-      stamina_restore: 2
-    - id: mushroom
       stamina_restore: 3
-    - id: bread
+    - id: mushroom
       stamina_restore: 4
+    - id: bread
+      stamina_restore: 5
     - id: apple
-      stamina_restore: 2
+      stamina_restore: 3
 
 decks:
   economy:
