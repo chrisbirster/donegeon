@@ -43,6 +43,62 @@ function getHeader(headers: Record<string, string | undefined>, headerName: stri
   return "";
 }
 
+function stripBearerPrefix(value: string): string {
+  const trimmed = trim(value);
+  return /^bearer\s+/i.test(trimmed) ? trimmed.replace(/^bearer\s+/i, "").trim() : trimmed;
+}
+
+function decodeBase64Candidate(value: string): Buffer | null {
+  const trimmed = trim(value);
+  if (trimmed === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) {
+    return null;
+  }
+
+  const padding = trimmed.length % 4;
+  if (padding === 1) {
+    return null;
+  }
+
+  const normalized = trimmed + "=".repeat((4 - padding) % 4);
+  const decoded = Buffer.from(normalized, "base64");
+  if (decoded.length === 0) {
+    return null;
+  }
+
+  const canonical = decoded.toString("base64").replace(/=+$/g, "");
+  if (canonical !== normalized.replace(/=+$/g, "")) {
+    return null;
+  }
+
+  return decoded;
+}
+
+function authValuesMatch(actualValue: string, expectedValue: string): boolean {
+  const expected = trim(expectedValue);
+  if (expected === "") {
+    return true;
+  }
+
+  const expectedVariants = Array.from(new Set([expected, stripBearerPrefix(expected)])).filter(Boolean);
+  const actualVariants = Array.from(new Set([trim(actualValue), stripBearerPrefix(actualValue)])).filter(Boolean);
+
+  for (const actual of actualVariants) {
+    for (const candidate of expectedVariants) {
+      if (actual === candidate) {
+        return true;
+      }
+
+      const actualDecoded = decodeBase64Candidate(actual);
+      const expectedDecoded = decodeBase64Candidate(candidate);
+      if (actualDecoded && expectedDecoded && actualDecoded.equals(expectedDecoded)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function bodyText(payload: SendPayload): string {
   const text = trim(payload.text);
   if (text !== "") {
@@ -86,7 +142,7 @@ function authorizationError(event: APIGatewayProxyEventV2): string {
   }
   const headerName = trim(process.env.EMAIL_SEND_AUTH_HEADER) || "Authorization";
   const actualValue = getHeader(event.headers ?? {}, headerName);
-  if (actualValue === expectedValue) {
+  if (authValuesMatch(actualValue, expectedValue)) {
     return "";
   }
   return `missing or invalid ${headerName} header`;

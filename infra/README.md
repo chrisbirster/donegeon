@@ -48,7 +48,8 @@ export DONEGEON_MARKETING_DOMAIN=donegeon.com
 cd infra
 npm install
 npx sst install
-npx sst secret set EmailApiKey "<strong-random-token>" --stage production
+EMAIL_API_KEY="$(openssl rand -hex 32)"
+npx sst secret set EmailApiKey "$EMAIL_API_KEY" --stage production
 ```
 
 ## Deploy
@@ -79,7 +80,7 @@ fly secrets set \
   DONEGEON_TEAM_INVITE_MAIL_PROVIDER=sst \
   DONEGEON_EMAIL_SEND_URL="<emailApiBaseUrl>send" \
   DONEGEON_EMAIL_SEND_AUTH_HEADER="<authHeaderName>" \
-  DONEGEON_EMAIL_SEND_AUTH_VALUE="<same value you set in EmailApiKey>"
+  DONEGEON_EMAIL_SEND_AUTH_VALUE="$EMAIL_API_KEY"
 ```
 
 Deploy/restart Fly:

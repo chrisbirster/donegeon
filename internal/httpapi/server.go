@@ -41,6 +41,7 @@ const requestIDHeader = "X-Request-Id"
 const authSessionCookieName = "donegeon_auth_session"
 const openBetaStartsAt = "2026-06-01"
 const openBetaStartsLabel = "June 1, 2026"
+const waitlistDeliveryWarningMessage = "We saved your waitlist spot, but we couldn't send the confirmation email right now."
 
 type ctxKey string
 
@@ -250,7 +251,7 @@ func (a *API) handlePublicWaitlist(w http.ResponseWriter, r *http.Request) {
 	deliveryWarning := ""
 	if !alreadyJoined {
 		if err := a.sendWaitlistConfirmationEmail(r.Context(), signup.Email, signup.Name, signup.RequestedPlan); err != nil {
-			deliveryWarning = err.Error()
+			deliveryWarning = waitlistDeliveryWarningMessage
 			a.logError(r, "send_waitlist_confirmation_failed", err)
 		}
 	}
@@ -2296,6 +2297,9 @@ func (a *API) sendEmailPayload(ctx context.Context, payload map[string]string) e
 	req.Header.Set("Content-Type", "application/json")
 	authHeader := strings.TrimSpace(a.cfg.EmailSendAuthHeader)
 	authValue := strings.TrimSpace(a.cfg.EmailSendAuthValue)
+	if authHeader != "" && authValue == "" {
+		return fmt.Errorf("email sender auth is not configured")
+	}
 	if authHeader != "" && authValue != "" {
 		req.Header.Set(authHeader, authValue)
 	}

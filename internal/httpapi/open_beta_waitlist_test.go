@@ -159,6 +159,61 @@ func TestPublicWaitlistSignupPersistsAndSendsConfirmation(t *testing.T) {
 	}
 }
 
+func TestPublicWaitlistSignupReturnsGenericWarningWhenConfirmationFails(t *testing.T) {
+	var attempts int
+	emailServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"missing or invalid Authorization header"}`))
+	}))
+	defer emailServer.Close()
+
+	env := newOpenBetaEnv(t, func(cfg *config.Config) {
+		cfg.OpenBeta = false
+		cfg.EmailSendURL = emailServer.URL
+		cfg.RequestTimeout = time.Second
+	})
+	defer env.server.Close()
+
+	requestBody := `{"name":"Local Tester","email":"warning@example.com","source":"marketing-banner","requestedPlan":"pro_trial"}`
+	resp, err := env.server.Client().Post(env.server.URL+"/api/public/waitlist", "application/json", strings.NewReader(requestBody))
+	if err != nil {
+		t.Fatalf("post waitlist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, resp.StatusCode)
+	}
+
+	var payload struct {
+		AlreadyJoined   bool   `json:"alreadyJoined"`
+		DeliveryWarning string `json:"deliveryWarning"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode waitlist payload: %v", err)
+	}
+
+	if payload.AlreadyJoined {
+		t.Fatal("expected first waitlist signup to be new")
+	}
+	if payload.DeliveryWarning != waitlistDeliveryWarningMessage {
+		t.Fatalf("expected generic delivery warning, got %q", payload.DeliveryWarning)
+	}
+	if attempts != 1 {
+		t.Fatalf("expected 1 email attempt, got %d", attempts)
+	}
+
+	var count int
+	if err := env.db.GetContext(context.Background(), &count, "SELECT COUNT(*) FROM waitlist_signups WHERE email = ?", "warning@example.com"); err != nil {
+		t.Fatalf("count waitlist rows: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 waitlist row, got %d", count)
+	}
+}
+
 func newOpenBetaEnv(t *testing.T, mutate func(*config.Config)) *parityEnv {
 	t.Helper()
 

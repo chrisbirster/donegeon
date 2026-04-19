@@ -183,6 +183,9 @@ func Load() (Config, error) {
 	if cfg.EmailSendURL != "" && strings.TrimSpace(cfg.EmailSendAuthHeader) == "" {
 		return Config{}, fmt.Errorf("DONEGEON_EMAIL_SEND_AUTH_HEADER is required when DONEGEON_EMAIL_SEND_URL is set")
 	}
+	if cfg.EmailSendURL != "" && strings.TrimSpace(cfg.EmailSendAuthValue) == "" {
+		return Config{}, fmt.Errorf("DONEGEON_EMAIL_SEND_AUTH_VALUE is required when DONEGEON_EMAIL_SEND_URL is set")
+	}
 	if strings.TrimSpace(cfg.AppBaseURL) == "" {
 		return Config{}, fmt.Errorf("DONEGEON_APP_BASE_URL is required")
 	}
