@@ -1,3 +1,4 @@
+import Button from "../Button";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
@@ -139,6 +140,7 @@ import {
   parseEmailEntries,
   sameStringArray,
 } from "../../features/board/board-rules";import { useBoard } from "../../page/BoardContext";
+import { boardArtwork, style1, style2, style3, style4, style5, style6, style7, style8, style9, style10, style11, style12, style13, style14, style15, style16, style17, style18, style19, style20, style21, style22, style23, style24, style25, style26, style27, style28, style29, style30, style31, style32, style33, style34, style35, style36, style37, style38, style39, style40, style41, style42, style43, style44, style45, style46, style47, style48, style49, style50, style51, style52 } from "./styles/BoardStage.styles";
 
 export default function BoardStage() {
   const {
@@ -213,23 +215,23 @@ export default function BoardStage() {
     boardCanvasFadeClass,
   } = useBoard();
   return (
-        <section class="relative h-full min-h-0 overflow-hidden">
+        <section class={`${boardArtwork} ${style1}`}>
           <Show when={minimapModel()}>
             {(model) => (
               <>
-                <button
+                <Button
                   type="button"
                   class={boardMapToggleClass()}
                   onClick={() => setMobileMapHubOpen((open) => !open)}
                   data-testid="board-mobile-map-toggle"
                 >
                   {mobileMapHubOpen() ? "Hide Map" : "Map"}
-                </button>
+                </Button>
 
                 <Show when={mobileMapHubOpen()}>
-                  <div class="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(240px,calc(100%-1.5rem))] -translate-x-1/2 md:hidden">
+                  <div class={style2}>
                     <div class={boardMapPanelClass()}>
-                      <div class="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.1em]">
+                      <div class={style3}>
                         <span class={boardMapTitleClass()}>Map Hub</span>
                         <span class={boardMapStatusClass(model().offscreenCount > 0)}>
                           {model().offscreenCount > 0 ? `${model().offscreenCount} off-screen` : "All visible"}
@@ -237,7 +239,7 @@ export default function BoardStage() {
                       </div>
 
                       <div
-                        class={`mx-auto ${boardMinimapSurfaceClass()}`}
+                        class={` ${style4} ${boardMinimapSurfaceClass()}`}
                         onPointerDown={onMinimapPointerDown}
                         onPointerMove={onMinimapPointerMove}
                         onPointerUp={onMinimapPointerUp}
@@ -249,8 +251,8 @@ export default function BoardStage() {
                         <For each={model().dots}>
                           {(dot) => (
                             <div
-                              class={`pointer-events-none absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full ${
-                                dot.isSelected ? "ring-2 ring-[#e6edf9]" : ""
+                              class={` ${style5} ${
+                                dot.isSelected ? style6 : ""
                               } ${minimapDotClass(dot.kind, dot.isNextAction, dot.isExhausted)}`}
                               style={{
                                 left: `${dot.x}px`,
@@ -275,9 +277,9 @@ export default function BoardStage() {
                   </div>
                 </Show>
 
-                <div class="pointer-events-none absolute right-3 top-3 z-40 hidden md:block">
+                <div class={style7}>
                   <div class={boardMapPanelClass()}>
-                    <div class="mb-2 flex items-center justify-between gap-4 text-[11px] uppercase tracking-[0.11em]">
+                    <div class={style8}>
                       <span class={boardMapTitleClass()}>Map Hub</span>
                       <span class={boardMapStatusClass(model().offscreenCount > 0)}>
                         {model().offscreenCount > 0 ? `${model().offscreenCount} off-screen` : "All visible"}
@@ -297,8 +299,8 @@ export default function BoardStage() {
                       <For each={model().dots}>
                         {(dot) => (
                           <div
-                            class={`pointer-events-none absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full ${
-                              dot.isSelected ? "ring-2 ring-[#e6edf9]" : ""
+                            class={` ${style5} ${
+                              dot.isSelected ? style6 : ""
                             } ${minimapDotClass(dot.kind, dot.isNextAction, dot.isExhausted)}`}
                             style={{
                               left: `${dot.x}px`,
@@ -338,25 +340,25 @@ export default function BoardStage() {
                 onPointerDown={(event) => event.stopPropagation()}
                 data-testid="board-deck-hub-panel"
               >
-                <div class="mb-3 flex items-center justify-between">
+                <div class={style9}>
                   <div>
-                    <p class={`text-sm font-semibold uppercase tracking-[0.16em] ${deckHubTitleClass()}`}>Deck Hub</p>
-                    <p class={`text-xs ${deckHubTextClass()}`}>Drag decks between row and reserve.</p>
+                    <p class={` ${style10} ${deckHubTitleClass()}`}>Deck Hub</p>
+                    <p class={` ${style11} ${deckHubTextClass()}`}>Drag decks between row and reserve.</p>
                   </div>
-                  <button
+                  <Button
                     type="button"
                     class={deckHubCloseClass()}
                     onClick={() => setDeckHubOpen(false)}
                   >
                     Close
-                  </button>
+                  </Button>
                 </div>
 
-                <div class="space-y-3">
+                <div class={style12}>
                   <section>
-                    <div class="mb-1 flex items-center justify-between">
-                      <p class={`text-[11px] font-semibold uppercase tracking-[0.12em] ${deckHubSectionTitleClass()}`}>Deck Row</p>
-                      <p class={`text-[11px] ${deckHubSectionMetaClass()}`}>Visible: {deckRowDefIDs().length}</p>
+                    <div class={style13}>
+                      <p class={` ${style14} ${deckHubSectionTitleClass()}`}>Deck Row</p>
+                      <p class={` ${style15} ${deckHubSectionMetaClass()}`}>Visible: {deckRowDefIDs().length}</p>
                     </div>
                     <div
                       class={deckHubRowZoneClass()}
@@ -370,31 +372,31 @@ export default function BoardStage() {
                             draggable="true"
                             data-testid="board-deck-hub-row-item"
                             data-def-id={defID}
-                            class={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
+                            class={` ${style16} ${
                               deckHubDragDefID() === defID
-                                ? "border-[#8db4ff] bg-[#243a63] text-[#eff5ff]"
-                                : "border-[#466288] bg-[#162946] text-[#d9e7ff]"
+                                ? style17
+                                : style18
                             }`}
                             onDragStart={(event) => beginDeckHubDrag(event, defID)}
                             onDragEnd={endDeckHubDrag}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleDeckHubDropToRow(event, index())}
                           >
-                            <span class="truncate pr-2">{deckDisplayName(defID)}</span>
-                            <button
+                            <span class={style19}>{deckDisplayName(defID)}</span>
+                            <Button
                               type="button"
                               data-testid="board-deck-hub-hide"
-                              class="rounded border border-[#55729b] px-1.5 py-0.5 text-[10px] text-[#d2e2ff] hover:border-[var(--accent)]"
+                              class={style20}
                               onClick={() => moveDeckToReserve(defID)}
                             >
                               Hide
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </For>
 
                       <Show when={deckRowDefIDs().length === 0}>
-                        <p class={`rounded-md border border-dashed px-2 py-2 text-[11px] ${isLightTheme() ? "border-[var(--border-strong)] bg-[rgba(255,255,255,0.8)] text-[var(--text-soft)]" : "border-[#42628f] bg-[#13223a] text-[#8ca5cd]"}`}>
+                        <p class={` ${style21} ${isLightTheme() ? style22 : style23}`}>
                           No decks in row.
                         </p>
                       </Show>
@@ -402,9 +404,9 @@ export default function BoardStage() {
                   </section>
 
                   <section>
-                    <div class="mb-1 flex items-center justify-between">
-                      <p class={`text-[11px] font-semibold uppercase tracking-[0.12em] ${deckHubSectionTitleClass()}`}>Reserve</p>
-                      <p class={`text-[11px] ${deckHubSectionMetaClass()}`}>Hidden: {deckOverflowDefIDs().length}</p>
+                    <div class={style13}>
+                      <p class={` ${style14} ${deckHubSectionTitleClass()}`}>Reserve</p>
+                      <p class={` ${style15} ${deckHubSectionMetaClass()}`}>Hidden: {deckOverflowDefIDs().length}</p>
                     </div>
                     <div
                       class={deckHubReserveZoneClass()}
@@ -418,31 +420,31 @@ export default function BoardStage() {
                             draggable="true"
                             data-testid="board-deck-hub-reserve-item"
                             data-def-id={defID}
-                            class={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
+                            class={` ${style16} ${
                               deckHubDragDefID() === defID
-                                ? "border-[#8db4ff] bg-[#243a63] text-[#eff5ff]"
-                                : "border-[#415a80] bg-[#141f34] text-[#cedcf6]"
+                                ? style17
+                                : style24
                             }`}
                             onDragStart={(event) => beginDeckHubDrag(event, defID)}
                             onDragEnd={endDeckHubDrag}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleDeckHubDropToReserve(event, index())}
                           >
-                            <span class="truncate pr-2">{deckDisplayName(defID)}</span>
-                            <button
+                            <span class={style19}>{deckDisplayName(defID)}</span>
+                            <Button
                               type="button"
                               data-testid="board-deck-hub-show"
-                              class="rounded border border-[#4f6c95] px-1.5 py-0.5 text-[10px] text-[#d2e2ff] hover:border-[var(--accent)]"
+                              class={style25}
                               onClick={() => moveDeckToRow(defID)}
                             >
                               Show
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </For>
 
                       <Show when={deckOverflowDefIDs().length === 0}>
-                        <p class={`rounded-md border border-dashed px-2 py-2 text-[11px] ${isLightTheme() ? "border-[var(--border-strong)] bg-[rgba(255,255,255,0.8)] text-[var(--text-soft)]" : "border-[#375172] bg-[#121f32] text-[#8ca5cd]"}`}>
+                        <p class={` ${style21} ${isLightTheme() ? style22 : style26}`}>
                           No extra decks.
                         </p>
                       </Show>
@@ -470,9 +472,9 @@ export default function BoardStage() {
             />
             <div class={boardCanvasFadeClass()} />
 
-            <Show when={!loading()} fallback={<p class="p-4 text-sm text-[var(--text-soft)]">Loading board...</p>}>
+            <Show when={!loading()} fallback={<p class={style27}>Loading board...</p>}>
               <div
-                class="absolute inset-0"
+                class={style28}
                 data-testid="board-world-layer"
                 style={{
                   transform: `translate(${boardPan().x}px, ${boardPan().y}px)`,
@@ -520,15 +522,15 @@ export default function BoardStage() {
                         data-stack-title={preview().title}
                         data-stack-root="true"
                         title={stackTooltip()}
-                        class={`group absolute select-none ${
-                          topIsDeckLike() ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+                        class={` ${style29} ${
+                          topIsDeckLike() ? style30 : style31
                         } ${
                           isMergeTarget()
-                            ? "ring-2 ring-[#efb05f] ring-offset-2 ring-offset-[var(--bg-base)]"
+                            ? style32
                             : isExhaustedVillager()
-                              ? "ring-2 ring-[#f87171] ring-offset-2 ring-offset-[var(--bg-base)] shadow-[0_0_0_1px_rgba(248,113,113,0.34),0_0_26px_rgba(248,113,113,0.28)]"
+                              ? style33
                               : hasNextActionModifier()
-                              ? "ring-2 ring-[#facc15]/90 ring-offset-2 ring-offset-[var(--bg-base)] shadow-[0_0_0_1px_rgba(250,204,21,0.36),0_0_26px_rgba(250,204,21,0.34)]"
+                              ? style34
                               : ""
                         }`}
                         style={{
@@ -554,7 +556,7 @@ export default function BoardStage() {
                       >
                         <Show when={isExhaustedVillager()}>
                           <div
-                            class="pointer-events-none absolute -top-3 left-0 rounded-md border border-[#7d3f3f] bg-[#311617]/96 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ffb3ad] shadow-[0_10px_20px_rgba(0,0,0,0.35)]"
+                            class={style35}
                             data-testid="board-stack-exhausted"
                           >
                             No stamina
@@ -562,10 +564,10 @@ export default function BoardStage() {
                         </Show>
 
                         <Show when={miningProgress() !== null}>
-                          <div class="pointer-events-none absolute -bottom-3 left-0 right-0 rounded-md border border-[#335244] bg-[#0c1b14]/92 px-1 py-0.5">
-                            <div class="h-1.5 w-full overflow-hidden rounded-full border border-[#2f4a3f] bg-[#13291f]">
+                          <div class={style36}>
+                            <div class={style37}>
                               <div
-                                class="h-full bg-gradient-to-r from-[#78cc57] to-[#b8ef90] transition-[width] duration-100"
+                                class={style38}
                                 style={{
                                   width: `${Math.round((miningProgress() ?? 0) * 100)}%`,
                                 }}
@@ -595,7 +597,7 @@ export default function BoardStage() {
                             return (
                               <div
                                 data-card-index={index()}
-                                class={`absolute left-0 h-[124px] w-[92px] rounded-[3px] border-2 border-black/55 shadow-[2px_2px_0_rgba(0,0,0,0.35)] ${
+                                class={` ${style39} ${
                                   cardPreview().shellClass
                                 }`}
                                 style={{
@@ -604,7 +606,7 @@ export default function BoardStage() {
                                 }}
                               >
                                 <div
-                                  class={`absolute inset-x-0 top-0 flex h-[18px] items-center justify-between border-b-2 border-black/40 px-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                                  class={` ${style40} ${
                                     cardPreview().titleClass
                                   }`}
                                 >
@@ -614,7 +616,7 @@ export default function BoardStage() {
                                       <input
                                         value={inlineTitle()}
                                         onInput={(event) => setInlineTitle(event.currentTarget.value)}
-                                        class="h-4 w-full border-none bg-transparent px-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1a1f2a] outline-none"
+                                        class={style41}
                                         onClick={(event) => event.stopPropagation()}
                                         onPointerDown={(event) => event.stopPropagation()}
                                         onKeyDown={(event) => {
@@ -631,21 +633,21 @@ export default function BoardStage() {
                                       />
                                     }
                                   >
-                                    <span class="truncate" data-testid="board-card-title">
+                                    <span class={style42} data-testid="board-card-title">
                                       {cardPreview().title}
                                     </span>
                                   </Show>
                                 </div>
 
-                                <div class="absolute inset-x-0 top-[18px] bottom-0 flex flex-col items-center justify-center gap-1 px-1">
-                                  <div class="flex h-[46px] w-[46px] items-center justify-center rounded-[8px] border-2 border-black/30 bg-white/30 text-[18px]">
+                                <div class={style43}>
+                                  <div class={style44}>
                                     {cardPreview().icon}
                                   </div>
-                                  <p class="max-w-full truncate text-[9px] uppercase tracking-[0.12em] text-black/75">{cardPreview().subtitle}</p>
+                                  <p class={style45}>{cardPreview().subtitle}</p>
                                 </div>
 
                                 <Show when={isFace()}>
-                                  <span class="absolute bottom-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-black/40 bg-white/80 px-1 text-[10px] font-bold text-[#1a1e28]">
+                                  <span class={style46}>
                                     {visibleCards().length}
                                   </span>
                                 </Show>
@@ -658,7 +660,7 @@ export default function BoardStage() {
 
                       <Show when={isSplittingStack() && draggedCards().length > 0 && !!splitDragPosition()}>
                         <article
-                          class="pointer-events-none absolute select-none"
+                          class={style47}
                           style={{
                             left: `${splitDragPosition()?.x ?? 0}px`,
                             top: `${splitDragPosition()?.y ?? 0}px`,
@@ -687,7 +689,7 @@ export default function BoardStage() {
 
                               return (
                                 <div
-                                  class={`absolute left-0 h-[124px] w-[92px] rounded-[3px] border-2 border-black/55 shadow-[2px_2px_0_rgba(0,0,0,0.35)] ${
+                                  class={` ${style39} ${
                                     cardPreview().shellClass
                                   }`}
                                   style={{
@@ -696,22 +698,22 @@ export default function BoardStage() {
                                   }}
                                 >
                                   <div
-                                    class={`absolute inset-x-0 top-0 flex h-[18px] items-center justify-between border-b-2 border-black/40 px-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                                    class={` ${style40} ${
                                       cardPreview().titleClass
                                     }`}
                                   >
-                                    <span class="truncate">{cardPreview().title}</span>
+                                    <span class={style42}>{cardPreview().title}</span>
                                   </div>
 
-                                  <div class="absolute inset-x-0 top-[18px] bottom-0 flex flex-col items-center justify-center gap-1 px-1">
-                                    <div class="flex h-[46px] w-[46px] items-center justify-center rounded-[8px] border-2 border-black/30 bg-white/30 text-[18px]">
+                                  <div class={style43}>
+                                    <div class={style44}>
                                       {cardPreview().icon}
                                     </div>
-                                    <p class="max-w-full truncate text-[9px] uppercase tracking-[0.12em] text-black/75">{cardPreview().subtitle}</p>
+                                    <p class={style45}>{cardPreview().subtitle}</p>
                                   </div>
 
                                   <Show when={isFace()}>
-                                    <span class="absolute bottom-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-black/40 bg-white/80 px-1 text-[10px] font-bold text-[#1a1e28]">
+                                    <span class={style46}>
                                       {draggedCards().length}
                                     </span>
                                   </Show>
@@ -728,10 +730,10 @@ export default function BoardStage() {
 
                 <Show when={deckOverflowDefIDs().length > 0 ? deckHubWorldPosition() : null}>
                   {(position) => (
-                    <button
+                    <Button
                       type="button"
                       data-stack-root="true"
-                      class="group absolute h-[124px] w-[92px] cursor-pointer select-none rounded-[3px] border-2 border-black/55 bg-[#a9b7cf] text-[#121722] shadow-[2px_2px_0_rgba(0,0,0,0.35)]"
+                      class={style48}
                       style={{
                         left: `${position().x}px`,
                         top: `${position().y}px`,
@@ -747,16 +749,16 @@ export default function BoardStage() {
                       data-testid="board-deck-hub-toggle"
                       title="Open deck hub"
                     >
-                      <div class="absolute inset-x-0 top-0 flex h-[18px] items-center justify-center border-b-2 border-black/40 bg-[#8494af] px-1 text-[10px] font-semibold uppercase tracking-[0.08em]">
+                      <div class={style49}>
                         Deck Hub
                       </div>
-                      <div class="absolute inset-x-0 top-[18px] bottom-0 flex flex-col items-center justify-center gap-1 px-1">
-                        <div class="flex h-[46px] w-[46px] items-center justify-center rounded-[8px] border-2 border-black/30 bg-white/30 text-[20px]">
+                      <div class={style43}>
+                        <div class={style50}>
                           🗂️
                         </div>
-                        <p class="text-[9px] uppercase tracking-[0.12em] text-black/75">{deckOverflowDefIDs().length} hidden</p>
+                        <p class={style51}>{deckOverflowDefIDs().length} hidden</p>
                       </div>
-                    </button>
+                    </Button>
                   )}
                 </Show>
               </div>
@@ -764,7 +766,7 @@ export default function BoardStage() {
           </div>
 
           <Show when={error() && !loading()}>
-            <div class="absolute bottom-4 left-4 z-40 max-w-md rounded-md border border-[#8d3a3a] bg-[#321417] px-3 py-2 text-xs text-[#ffd2d2] md:hidden">
+            <div class={style52}>
               {error()}
             </div>
           </Show>

@@ -62,6 +62,31 @@ test.describe("Home task flows", () => {
     await expect(page.getByText("No open tasks in this view.")).toBeVisible();
   });
 
+  test("shows newly created inbox tasks from the inbox project route", async ({ page }) => {
+    await page.goto("/task/project/inbox");
+    await addQuickTask(page, "Inbox project route task");
+
+    await expect(taskRowByContent(page, "Inbox project route task")).toBeVisible();
+    await expect(page.getByText("1 task(s)")).toBeVisible();
+  });
+
+  test("renders task rows as horizontal cards", async ({ page }) => {
+    await addQuickTask(page, "Task row layout regression");
+
+    const row = taskRowByContent(page, "Task row layout regression");
+    await expect(row).toHaveCSS("display", "flex");
+    await expect(row).toHaveCSS("align-items", "center");
+    await expect(row).toHaveCSS("border-top-style", "solid");
+  });
+
+  test("does not duplicate the due prefix in resolved schedule badges", async ({ page }) => {
+    await addQuickTask(page, "Schedule label regression due Thursday");
+
+    const row = taskRowByContent(page, "Schedule label regression");
+    await expect(row).not.toContainText(/Due due/i);
+    await expect(row).toContainText(/Due Thursday →/i);
+  });
+
   test("supports today, upcoming, project navigation, favorites, and search", async ({ page }) => {
     await addQuickTask(page, "Today inbox task");
     await expect(taskRowByContent(page, "Today inbox task")).toBeVisible();

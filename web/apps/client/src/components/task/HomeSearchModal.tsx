@@ -1,3 +1,5 @@
+import Button from "../Button";
+import { css } from "@linaria/core";
 import { For, Show } from "solid-js";
 import AppShell from "../AppShell";
 import SidebarAccountCard from "../SidebarAccountCard";
@@ -239,14 +241,14 @@ export default function HomeSearchModal() {
   return (
         <Show when={isSearchOpen()}>
         <div
-          class="fixed inset-0 z-40 flex items-start justify-center bg-black/55 p-4 pt-20 backdrop-blur-sm"
+          class={style1}
           onClick={closeSearchModal}
         >
           <div
-            class="app-panel w-full max-w-2xl rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.55)]"
+            class={style2}
             onClick={(event) => event.stopPropagation()}
           >
-            <div class="border-b border-[var(--border-strong)] px-4 py-3">
+            <div class={style3}>
               <input
                 ref={setSearchInputRef}
                 value={searchText()}
@@ -257,31 +259,31 @@ export default function HomeSearchModal() {
                 class={formFieldClass}
               />
             </div>
-            <div class="max-h-[420px] overflow-y-auto px-3 py-3">
+            <div class={style4}>
               <Show
                 when={searchText().trim().length > 0}
-                fallback={<p class="px-2 py-2 text-sm text-[var(--text-dim)]">Type to search.</p>}
+                fallback={<p class={style5}>Type to search.</p>}
               >
                 <Show
                   when={searchResults().length > 0}
-                  fallback={<p class="px-2 py-2 text-sm text-[var(--text-dim)]">No matching open tasks.</p>}
+                  fallback={<p class={style5}>No matching open tasks.</p>}
                 >
-                  <div class="space-y-1">
+                  <div class={style6}>
                     <For each={searchResults()}>
                       {(item) => (
-                        <button
+                        <Button
                           type="button"
-                          class="w-full rounded-lg border border-transparent px-3 py-2 text-left transition hover:border-[rgba(119,155,187,0.24)] hover:bg-[rgba(255,255,255,0.04)]"
+                          class={style7}
                           onClick={() => {
                             closeSearchModal();
                             openDetailModal(item);
                           }}
                         >
-                          <p class="truncate text-sm text-[var(--text-main)]">{item.content}</p>
-                          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
+                          <p class={style8}>{item.content}</p>
+                          <div class={style9}>
                             <Show when={projectNameByID(item.projectId)}>
                               {(projectName) => (
-                                <span class={`inline-flex items-center gap-1 ${tagBadgeClass}`}>
+                                <span class={` ${style10} ${tagBadgeClass}`}>
                                   <span>#{projectName()}</span>
                                   <Show when={isTeamBoardProject(item.projectId, projectMap())}>
                                     <span class={teamBadgeClass}>Team</span>
@@ -302,7 +304,7 @@ export default function HomeSearchModal() {
                               {(label) => <span class={tagBadgeClass}>@{label}</span>}
                             </For>
                           </div>
-                        </button>
+                        </Button>
                       )}
                     </For>
                   </div>
@@ -314,3 +316,112 @@ export default function HomeSearchModal() {
         </Show>
   );
 }
+
+
+const style1 = css`
+position: fixed;
+inset: calc(var(--spacing) * 0);
+z-index: 40;
+display: flex;
+align-items: flex-start;
+justify-content: center;
+background-color: color-mix(in srgb, #000 55%, transparent);
+  @supports (color: color-mix(in lab, red, red)) {
+    background-color: color-mix(in oklab, var(--color-black) 55%, transparent);
+  }
+padding: calc(var(--spacing) * 4);
+padding-top: calc(var(--spacing) * 20);
+--tw-backdrop-blur: blur(var(--blur-sm));
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+`;
+
+const style2 = css`
+width: 100%;
+max-width: var(--container-2xl);
+border-radius: var(--radius-2xl);
+--tw-shadow: 0 25px 70px var(--tw-shadow-color, rgba(0,0,0,0.55));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+`;
+
+const style3 = css`
+border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+border-color: var(--border-strong);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 3);
+`;
+
+const style4 = css`
+max-height: 420px;
+overflow-y: auto;
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 3);
+`;
+
+const style5 = css`
+padding-inline: calc(var(--spacing) * 2);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-dim);
+`;
+
+const style6 = css`
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style7 = css`
+width: 100%;
+border-radius: var(--radius-lg);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: transparent;
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+text-align: left;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      border-color: rgba(119,155,187,0.24);
+    }
+  }
+&:hover {
+    @media (hover: hover) {
+      background-color: rgba(255,255,255,0.04);
+    }
+  }
+`;
+
+const style8 = css`
+overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-main);
+`;
+
+const style9 = css`
+margin-top: calc(var(--spacing) * 1);
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-dim);
+`;
+
+const style10 = css`
+display: inline-flex;
+align-items: center;
+gap: calc(var(--spacing) * 1);
+`;

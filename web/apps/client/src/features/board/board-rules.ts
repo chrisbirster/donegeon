@@ -1,3 +1,4 @@
+import { css } from "@linaria/core";
 import type { BoardCard, BoardPoint, BoardStack, BoardStateResponse, Project } from "../../domain/contracts";
 import {
   BOARD_GRID_ORIGIN_OFFSET,
@@ -100,54 +101,82 @@ export function cardIcon(card: BoardCard | null): string {
   }
 }
 
+const artworkShell = `background-position: center; background-size: cover; background-repeat: no-repeat;`;
+const packShell = css`${artworkShell} border-color: #00e0ff; background-image: url('/images/cards/deck.png'); color: #121722;`;
+const packTitle = css`background: rgba(193,216,239,.9); color: #07111e;`;
+const taskShell = css`${artworkShell} border-color: #ff2072; background-image: url('/images/cards/task.png'); color: #241417;`;
+const taskTitle = css`background: rgba(247,167,181,.88); color: #19080d;`;
+const villagerShell = css`${artworkShell} border-color: #ff9e0b; background-image: url('/images/cards/villager.png'); color: #211609;`;
+const villagerTitle = css`background: rgba(244,190,82,.9); color: #1d1305;`;
+const resourceShell = css`${artworkShell} border-color: #77df49; background-image: url('/images/cards/resource.png'); color: #10200c;`;
+const resourceTitle = css`background: rgba(190,236,171,.9); color: #0a1c07;`;
+const foodShell = css`${artworkShell} border-color: #ff8a00; background-image: url('/images/cards/food.png'); color: #251508;`;
+const foodTitle = css`background: rgba(255,166,48,.9); color: #211204;`;
+const zombieShell = css`border-color: #6f3f4a; background: #cf9ba7; color: #220e12;`;
+const zombieTitle = css`background: #bb7f8c; color: #2a0f14;`;
+const deckShell = css`${artworkShell} border-color: #00e0ff; background-image: url('/images/cards/deck.png'); color: #121722;`;
+const deckTitle = css`background: rgba(193,216,239,.9); color: #07111e;`;
+const modifierShell = css`${artworkShell} border-color: #00e0ff; background-image: url('/images/cards/modifier.png'); color: #121722;`;
+const modifierTitle = css`background: rgba(206,222,238,.9); color: #07111e;`;
+const lootShell = css`${artworkShell} border-color: #ffc229; background-image: url('/images/cards/loot-coin.svg'); color: #1d1807;`;
+const lootTitle = css`background: transparent; color: transparent;`;
+const defaultShell = css`border-color: #4b505a; background: #bbc2cc; color: #141820;`;
+const defaultTitle = css`background: #9ea7b3; color: #111722;`;
+
 export function cardSkin(kind: string, defID: string): { shellClass: string; titleClass: string } {
   if (isPackDef(defID)) {
     return {
-      shellClass: "border-[#6f5d2f] bg-[#efe0b1] text-[#241a08]",
-      titleClass: "bg-[#d9c27f] text-[#2b2009]",
+      shellClass: packShell,
+      titleClass: packTitle,
     };
   }
 
   switch (kind) {
     case "task":
       return {
-        shellClass: "border-[#714f52] bg-[#e4b5b8] text-[#241417]",
-        titleClass: "bg-[#d4979c] text-[#2d1417]",
+        shellClass: taskShell,
+        titleClass: taskTitle,
       };
     case "villager":
       return {
-        shellClass: "border-[#6f5a37] bg-[#e2c593] text-[#211609]",
-        titleClass: "bg-[#d4ab6d] text-[#2b1b08]",
+        shellClass: villagerShell,
+        titleClass: villagerTitle,
       };
     case "resource":
       return {
-        shellClass: "border-[#4f6b49] bg-[#b5d6aa] text-[#10200c]",
-        titleClass: "bg-[#94bd87] text-[#11260d]",
+        shellClass: resourceShell,
+        titleClass: resourceTitle,
       };
     case "food":
       return {
-        shellClass: "border-[#77563a] bg-[#e6b074] text-[#251508]",
-        titleClass: "bg-[#d4924d] text-[#2b1809]",
+        shellClass: foodShell,
+        titleClass: foodTitle,
       };
     case "zombie":
       return {
-        shellClass: "border-[#6f3f4a] bg-[#cf9ba7] text-[#220e12]",
-        titleClass: "bg-[#bb7f8c] text-[#2a0f14]",
+        shellClass: zombieShell,
+        titleClass: zombieTitle,
       };
     case "deck":
       return {
-        shellClass: "border-[#4a5875] bg-[#afb9ca] text-[#121722]",
-        titleClass: "bg-[#8f9db3] text-[#111a2b]",
+        shellClass: deckShell,
+        titleClass: deckTitle,
+      };
+    case "modifier":
+    case "mod":
+      return {
+        shellClass: modifierShell,
+        titleClass: modifierTitle,
       };
     case "loot":
       return {
-        shellClass: "border-[#6d633d] bg-[#ddd0a1] text-[#1d1807]",
-        titleClass: "bg-[#c9b774] text-[#201807]",
+        shellClass: lootShell,
+        titleClass: lootTitle,
       };
     default:
       return {
-        shellClass: "border-[#4b505a] bg-[#bbc2cc] text-[#141820]",
-        titleClass: "bg-[#9ea7b3] text-[#111722]",
+        shellClass: defaultShell,
+        titleClass: defaultTitle,
       };
   }
 }

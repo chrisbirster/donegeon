@@ -1,3 +1,4 @@
+import { css } from "@linaria/core";
 import AppShell from "../components/AppShell";
 import BoardDesktopSidebar from "../components/board/BoardDesktopSidebar";
 import BoardHeaderActions from "../components/board/BoardHeaderActions";
@@ -15,7 +16,7 @@ export default function BoardView() {
       mobileSidebar={<BoardMobileSidebar />}
       headerRight={<BoardHeaderActions />}
     >
-      <div class="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[280px_minmax(0,1fr)]">
+      <div class={style1}>
         <BoardDesktopSidebar />
         <BoardStage />
       </div>
@@ -25,3 +26,15 @@ export default function BoardView() {
     </AppShell>
   );
 }
+
+
+const style1 = css`
+display: grid;
+height: 100%;
+min-height: calc(var(--spacing) * 0);
+grid-template-columns: repeat(1, minmax(0, 1fr));
+overflow: hidden;
+@media (width >= 48rem) {
+    grid-template-columns: 280px minmax(0,1fr);
+  }
+`;

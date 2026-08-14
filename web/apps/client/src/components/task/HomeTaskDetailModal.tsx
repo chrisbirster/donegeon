@@ -1,3 +1,4 @@
+import Button from "../Button";
 import { For, Show } from "solid-js";
 import AppShell from "../AppShell";
 import SidebarAccountCard from "../SidebarAccountCard";
@@ -88,6 +89,7 @@ import {
   taskDueDate,
   DEFAULT_SIDEBAR_PROJECTS,
 } from "../../features/tasks/home-rules";import { useHome } from "../../page/HomeContext";
+import { style1, style2, style3, style4, style5, style6, style7, style8, style9, style10, style11, style12, style13, style14, style15, style16, style17, style18, style19, style20, style21, style22, style23, style24, style25, style26, style27, style28, style29, style30, style31, style32, style33 } from "./styles/HomeTaskDetailModal.styles";
 
 export default function HomeTaskDetailModal() {
   const {
@@ -239,51 +241,51 @@ export default function HomeTaskDetailModal() {
   return (
         <Show when={isDetailOpen() && detailTask()}>
         <div
-          class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm md:p-4"
+          class={style1}
           onClick={closeDetailModal}
         >
           <div
-            class="app-panel my-2 flex max-h-[calc(100vh-1rem)] w-full max-w-[52rem] flex-col overflow-hidden rounded-2xl shadow-[0_30px_100px_rgba(0,0,0,0.55)] md:my-4 md:max-h-[calc(100vh-2rem)]"
+            class={style2}
             onClick={(event) => event.stopPropagation()}
             data-testid="task-detail-modal"
           >
-            <div class="flex items-center justify-between border-b border-[var(--border-strong)] px-6 py-4">
-              <p class="text-sm uppercase tracking-wider text-[var(--text-dim)]">Task Detail</p>
-              <button
+            <div class={style3}>
+              <p class={style4}>Task Detail</p>
+              <Button
                 type="button"
-                class="app-button-secondary rounded-md px-3 py-1 text-sm"
+                class={style5}
                 onClick={closeDetailModal}
               >
                 Close
-              </button>
+              </Button>
             </div>
 
-            <div class="grid min-h-0 flex-1 gap-0 overflow-hidden md:grid-cols-[1.15fr_0.85fr]">
-              <div class="space-y-4 overflow-y-auto p-6">
-                <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Task</label>
+            <div class={style6}>
+              <div class={style7}>
+                <label class={style8}>Task</label>
                 <input
                   value={detailContent()}
                   onInput={(event) => setDetailContent(event.currentTarget.value)}
-                  class="w-full rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-lg text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                  class={style9}
                   data-testid="task-detail-title"
                 />
 
-                <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Description</label>
+                <label class={style8}>Description</label>
                 <textarea
                   value={detailDescription()}
                   onInput={(event) => setDetailDescription(event.currentTarget.value)}
-                  class="h-40 w-full resize-none rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                  class={style10}
                   data-testid="task-detail-description"
                 />
               </div>
 
-              <div class="overflow-y-auto border-t border-[var(--border-strong)] p-6 md:border-l md:border-t-0">
-                <div class="space-y-4">
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Project</label>
+              <div class={style11}>
+                <div class={style12}>
+                  <label class={style8}>Project</label>
                   <Show
                     when={detailNewProjectName() === null}
                     fallback={
-                      <div class="flex items-center gap-2">
+                      <div class={style13}>
                         <input
                           value={detailNewProjectName() ?? ""}
                           onInput={(event) => setDetailNewProjectName(event.currentTarget.value)}
@@ -301,22 +303,22 @@ export default function HomeTaskDetailModal() {
                           class={formFieldClass}
                           data-testid="task-detail-new-project"
                         />
-                        <button
+                        <Button
                           type="button"
-                          class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
+                          class={style14}
                           onClick={() => void createAndAssignDetailProject(detailNewProjectName() ?? "")}
                           disabled={detailProjectAssigning()}
                         >
                           {detailProjectAssigning() ? "..." : "✓"}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
+                          class={style14}
                           disabled={detailProjectAssigning()}
                           onClick={() => setDetailNewProjectName(null)}
                         >
                           ✕
-                        </button>
+                        </Button>
                       </div>
                     }
                   >
@@ -346,12 +348,12 @@ export default function HomeTaskDetailModal() {
                     </select>
                   </Show>
                   <Show when={isTeamBoardProject(detailTask()?.projectId, projectMap())}>
-                    <p class={`inline-flex ${teamBadgeClass}`}>
+                    <p class={` ${style15} ${teamBadgeClass}`}>
                       Team board project
                     </p>
                   </Show>
 
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Tags</label>
+                  <label class={style8}>Tags</label>
                   <input
                     value={detailTags()}
                     onInput={(event) => setDetailTags(event.currentTarget.value)}
@@ -359,11 +361,11 @@ export default function HomeTaskDetailModal() {
                     class={formFieldClass}
                     data-testid="task-detail-tags"
                   />
-                  <p class="text-xs text-[var(--text-dim)]">
+                  <p class={style16}>
                     Use tags like <code>@chore @home</code>.
                   </p>
 
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Priority</label>
+                  <label class={style8}>Priority</label>
                   <select
                     value={detailPriority()}
                     onInput={(event) => setDetailPriority(Number(event.currentTarget.value))}
@@ -376,58 +378,58 @@ export default function HomeTaskDetailModal() {
                     <option value={4}>P4</option>
                   </select>
 
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Due</label>
-                  <div class="flex items-center gap-2">
+                  <label class={style8}>Due</label>
+                  <div class={style13}>
                     <input
                       type="datetime-local"
                       value={toDatetimeLocalValue(detailDueText())}
                       onInput={(event) => setDetailDueText(fromDatetimeLocalValue(event.currentTarget.value))}
-                      class={`${formFieldClass} [color-scheme:dark]`}
+                      class={`${formFieldClass} ${style17} `}
                       data-testid="task-detail-due"
                     />
                     <Show when={detailDueText()}>
-                      <button
+                      <Button
                         type="button"
-                        class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
+                        class={style14}
                         onClick={() => setDetailDueText("")}
                         title="Clear due date"
                       >
                         ✕
-                      </button>
+                      </Button>
                     </Show>
                   </div>
                   <Show when={detailDueInputToken()}>
-                    <p class="text-xs text-[var(--text-muted)]">Original token: {detailDueInputToken()}</p>
+                    <p class={style18}>Original token: {detailDueInputToken()}</p>
                   </Show>
                   <Show when={detailDueStoredValue()}>
-                    <p class="text-xs text-[var(--text-soft)]">Stored: {detailDueStoredValue()}</p>
+                    <p class={style19}>Stored: {detailDueStoredValue()}</p>
                   </Show>
 
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Deadline</label>
-                  <div class="flex items-center gap-2">
+                  <label class={style8}>Deadline</label>
+                  <div class={style13}>
                     <input
                       type="datetime-local"
                       value={toDatetimeLocalValue(detailDeadline())}
                       onInput={(event) => setDetailDeadline(fromDatetimeLocalValue(event.currentTarget.value))}
-                      class={`${formFieldClass} [color-scheme:dark]`}
+                      class={`${formFieldClass} ${style17} `}
                       data-testid="task-detail-deadline"
                     />
                     <Show when={detailDeadline()}>
-                      <button
+                      <Button
                         type="button"
-                        class="app-button-secondary shrink-0 rounded-lg px-2 py-2 text-xs"
+                        class={style14}
                         onClick={() => setDetailDeadline("")}
                         title="Clear deadline"
                       >
                         ✕
-                      </button>
+                      </Button>
                     </Show>
                   </div>
                   <Show when={detailDeadlineInputToken()}>
-                    <p class="text-xs text-[var(--text-muted)]">Original token: {detailDeadlineInputToken()}</p>
+                    <p class={style18}>Original token: {detailDeadlineInputToken()}</p>
                   </Show>
                   <Show when={detailDeadlineStoredValue()}>
-                    <p class="text-xs text-[var(--text-soft)]">Stored: {detailDeadlineStoredValue()}</p>
+                    <p class={style19}>Stored: {detailDeadlineStoredValue()}</p>
                   </Show>
                   <Show when={detailScheduleWarning()}>
                     <p class={warningBannerClass}>
@@ -435,7 +437,7 @@ export default function HomeTaskDetailModal() {
                     </p>
                   </Show>
 
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Original Schedule Input</label>
+                  <label class={style8}>Original Schedule Input</label>
                   <input
                     value={detailScheduleOriginal()}
                     readonly
@@ -444,7 +446,7 @@ export default function HomeTaskDetailModal() {
                     data-testid="task-detail-schedule-original"
                   />
 
-                  <label class="block text-xs uppercase tracking-wider text-[var(--text-dim)]">Recurrence Rule (RRULE)</label>
+                  <label class={style8}>Recurrence Rule (RRULE)</label>
                   <input
                     value={detailRecurrence()}
                     onInput={(event) => setDetailRecurrence(event.currentTarget.value)}
@@ -452,14 +454,14 @@ export default function HomeTaskDetailModal() {
                     class={formFieldClass}
                     data-testid="task-detail-recurrence"
                   />
-                  <button
+                  <Button
                     type="button"
-                    class="app-button-secondary rounded-lg px-3 py-2 text-xs"
+                    class={style20}
                     onClick={() => void parseDetailRecurrence()}
                     data-testid="task-detail-parse-rrule"
                   >
                     Validate RRULE
-                  </button>
+                  </Button>
                   <Show when={detailRecurrenceError()}>
                     <p class={errorBannerClass}>
                       {detailRecurrenceError()}
@@ -475,11 +477,11 @@ export default function HomeTaskDetailModal() {
 
                   <Show when={detailTaskIsBoardProject()}>
                     <div
-                      class="space-y-3 rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] p-3"
+                      class={style21}
                       data-testid="task-detail-board-activation"
                     >
-                      <div class="flex items-center justify-between">
-                        <p class="text-xs uppercase tracking-wider text-[var(--text-dim)]">Board Activation</p>
+                      <div class={style22}>
+                        <p class={style23}>Board Activation</p>
                         <Show when={detailActivationPreview()?.alreadyLive}>
                           <span class={successBannerClass}>
                             Live
@@ -488,7 +490,7 @@ export default function HomeTaskDetailModal() {
                       </div>
 
                       <Show when={detailActivationLoading()}>
-                        <p class="text-xs text-[var(--text-dim)]">Checking board requirements...</p>
+                        <p class={style16}>Checking board requirements...</p>
                       </Show>
 
                       <Show when={detailActivationError()}>
@@ -502,12 +504,12 @@ export default function HomeTaskDetailModal() {
                           <>
                             <Show when={preview().requirements.coin}>
                               {(coinRequirement) => (
-                                <div class="rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-2">
-                                  <p class="text-[11px] uppercase tracking-wider text-[var(--text-dim)]">Coin</p>
-                                  <p class="text-sm text-[var(--text-main)]">
+                                <div class={style24}>
+                                  <p class={style25}>Coin</p>
+                                  <p class={style26}>
                                     {coinRequirement().currency}: {coinRequirement().available}/{coinRequirement().required}
                                     <Show when={coinRequirement().missing > 0}>
-                                      <span class="ml-2 text-[var(--danger)]">missing {coinRequirement().missing}</span>
+                                      <span class={style27}>missing {coinRequirement().missing}</span>
                                     </Show>
                                   </p>
                                 </div>
@@ -516,17 +518,17 @@ export default function HomeTaskDetailModal() {
 
                             <Show
                               when={preview().requirements.modifiers.length > 0}
-                              fallback={<p class="text-xs text-[var(--text-dim)]">No modifier cards required.</p>}
+                              fallback={<p class={style16}>No modifier cards required.</p>}
                             >
-                              <div class="space-y-1">
+                              <div class={style28}>
                                 <For each={preview().requirements.modifiers}>
                                   {(requirement) => (
-                                    <div class="flex items-center justify-between rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-1.5 text-xs text-[var(--text-main)]">
+                                    <div class={style29}>
                                       <span>{formatModifierRequirementName(requirement.defId)}</span>
                                       <span>
                                         {requirement.available}/{requirement.required}
                                         <Show when={requirement.missing > 0}>
-                                          <span class="ml-2 text-[var(--danger)]">missing {requirement.missing}</span>
+                                          <span class={style27}>missing {requirement.missing}</span>
                                         </Show>
                                       </span>
                                     </div>
@@ -535,9 +537,9 @@ export default function HomeTaskDetailModal() {
                               </div>
                             </Show>
 
-                            <button
+                            <Button
                               type="button"
-                              class="app-button-secondary w-full rounded-lg px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                              class={style30}
                               onClick={() => void makeDetailTaskLive()}
                               disabled={
                                 detailActivating() ||
@@ -554,10 +556,10 @@ export default function HomeTaskDetailModal() {
                                   : preview().canActivate
                                     ? "Make Live on Board"
                                     : "Missing requirements"}
-                            </button>
+                            </Button>
 
                             <Show when={!preview().alreadyLive}>
-                              <p class="text-xs text-[var(--text-dim)]">
+                              <p class={style16}>
                                 Activation consumes the listed requirements and spawns this task on board.
                               </p>
                             </Show>
@@ -570,10 +572,10 @@ export default function HomeTaskDetailModal() {
               </div>
             </div>
 
-            <div class="flex items-center justify-between border-t border-[var(--border-strong)] px-6 py-4">
-              <button
+            <div class={style31}>
+              <Button
                 type="button"
-                class="app-button-secondary rounded-lg px-3 py-2 text-sm"
+                class={style32}
                 onClick={() => {
                   const task = detailTask();
                   if (task) {
@@ -587,15 +589,15 @@ export default function HomeTaskDetailModal() {
                 data-testid="task-detail-mark-done"
               >
                 {detailTask()?.checked ? "Reopen" : "Mark done"}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                class="app-button-primary rounded-lg px-4 py-2 font-medium"
+                class={style33}
                 onClick={() => void saveDetailModal()}
                 data-testid="task-detail-save"
               >
                 Save changes
-              </button>
+              </Button>
             </div>
           </div>
         </div>

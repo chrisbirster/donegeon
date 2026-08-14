@@ -1,3 +1,5 @@
+import Button from "../components/Button";
+import { css } from "@linaria/core";
 import { Accessor, For, ParentProps, createContext, createSignal, useContext } from "solid-js";
 
 type ToastTone = "success" | "error" | "info";
@@ -21,15 +23,18 @@ type ToastAPI = {
 
 const ToastContext = createContext<ToastAPI>();
 let nextToastID = 1;
+const toastSuccess = css`border-color: #3d6b4e; background: #12281d; color: #baf2cd;`;
+const toastError = css`border-color: #734040; background: #2b1717; color: #ffbaba;`;
+const toastInfo = css`border-color: #415779; background: #152238; color: #d6e6ff;`;
 
 function toastToneClass(tone: ToastTone): string {
   switch (tone) {
     case "success":
-      return "border-[#3d6b4e] bg-[#12281d] text-[#baf2cd]";
+      return toastSuccess;
     case "error":
-      return "border-[#734040] bg-[#2b1717] text-[#ffbaba]";
+      return toastError;
     default:
-      return "border-[#415779] bg-[#152238] text-[#d6e6ff]";
+      return toastInfo;
   }
 }
 
@@ -80,22 +85,22 @@ export function ToastProvider(props: ParentProps) {
   return (
     <ToastContext value={api}>
       {props.children}
-      <div class="pointer-events-none fixed bottom-[max(14px,env(safe-area-inset-bottom))] left-3 z-[140] flex w-[min(360px,calc(100vw-1.5rem))] flex-col gap-2 md:left-4">
+      <div class={style1}>
         <For each={toasts()}>
           {(toast) => (
             <div
-              class={`pointer-events-auto rounded-xl border px-3 py-2 shadow-[0_18px_36px_rgba(0,0,0,0.45)] backdrop-blur-sm ${toastToneClass(toast.tone)}`}
+              class={` ${style2} ${toastToneClass(toast.tone)}`}
               data-testid="app-toast"
             >
-              <div class="flex items-start gap-2">
-                <p class="min-w-0 flex-1 text-sm leading-snug">{toast.message}</p>
-                <button
+              <div class={style3}>
+                <p class={style4}>{toast.message}</p>
+                <Button
                   type="button"
-                  class="rounded border border-[#5f7292] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d7e6ff] transition hover:border-[var(--accent)]"
+                  class={style5}
                   onClick={() => dismiss(toast.id)}
                 >
                   Close
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -108,3 +113,70 @@ export function ToastProvider(props: ParentProps) {
 export function useToast() {
   return useContext(ToastContext);
 }
+
+
+const style1 = css`
+pointer-events: none;
+position: fixed;
+bottom: max(14px, env(safe-area-inset-bottom));
+left: calc(var(--spacing) * 3);
+z-index: 140;
+display: flex;
+width: min(360px, calc(100vw - 1.5rem));
+flex-direction: column;
+gap: calc(var(--spacing) * 2);
+@media (width >= 48rem) {
+    left: calc(var(--spacing) * 4);
+  }
+`;
+
+const style2 = css`
+pointer-events: auto;
+border-radius: var(--radius-xl);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+--tw-shadow: 0 18px 36px var(--tw-shadow-color, rgba(0,0,0,0.45));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+--tw-backdrop-blur: blur(var(--blur-sm));
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+`;
+
+const style3 = css`
+display: flex;
+align-items: flex-start;
+gap: calc(var(--spacing) * 2);
+`;
+
+const style4 = css`
+min-width: calc(var(--spacing) * 0);
+flex: 1;
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-leading: var(--leading-snug);
+  line-height: var(--leading-snug);
+`;
+
+const style5 = css`
+border-radius: 0.25rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: #5f7292;
+padding-inline: calc(var(--spacing) * 1.5);
+padding-block: calc(var(--spacing) * 0.5);
+font-size: 10px;
+--tw-tracking: 0.08em;
+  letter-spacing: 0.08em;
+color: #d7e6ff;
+text-transform: uppercase;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      border-color: var(--accent);
+    }
+  }
+`;

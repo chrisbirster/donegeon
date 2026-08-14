@@ -1,3 +1,4 @@
+import Button from "../Button";
 import { For, Show } from "solid-js";
 import AppShell from "../AppShell";
 import SidebarAccountCard from "../SidebarAccountCard";
@@ -88,6 +89,7 @@ import {
   taskDueDate,
   DEFAULT_SIDEBAR_PROJECTS,
 } from "../../features/tasks/home-rules";import { useHome } from "../../page/HomeContext";
+import { style1, style2, style3, style4, style5, style6, style7, style8, style9, style10, style11, style12, style13, style14, style15, style16, style17, style18, style19, style20, style21, style22, style23, style24, style25, style26, style27, taskRow, taskRowDrop, taskRowNextAction, completedTaskRow } from "./styles/HomeTaskContent.styles";
 
 export default function HomeTaskContent() {
   const {
@@ -237,7 +239,7 @@ export default function HomeTaskContent() {
     onDragEnd,
   } = useHome();
   return (
-          <section class="app-panel-strong flex h-full min-h-0 flex-col rounded-3xl p-6 md:p-8">
+          <section class={style1}>
             <TaskViewHeader title={viewTitle()} count={visibleTasks().length} />
 
             <TaskQuickAddComposer
@@ -252,26 +254,26 @@ export default function HomeTaskContent() {
             />
 
           <Show when={error()}>
-            <p class={`mb-4 ${errorBannerClass}`}>{error()}</p>
+            <p class={` ${style2} ${errorBannerClass}`}>{error()}</p>
           </Show>
 
-          <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div class={style3}>
             <Show
               when={visibleTasks().length > 0}
               fallback={<p class={emptyStateClass}>No open tasks in this view.</p>}
             >
-              <ul class="space-y-2">
+              <ul class={style4}>
                 <For each={visibleTasks()}>
                   {(item) => (
                     <li
                       data-testid="task-row"
                       data-task-id={item.id}
-                      class={`${taskRowBaseClass} ${
+                      class={`group ${taskRow} ${
                         dropTargetId() === item.id
-                          ? taskRowDropClass
+                          ? taskRowDrop
                           : isNextActionTask(item)
-                            ? taskRowNextActionClass
-                            : taskRowDefaultClass
+                            ? taskRowNextAction
+                            : ""
                       }`}
                       onDragOver={(event) => onDragOver(event, item.id)}
                       onDrop={(event) => onDrop(event, item.id)}
@@ -280,11 +282,12 @@ export default function HomeTaskContent() {
                         openDetailModal(item);
                       }}
                     >
-                      <button
+                      <Button
+                        unstyled
                         type="button"
                         draggable="true"
-                        class={`cursor-grab select-none rounded px-1 text-[var(--text-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-white ${
-                          dragTaskId() === item.id ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                        class={` ${style5} ${
+                          dragTaskId() === item.id ? style6 : style7
                         }`}
                         aria-label="Drag to reorder"
                         onClick={(event) => event.stopPropagation()}
@@ -292,11 +295,12 @@ export default function HomeTaskContent() {
                         onDragEnd={onDragEnd}
                       >
                         ::
-                      </button>
+                      </Button>
 
-                      <button
+                      <Button
+                        unstyled
                         type="button"
-                        class="h-5 w-5 rounded-full border border-[var(--border-strong)] bg-transparent transition hover:border-[var(--accent)]"
+                        class={style8}
                         aria-label="Complete task"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -304,15 +308,15 @@ export default function HomeTaskContent() {
                         }}
                       />
 
-                      <div class="min-w-0 flex-1">
+                      <div class={style9}>
                         <Show
                           when={editingTaskId() === item.id}
                           fallback={
                             <>
-                              <p class="truncate text-sm text-[var(--text-main)]" data-testid="task-content">
+                              <p class={style10} data-testid="task-content">
                                 {item.content}
                               </p>
-                              <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
+                              <div class={style11}>
                                 <Show when={scheduleBadgeLabel(item, "due")}>
                                   {(label) => <span class={dueBadgeClass}>{label()}</span>}
                                 </Show>
@@ -333,7 +337,7 @@ export default function HomeTaskContent() {
                               </For>
                                 <Show when={projectNameByID(item.projectId)}>
                                   {(projectName) => (
-                                    <span class={`inline-flex items-center gap-1 ${tagBadgeClass}`}>
+                                    <span class={` ${style12} ${tagBadgeClass}`}>
                                       <span>#{projectName()}</span>
                                       <Show when={isTeamBoardProject(item.projectId, projectMap())}>
                                         <span class={teamBadgeClass}>Team</span>
@@ -348,7 +352,7 @@ export default function HomeTaskContent() {
                             </>
                           }
                         >
-                          <div class="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                          <div class={style13} onClick={(event) => event.stopPropagation()}>
                             <input
                               value={editingContent()}
                               onInput={(event) => setEditingContent(event.currentTarget.value)}
@@ -362,39 +366,39 @@ export default function HomeTaskContent() {
                                   cancelInlineEdit();
                                 }
                               }}
-                              class="w-full rounded-lg border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-2 py-1 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                              class={style14}
                               autofocus
                             />
-                            <button
+                            <Button
                               type="button"
-                              class="app-button-primary rounded-md px-2 py-1 text-xs"
+                              class={style15}
                               onClick={() => void saveInlineEdit(item.id)}
                             >
                               Save
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
-                              class="app-button-secondary rounded-md px-2 py-1 text-xs text-[var(--text-soft)]"
+                              class={style16}
                               onClick={cancelInlineEdit}
                             >
                               Cancel
-                            </button>
+                            </Button>
                           </div>
                         </Show>
                       </div>
 
                       <span
-                        class={`rounded-md px-2 py-1 text-xs ${
+                        class={` ${style17} ${
                           item.priority <= 2
-                            ? "bg-[rgba(255,139,80,0.18)] text-[#ffd7b7]"
-                            : "bg-[rgba(103,187,255,0.12)] text-[#cfe3ff]"
+                            ? style18
+                            : style19
                         }`}
                       >
                         p{item.priority}
                       </span>
 
-                      <div class="ml-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                        <button
+                      <div class={style20}>
+                        <Button
                           type="button"
                           class={listActionButtonClass}
                           aria-label="Edit inline"
@@ -405,8 +409,8 @@ export default function HomeTaskContent() {
                           }}
                         >
                           ✎
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           class={listActionButtonClass}
                           aria-label="Open details"
@@ -417,9 +421,9 @@ export default function HomeTaskContent() {
                           }}
                           >
                           Open
-                        </button>
+                        </Button>
                         <Show when={isBoardProject(item.projectId) && !isBoardLiveTask(item)}>
-                          <button
+                          <Button
                             type="button"
                             class={successActionButtonClass}
                             aria-label="Make live on board"
@@ -431,9 +435,9 @@ export default function HomeTaskContent() {
                             disabled={rowActivatingTaskID() === item.id}
                           >
                             {rowActivatingTaskID() === item.id ? "Activating..." : "Make Live"}
-                          </button>
+                          </Button>
                         </Show>
-                        <button
+                        <Button
                           type="button"
                           class={dangerActionButtonClass}
                           aria-label="Delete task"
@@ -444,7 +448,7 @@ export default function HomeTaskContent() {
                           }}
                         >
                           Del
-                        </button>
+                        </Button>
                       </div>
                     </li>
                   )}
@@ -453,33 +457,33 @@ export default function HomeTaskContent() {
             </Show>
 
             <Show when={visibleCompletedTasks().length > 0}>
-              <div class={visibleTasks().length > 0 ? "mt-6" : "mt-4"} data-testid="completed-task-section">
-                <div class="mb-3 flex items-center justify-between">
-                  <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Completed</p>
-                  <span class="text-xs text-[var(--text-dim)]">{visibleCompletedTasks().length} task(s)</span>
+              <div class={visibleTasks().length > 0 ? style21 : style22} data-testid="completed-task-section">
+                <div class={style23}>
+                  <p class={style24}>Completed</p>
+                  <span class={style25}>{visibleCompletedTasks().length} task(s)</span>
                 </div>
 
-                <ul class="space-y-2">
+                <ul class={style4}>
                   <For each={visibleCompletedTasks()}>
                     {(item) => (
                       <li
                         data-testid="completed-task-row"
                         data-task-id={item.id}
-                        class={completedTaskRowClass}
+                        class={`group ${completedTaskRow}`}
                         onClick={() => {
                           if (editingTaskId() === item.id) return;
                           openDetailModal(item);
                         }}
                       >
-                        <span class="flex h-5 w-5 items-center justify-center rounded-full border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] text-[11px] text-[var(--success)]">
+                        <span class={style26}>
                           ✓
                         </span>
 
-                        <div class="min-w-0 flex-1">
-                          <p class="truncate text-sm text-[var(--text-soft)] line-through" data-testid="completed-task-content">
+                        <div class={style9}>
+                          <p class={style27} data-testid="completed-task-content">
                             {item.content}
                           </p>
-                          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-dim)]">
+                          <div class={style11}>
                             <span class={boardLiveBadgeClass}>Done</span>
                             <Show when={scheduleBadgeLabel(item, "due")}>
                               {(label) => <span class={dueBadgeClass}>{label()}</span>}
@@ -489,7 +493,7 @@ export default function HomeTaskContent() {
                             </Show>
                             <Show when={projectNameByID(item.projectId)}>
                               {(projectName) => (
-                                <span class={`inline-flex items-center gap-1 ${tagBadgeClass}`}>
+                                <span class={` ${style12} ${tagBadgeClass}`}>
                                   <span>#{projectName()}</span>
                                   <Show when={isTeamBoardProject(item.projectId, projectMap())}>
                                     <span class={teamBadgeClass}>Team</span>
@@ -504,17 +508,17 @@ export default function HomeTaskContent() {
                         </div>
 
                         <span
-                          class={`rounded-md px-2 py-1 text-xs ${
+                          class={` ${style17} ${
                             item.priority <= 2
-                              ? "bg-[rgba(255,139,80,0.18)] text-[#ffd7b7]"
-                              : "bg-[rgba(103,187,255,0.12)] text-[#cfe3ff]"
+                              ? style18
+                              : style19
                           }`}
                         >
                           p{item.priority}
                         </span>
 
-                        <div class="ml-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                          <button
+                        <div class={style20}>
+                          <Button
                             type="button"
                             class={successActionButtonClass}
                             data-testid="reopen-task"
@@ -524,8 +528,8 @@ export default function HomeTaskContent() {
                             }}
                           >
                             Reopen
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
                             class={listActionButtonClass}
                             onClick={(event) => {
@@ -534,7 +538,7 @@ export default function HomeTaskContent() {
                             }}
                           >
                             Open
-                          </button>
+                          </Button>
                         </div>
                       </li>
                     )}

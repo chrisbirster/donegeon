@@ -1,3 +1,5 @@
+import Button from "../Button";
+import { css } from "@linaria/core";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
@@ -186,44 +188,44 @@ export default function BoardTaskDetailModal() {
   return (
       <Show when={isDetailOpen() && !!selectedTaskCard()}>
         <div
-          class={`fixed inset-0 z-[70] flex items-center justify-center p-2 pb-[calc(72px+env(safe-area-inset-bottom))] backdrop-blur-sm md:p-4 ${boardModalBackdropClass()}`}
+          class={` ${style1} ${boardModalBackdropClass()}`}
         >
           <div
-            class="app-panel-strong max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-[28px] md:max-h-[92vh]"
+            class={style2}
             data-testid="board-detail-modal"
           >
             <div class={boardModalHeaderBarClass}>
-              <p class="font-display text-2xl font-semibold tracking-tight text-[var(--text-main)]">Task Details</p>
-              <button
+              <p class={style3}>Task Details</p>
+              <Button
                 type="button"
-                class="app-button-secondary rounded-lg px-3 py-1.5 text-sm font-semibold"
+                class={style4}
                 onClick={closeDetail}
               >
                 ✕
-              </button>
+              </Button>
             </div>
 
-            <div class="space-y-6 p-5 md:p-6">
+            <div class={style5}>
               <section class={boardModalSubpanelClass}>
-                <p class={`${boardModalSectionLabelClass} mb-3`}>Task</p>
-                <div class={`${boardModalBodyClass} p-4`}>
-                  <div class="mb-3 flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] text-xl text-[var(--text-main)]">
+                <p class={`${boardModalSectionLabelClass} ${style6} `}>Task</p>
+                <div class={`${boardModalBodyClass} ${style7} `}>
+                  <div class={style8}>
+                    <div class={style9}>
                       📋
                     </div>
-                    <div class="min-w-0 flex-1">
+                    <div class={style10}>
                       <textarea
                         rows={3}
                         value={detailTitle()}
                         onInput={(event) => onDetailTitleInput(event.currentTarget.value)}
-                        class={`${boardModalTextareaClass} text-base leading-tight font-semibold md:text-2xl`}
+                        class={`${boardModalTextareaClass} ${style11} `}
                         data-testid="board-detail-title"
                       />
                     </div>
                   </div>
 
                   <Show when={detailTokens().length > 0}>
-                    <div class="mb-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-sm leading-relaxed text-[var(--text-soft)]">
+                    <div class={style12}>
                       <For each={detailTokens()}>
                         {(token) => (
                           <span class={token.kind === "text" ? "" : `rounded-[4px] ${tokenClass(token.kind)}`}>
@@ -235,11 +237,11 @@ export default function BoardTaskDetailModal() {
                   </Show>
 
                   <Show when={detailParsing()}>
-                    <p class="mb-2 text-xs text-[var(--text-dim)]">Parsing schedule…</p>
+                    <p class={style13}>Parsing schedule…</p>
                   </Show>
 
                   <Show when={detailParsedChips().length > 0}>
-                    <div class="mb-3 flex flex-wrap gap-1.5">
+                    <div class={style14}>
                       <For each={detailParsedChips()}>
                         {(chip) => (
                           <span class={boardModalChipClass}>
@@ -251,7 +253,7 @@ export default function BoardTaskDetailModal() {
                   </Show>
 
                   <Show when={detailModifierHints().length > 0}>
-                    <div class="mb-3 space-y-1">
+                    <div class={style15}>
                       <For each={detailModifierHints()}>
                         {(hint) => (
                           <p class={boardModalWarningNoteClass}>
@@ -263,23 +265,23 @@ export default function BoardTaskDetailModal() {
                   </Show>
 
                   <Show when={detailScheduleInput() || detailStoredDue() || detailStoredDeadline()}>
-                    <div class="mb-3 space-y-1 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--text-soft)]">
+                    <div class={style16}>
                       <Show when={detailScheduleInput()}>
                         <p>
-                          Input: <span class="text-[var(--text-main)]">{detailScheduleInput()}</span>
+                          Input: <span class={style17}>{detailScheduleInput()}</span>
                         </p>
                       </Show>
                       <Show when={detailDueInputToken() || detailStoredDue()}>
                         <p>
                           Due:
                           <Show when={detailDueInputToken()}>
-                            <span class="ml-1 text-[var(--accent-text)]">{detailDueInputToken()}</span>
+                            <span class={style18}>{detailDueInputToken()}</span>
                           </Show>
                           <Show when={detailDueInputToken() && detailStoredDue()}>
-                            <span class="mx-1 text-[var(--text-dim)]">{"->"}</span>
+                            <span class={style19}>{"->"}</span>
                           </Show>
                           <Show when={detailStoredDue()}>
-                            <span class="text-[var(--text-main)]">
+                            <span class={style17}>
                               {formatScheduleDateTime(detailStoredDue()) ?? detailStoredDue()}
                             </span>
                           </Show>
@@ -289,13 +291,13 @@ export default function BoardTaskDetailModal() {
                         <p>
                           Deadline:
                           <Show when={detailDeadlineInputToken()}>
-                            <span class="ml-1 text-[var(--accent-text)]">{detailDeadlineInputToken()}</span>
+                            <span class={style18}>{detailDeadlineInputToken()}</span>
                           </Show>
                           <Show when={detailDeadlineInputToken() && detailStoredDeadline()}>
-                            <span class="mx-1 text-[var(--text-dim)]">{"->"}</span>
+                            <span class={style19}>{"->"}</span>
                           </Show>
                           <Show when={detailStoredDeadline()}>
-                            <span class="text-[var(--text-main)]">
+                            <span class={style17}>
                               {formatScheduleDateTime(detailStoredDeadline()) ?? detailStoredDeadline()}
                             </span>
                           </Show>
@@ -304,7 +306,7 @@ export default function BoardTaskDetailModal() {
                     </div>
                   </Show>
                   <Show when={detailScheduleWarning()}>
-                    <p class={`mb-3 ${boardModalWarningNoteClass}`}>
+                    <p class={` ${style6} ${boardModalWarningNoteClass}`}>
                       {detailScheduleWarning()}
                     </p>
                   </Show>
@@ -313,40 +315,40 @@ export default function BoardTaskDetailModal() {
                     rows={5}
                     value={detailDescription()}
                     onInput={(event) => setDetailDescription(event.currentTarget.value)}
-                    class={`${boardModalTextareaClass} text-[15px]`}
+                    class={`${boardModalTextareaClass} ${style20} `}
                     data-testid="board-detail-description"
                   />
 
-                  <button
+                  <Button
                     type="button"
-                    class="app-button-secondary mt-3 w-full rounded-xl px-4 py-2 text-base font-semibold"
+                    class={style21}
                     onClick={openInTaskPage}
                   >
                     View in Tasks Page
-                  </button>
+                  </Button>
                 </div>
               </section>
 
               <section>
-                <p class={`${boardModalSectionLabelClass} mb-2`}>Priority</p>
-                <div class="grid grid-cols-5 gap-2">
+                <p class={`${boardModalSectionLabelClass} ${style22} `}>Priority</p>
+                <div class={style23}>
                   <For each={[0, 1, 2, 3, 4]}>
                     {(value) => (
-                      <button
+                      <Button
                         type="button"
                         class={boardModalPriorityButtonClass(detailPriority() === value || (value === 0 && detailPriority() <= 0))}
                         onClick={() => setDetailPriority(value === 0 ? 4 : value)}
                       >
                         {value === 0 ? "None" : `P${value}`}
-                      </button>
+                      </Button>
                     )}
                   </For>
                 </div>
               </section>
 
               <section>
-                <p class={`${boardModalSectionLabelClass} mb-2`}>Tags</p>
-                <div class="flex flex-wrap gap-2">
+                <p class={`${boardModalSectionLabelClass} ${style22} `}>Tags</p>
+                <div class={style24}>
                   <span class={boardModalPrimaryTagClass}>
                     #{activeBoardProjectID()}
                   </span>
@@ -359,8 +361,8 @@ export default function BoardTaskDetailModal() {
               </section>
 
               <section>
-                <p class={`${boardModalSectionLabelClass} mb-2`}>Modifier Slots</p>
-                <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <p class={`${boardModalSectionLabelClass} ${style22} `}>Modifier Slots</p>
+                <div class={style25}>
                   <For each={[0, 1, 2, 3]}>
                     {(slotIndex) => {
                       const card = createMemo(() => selectedModifierCards()[slotIndex] ?? null);
@@ -368,10 +370,10 @@ export default function BoardTaskDetailModal() {
                         <div class={boardModalSubpanelClass}>
                           <Show
                             when={card()}
-                            fallback={<p class="text-sm text-[var(--text-dim)]">Slot {slotIndex + 1}: empty</p>}
+                            fallback={<p class={style26}>Slot {slotIndex + 1}: empty</p>}
                           >
                             {(value) => (
-                              <p class="text-sm font-semibold text-[var(--text-main)]">
+                              <p class={style27}>
                                 Slot {slotIndex + 1}: {prettifyDefID(value().defId)}
                               </p>
                             )}
@@ -382,7 +384,7 @@ export default function BoardTaskDetailModal() {
                   </For>
                 </div>
 
-                <p class="mt-3 text-xs text-[var(--text-dim)]">
+                <p class={style28}>
                   {recurringModifierEnabled() || deadlineModifierEnabled()
                     ? `Parsing enabled on save: ${
                         recurringModifierEnabled() ? "recurrence phrases" : ""
@@ -394,9 +396,9 @@ export default function BoardTaskDetailModal() {
               </section>
 
               <section>
-                <p class={`${boardModalSectionLabelClass} mb-2`}>Assigned Villager</p>
+                <p class={`${boardModalSectionLabelClass} ${style22} `}>Assigned Villager</p>
                 <div class={boardModalSubpanelClass}>
-                  <p class="text-lg font-semibold text-[var(--text-main)]">
+                  <p class={style29}>
                     {dataString(selectedTaskCard()?.data?.assignedVillagerId) || "Unassigned"}
                   </p>
                 </div>
@@ -404,9 +406,9 @@ export default function BoardTaskDetailModal() {
             </div>
 
             <div class={boardModalFooterBarClass}>
-              <button
+              <Button
                 type="button"
-                class="app-button-secondary rounded-xl px-4 py-2 text-sm font-semibold"
+                class={style30}
                 onClick={() => {
                   const id = selectedStackID();
                   if (id) void completeStack(id);
@@ -414,19 +416,303 @@ export default function BoardTaskDetailModal() {
                 data-testid="board-detail-mark-done"
               >
                 Mark done
-              </button>
+              </Button>
 
-              <button
+              <Button
                 type="button"
-                class="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#151515] hover:bg-[var(--accent-soft)]"
+                class={style31}
                 onClick={() => void saveDetail()}
                 data-testid="board-detail-save"
               >
                 Save changes
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </Show>
   );
 }
+
+
+const style1 = css`
+position: fixed;
+inset: calc(var(--spacing) * 0);
+z-index: 70;
+display: flex;
+align-items: center;
+justify-content: center;
+padding: calc(var(--spacing) * 2);
+padding-bottom: calc(72px + env(safe-area-inset-bottom));
+--tw-backdrop-blur: blur(var(--blur-sm));
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+@media (width >= 48rem) {
+    padding: calc(var(--spacing) * 4);
+  }
+`;
+
+const style2 = css`
+max-height: 92dvh;
+width: 100%;
+max-width: var(--container-3xl);
+overflow-y: auto;
+border-radius: 28px;
+@media (width >= 48rem) {
+    max-height: 92vh;
+  }
+background: linear-gradient(180deg, var(--panel-strong-start), var(--panel-strong-end)); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+`;
+
+const style3 = css`
+font-size: var(--text-2xl);
+  line-height: var(--tw-leading, var(--text-2xl--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: var(--tracking-tight);
+  letter-spacing: var(--tracking-tight);
+color: var(--text-main);
+font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+`;
+
+const style4 = css`
+border-radius: var(--radius-lg);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 1.5);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+background: var(--panel-soft); border: 1px solid var(--border-strong); color: var(--text-main); transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease; &:hover { background: color-mix(in srgb, var(--panel-soft) 78%, white 22%); border-color: var(--border-hover); }
+`;
+
+const style5 = css`
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 6) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 6) * calc(1 - var(--tw-space-y-reverse)));
+  }
+padding: calc(var(--spacing) * 5);
+@media (width >= 48rem) {
+    padding: calc(var(--spacing) * 6);
+  }
+`;
+
+const style6 = css`
+margin-bottom: calc(var(--spacing) * 3);
+`;
+
+const style7 = css`
+padding: calc(var(--spacing) * 4);
+`;
+
+const style8 = css`
+margin-bottom: calc(var(--spacing) * 3);
+display: flex;
+align-items: center;
+gap: calc(var(--spacing) * 3);
+`;
+
+const style9 = css`
+display: flex;
+height: calc(var(--spacing) * 12);
+width: calc(var(--spacing) * 12);
+align-items: center;
+justify-content: center;
+border-radius: var(--radius-xl);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: var(--panel-soft);
+font-size: var(--text-xl);
+  line-height: var(--tw-leading, var(--text-xl--line-height));
+color: var(--text-main);
+`;
+
+const style10 = css`
+min-width: calc(var(--spacing) * 0);
+flex: 1;
+`;
+
+const style11 = css`
+font-size: var(--text-base);
+  line-height: var(--tw-leading, var(--text-base--line-height));
+--tw-leading: var(--leading-tight);
+  line-height: var(--leading-tight);
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+@media (width >= 48rem) {
+    font-size: var(--text-2xl);
+    line-height: var(--tw-leading, var(--text-2xl--line-height));
+  }
+`;
+
+const style12 = css`
+margin-bottom: calc(var(--spacing) * 3);
+border-radius: var(--radius-xl);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: var(--panel-soft);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-leading: var(--leading-relaxed);
+  line-height: var(--leading-relaxed);
+color: var(--text-soft);
+`;
+
+const style13 = css`
+margin-bottom: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-dim);
+`;
+
+const style14 = css`
+margin-bottom: calc(var(--spacing) * 3);
+display: flex;
+flex-wrap: wrap;
+gap: calc(var(--spacing) * 1.5);
+`;
+
+const style15 = css`
+margin-bottom: calc(var(--spacing) * 3);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style16 = css`
+margin-bottom: calc(var(--spacing) * 3);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+  }
+border-radius: var(--radius-xl);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: var(--panel-soft);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-soft);
+`;
+
+const style17 = css`
+color: var(--text-main);
+`;
+
+const style18 = css`
+margin-left: calc(var(--spacing) * 1);
+color: var(--accent-text);
+`;
+
+const style19 = css`
+margin-inline: calc(var(--spacing) * 1);
+color: var(--text-dim);
+`;
+
+const style20 = css`
+font-size: 15px;
+`;
+
+const style21 = css`
+margin-top: calc(var(--spacing) * 3);
+width: 100%;
+border-radius: var(--radius-xl);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-base);
+  line-height: var(--tw-leading, var(--text-base--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+background: var(--panel-soft); border: 1px solid var(--border-strong); color: var(--text-main); transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease; &:hover { background: color-mix(in srgb, var(--panel-soft) 78%, white 22%); border-color: var(--border-hover); }
+`;
+
+const style22 = css`
+margin-bottom: calc(var(--spacing) * 2);
+`;
+
+const style23 = css`
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: calc(var(--spacing) * 2);
+`;
+
+const style24 = css`
+display: flex;
+flex-wrap: wrap;
+gap: calc(var(--spacing) * 2);
+`;
+
+const style25 = css`
+display: grid;
+grid-template-columns: repeat(1, minmax(0, 1fr));
+gap: calc(var(--spacing) * 2);
+@media (width >= 40rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+`;
+
+const style26 = css`
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-dim);
+`;
+
+const style27 = css`
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+`;
+
+const style28 = css`
+margin-top: calc(var(--spacing) * 3);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-dim);
+`;
+
+const style29 = css`
+font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+`;
+
+const style30 = css`
+border-radius: var(--radius-xl);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+background: var(--panel-soft); border: 1px solid var(--border-strong); color: var(--text-main); transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease; &:hover { background: color-mix(in srgb, var(--panel-soft) 78%, white 22%); border-color: var(--border-hover); }
+`;
+
+const style31 = css`
+border-radius: var(--radius-xl);
+background-color: var(--accent);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: #151515;
+&:hover {
+    @media (hover: hover) {
+      background-color: var(--accent-soft);
+    }
+  }
+`;

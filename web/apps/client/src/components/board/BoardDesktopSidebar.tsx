@@ -1,3 +1,5 @@
+import Button from "../Button";
+import { css } from "@linaria/core";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
@@ -27,6 +29,7 @@ import {
 } from "../../server/api";
 import AppShell from "../AppShell";
 import SidebarAccountCard from "../SidebarAccountCard";
+import BrandTagline from "../brand/BrandTagline";
 
 import {
   DEFAULT_BOARD,
@@ -170,7 +173,7 @@ export default function BoardDesktopSidebar() {
   return (
         <aside class={boardSidebarClass}>
           <div class={boardSidebarSectionClass}>
-            <p class="text-lg font-semibold tracking-wide text-[var(--text-main)]">DONEGEON</p>
+            <BrandTagline class={style1} />
           </div>
 
           <section class={boardSidebarSectionClass}>
@@ -178,37 +181,37 @@ export default function BoardDesktopSidebar() {
             <select
               value={boardSelectorValue()}
               onInput={(event) => handleBoardSelectorInput(event.currentTarget.value)}
-              class={`mt-2 w-full ${boardSelectorFieldClass}`}
+              class={` ${style2} ${boardSelectorFieldClass}`}
               data-testid="board-selector-sidebar"
             >
               {renderBoardSelectorOptions()}
             </select>
             <Show when={activeBoardChoice()?.isTeamBoard}>
-              <p class={`mt-2 inline-flex ${boardChipClass}`}>
+              <p class={` ${style3} ${boardChipClass}`}>
                 Team board
               </p>
             </Show>
-            <p class="mt-2 text-xs text-[var(--text-soft)]">
+            <p class={style4}>
               Use board settings to create boards, rename them, remove them, or manage access.
             </p>
-            <button
+            <Button
               type="button"
-              class={`mt-3 ${boardHeaderButtonClass}`}
+              class={` ${style5} ${boardHeaderButtonClass}`}
               onClick={openCreateBoardModal}
             >
               Manage boards
-            </button>
+            </Button>
           </section>
 
           <div class={boardSidebarSectionClass}>
-            <p class="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--text-main)]">Today&apos;s Goals</p>
+            <p class={style6}>Today&apos;s Goals</p>
           </div>
 
           <section class={boardSidebarSectionClass}>
             <p class={boardSidebarHeadingClass}>Task Summary</p>
-            <div class="mt-2 space-y-1 text-sm text-[var(--text-soft)]">
+            <div class={style7}>
               <p>
-                Danger: <span class={summary().zombieCount > 0 ? "text-[#ff8c8c]" : "text-[#7ddf98]"}>{summary().zombieCount > 0 ? "HIGH" : "SAFE"}</span>
+                Danger: <span class={summary().zombieCount > 0 ? style8 : style9}>{summary().zombieCount > 0 ? "HIGH" : "SAFE"}</span>
               </p>
               <p>Villagers: {summary().villagerCount}</p>
               <p>Active stacks: {summary().activeTaskCount}</p>
@@ -217,28 +220,28 @@ export default function BoardDesktopSidebar() {
           </section>
 
           <section class={boardSidebarSectionClass}>
-            <div class="flex items-center justify-between">
+            <div class={style10}>
               <p class={boardSidebarHeadingClass}>Progression</p>
-              <span class="text-[11px] text-[var(--text-soft)]">Lv 2-{state()?.meta?.progression?.maxLevel ?? 10}</span>
+              <span class={style11}>Lv 2-{state()?.meta?.progression?.maxLevel ?? 10}</span>
             </div>
 
             <Show
               when={progressionLevels().length > 0}
-              fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">Progression data unavailable.</p>}
+              fallback={<p class={style4}>Progression data unavailable.</p>}
             >
-              <div class="mt-2 space-y-1.5">
+              <div class={style12}>
                 <For each={progressionLevels()}>
                   {(level) => (
                     <article class={boardSidebarCardClass}>
-                      <div class="flex items-center justify-between gap-2 text-xs">
-                        <span class="font-semibold text-[var(--text-main)]">Level {level.level}</span>
-                        <span class="text-[var(--text-soft)]">{level.threshold} XP</span>
+                      <div class={style13}>
+                        <span class={style14}>Level {level.level}</span>
+                        <span class={style15}>{level.threshold} XP</span>
                       </div>
                       <Show
                         when={(level.perks ?? []).length > 0}
-                        fallback={<p class="mt-1 text-[11px] text-[var(--text-soft)]">No perk assigned.</p>}
+                        fallback={<p class={style16}>No perk assigned.</p>}
                       >
-                        <div class="mt-2 flex flex-wrap gap-1.5">
+                        <div class={style17}>
                           <For each={level.perks ?? []}>
                             {(perk) => (
                               <span class={boardPerkChipClass} title={perk.summary || perk.label}>
@@ -249,10 +252,10 @@ export default function BoardDesktopSidebar() {
                         </div>
                       </Show>
                       <Show when={(level.perks ?? []).some((perk) => dataString(perk.summary))}>
-                        <div class="mt-2 space-y-1">
+                        <div class={style18}>
                           <For each={(level.perks ?? []).filter((perk) => dataString(perk.summary))}>
                             {(perk) => (
-                              <p class="text-[10px] text-[var(--text-soft)]">{perk.summary}</p>
+                              <p class={style19}>{perk.summary}</p>
                             )}
                           </For>
                         </div>
@@ -265,40 +268,40 @@ export default function BoardDesktopSidebar() {
           </section>
 
           <section class={boardSidebarSectionClass}>
-            <div class="flex items-center justify-between">
+            <div class={style10}>
               <p class={boardSidebarHeadingClass}>Villagers</p>
-              <span class="text-[11px] text-[var(--text-soft)]">{villagerStatuses().length}</span>
+              <span class={style11}>{villagerStatuses().length}</span>
             </div>
 
             <Show
               when={villagerStatuses().length > 0}
-              fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">No villagers on board.</p>}
+              fallback={<p class={style4}>No villagers on board.</p>}
             >
-              <div class="mt-2 space-y-1.5">
+              <div class={style12}>
                 <For each={villagerStatuses()}>
                   {(villager) => (
                     <div class={boardSidebarCardClass}>
-                      <div class="flex items-center justify-between gap-2 text-xs">
-                        <span class="truncate font-semibold text-[var(--text-main)]">{villager.name}</span>
-                        <span class={villager.stamina <= 0 ? "text-[var(--danger)]" : "text-[var(--warning)]"}>
+                      <div class={style13}>
+                        <span class={style20}>{villager.name}</span>
+                        <span class={villager.stamina <= 0 ? style21 : style22}>
                           STA {villager.stamina}/{villager.maxStamina}
                         </span>
                       </div>
-                      <p class="mt-1 text-[11px] text-[var(--text-soft)]">
+                      <p class={style16}>
                         Lv {villager.level} · XP {villager.xp}/{villager.nextLevelXP}
                       </p>
-                      <p class="mt-1 text-[10px] text-[var(--text-soft)]">
+                      <p class={style23}>
                         {villager.xpToNextLevel > 0 ? `+${villager.xpToNextLevel} to next level` : "Max level reached"}
                       </p>
                       <Show when={villager.perks.length > 0}>
-                        <div class="mt-2 flex flex-wrap gap-1.5">
+                        <div class={style17}>
                           <For each={villager.perks}>
                             {(perkID) => <span class={boardPerkChipClass}>{villagerPerkLabel(perkID)}</span>}
                           </For>
                         </div>
                       </Show>
                       <Show when={villager.stamina <= 0}>
-                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--danger)]">Needs action</p>
+                        <p class={style24}>Needs action</p>
                       </Show>
                     </div>
                   )}
@@ -308,13 +311,13 @@ export default function BoardDesktopSidebar() {
           </section>
 
           <section class={boardSidebarSectionClass}>
-            <div class="flex items-center justify-between">
+            <div class={style10}>
               <p class={boardSidebarHeadingClass}>Quests</p>
-              <span class="text-[11px] text-[var(--text-soft)]">{activeQuests().length} active</span>
+              <span class={style11}>{activeQuests().length} active</span>
             </div>
 
-            <Show when={activeQuests().length > 0} fallback={<p class="mt-2 text-xs text-[var(--text-soft)]">No active quests.</p>}>
-              <div class="mt-2 space-y-2">
+            <Show when={activeQuests().length > 0} fallback={<p class={style4}>No active quests.</p>}>
+              <div class={style25}>
                 <For each={activeQuests().slice(0, 4)}>
                   {(quest) => {
                     const objectives = () => quest.objectives ?? [];
@@ -326,27 +329,27 @@ export default function BoardDesktopSidebar() {
                         .join(" · ");
                     return (
                       <article class={boardSidebarCardClass}>
-                        <div class="flex items-start justify-between gap-2">
-                          <p class="text-xs font-semibold text-[var(--text-main)]">{quest.title}</p>
+                        <div class={style26}>
+                          <p class={style27}>{quest.title}</p>
                           <span class={boardChipClass}>
                             {questTypeLabel(quest.type)}
                           </span>
                         </div>
-                        <p class="mt-1 text-[11px] text-[var(--text-soft)]">
+                        <p class={style16}>
                           {completedCount()}/{objectives().length || 1} objectives
                         </p>
                         <Show when={quest.howToComplete}>
-                          <p class="mt-1 text-[11px] text-[#b7c9e8]">How: {quest.howToComplete}</p>
+                          <p class={style28}>How: {quest.howToComplete}</p>
                         </Show>
                         <Show when={quest.definitionOfDone}>
-                          <p class="mt-1 text-[11px] text-[#9ec4b1]">Done when: {quest.definitionOfDone}</p>
+                          <p class={style29}>Done when: {quest.definitionOfDone}</p>
                         </Show>
-                        <div class="mt-1 space-y-1">
+                        <div class={style30}>
                           <For each={objectives()}>
                             {(objective) => (
-                              <div class="flex items-center justify-between gap-2 text-[11px]">
-                                <span class={objective.complete ? "text-[#89dc9a]" : "text-[#c8d3e8]"}>{questObjectiveLabel(objective)}</span>
-                                <span class={objective.complete ? "text-[#79d78e]" : "text-[#8ca4cf]"}>
+                              <div class={style31}>
+                                <span class={objective.complete ? style32 : style33}>{questObjectiveLabel(objective)}</span>
+                                <span class={objective.complete ? style34 : style35}>
                                   {objective.complete ? "Done" : questObjectiveProgressLabel(objective)}
                                 </span>
                               </div>
@@ -354,26 +357,26 @@ export default function BoardDesktopSidebar() {
                           </For>
                         </div>
                         <Show when={(quest.acceptanceCriteria ?? []).length > 0}>
-                          <div class="mt-1 space-y-0.5">
+                          <div class={style36}>
                             <For each={(quest.acceptanceCriteria ?? []).slice(0, 2)}>
                               {(criterion) => (
-                                <p class="text-[10px] text-[#88a2c7]">- {criterion}</p>
+                                <p class={style37}>- {criterion}</p>
                               )}
                             </For>
                           </div>
                         </Show>
                         <Show when={rewardText()}>
-                          <p class="mt-1 text-[11px] text-[#ebcf8b]">Reward: {rewardText()}</p>
+                          <p class={style38}>Reward: {rewardText()}</p>
                         </Show>
                         <Show when={quest.claimable}>
-                          <button
+                          <Button
                             type="button"
-                            class="mt-2 rounded-md border border-[#456a41] bg-[#112a1d] px-2 py-1 text-[11px] font-semibold text-[#b9efc4] disabled:opacity-50"
+                            class={style39}
                             onClick={() => void claimQuestReward(quest.id)}
                             disabled={busy() || questClaimingID() === quest.id}
                           >
                             {questClaimingID() === quest.id ? "Claiming..." : "Claim reward"}
-                          </button>
+                          </Button>
                         </Show>
                       </article>
                     );
@@ -385,7 +388,7 @@ export default function BoardDesktopSidebar() {
 
           <section class={boardSidebarSectionClass}>
             <p class={boardSidebarHeadingClass}>Board Stats</p>
-            <div class="mt-2 space-y-1 text-sm text-[var(--text-soft)]">
+            <div class={style7}>
               <p>Decks: {summary().deckCount}</p>
               <p>Zombies: {summary().zombieCount}</p>
               <p data-testid="board-day-ticks">Day ticks: {summary().dayTicks}</p>
@@ -393,13 +396,301 @@ export default function BoardDesktopSidebar() {
             </div>
           </section>
 
-          <div class="mt-auto border-t border-[var(--border-strong)] px-4 py-3">
+          <div class={style40}>
             <SidebarAccountCard />
           </div>
 
           <Show when={error()}>
-            <p class="mx-4 mb-4 rounded-xl border border-[rgba(196,98,91,0.3)] bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger)]">{error()}</p>
+            <p class={style41}>{error()}</p>
           </Show>
         </aside>
   );
 }
+
+
+const style1 = css`
+margin: .5rem auto .75rem;
+`;
+
+const style2 = css`
+margin-top: calc(var(--spacing) * 2);
+width: 100%;
+`;
+
+const style3 = css`
+margin-top: calc(var(--spacing) * 2);
+display: inline-flex;
+`;
+
+const style4 = css`
+margin-top: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-soft);
+`;
+
+const style5 = css`
+margin-top: calc(var(--spacing) * 3);
+`;
+
+const style6 = css`
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.08em;
+  letter-spacing: 0.08em;
+color: var(--text-main);
+text-transform: uppercase;
+`;
+
+const style7 = css`
+margin-top: calc(var(--spacing) * 2);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+  }
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-soft);
+`;
+
+const style8 = css`
+color: #ff8c8c;
+`;
+
+const style9 = css`
+color: #7ddf98;
+`;
+
+const style10 = css`
+display: flex;
+align-items: center;
+justify-content: space-between;
+`;
+
+const style11 = css`
+font-size: 11px;
+color: var(--text-soft);
+`;
+
+const style12 = css`
+margin-top: calc(var(--spacing) * 2);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 1.5) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 1.5) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style13 = css`
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+`;
+
+const style14 = css`
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+`;
+
+const style15 = css`
+color: var(--text-soft);
+`;
+
+const style16 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: 11px;
+color: var(--text-soft);
+`;
+
+const style17 = css`
+margin-top: calc(var(--spacing) * 2);
+display: flex;
+flex-wrap: wrap;
+gap: calc(var(--spacing) * 1.5);
+`;
+
+const style18 = css`
+margin-top: calc(var(--spacing) * 2);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style19 = css`
+font-size: 10px;
+color: var(--text-soft);
+`;
+
+const style20 = css`
+overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+`;
+
+const style21 = css`
+color: var(--danger);
+`;
+
+const style22 = css`
+color: var(--warning);
+`;
+
+const style23 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: 10px;
+color: var(--text-soft);
+`;
+
+const style24 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: 10px;
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.08em;
+  letter-spacing: 0.08em;
+color: var(--danger);
+text-transform: uppercase;
+`;
+
+const style25 = css`
+margin-top: calc(var(--spacing) * 2);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 2) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 2) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style26 = css`
+display: flex;
+align-items: flex-start;
+justify-content: space-between;
+gap: calc(var(--spacing) * 2);
+`;
+
+const style27 = css`
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+`;
+
+const style28 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: 11px;
+color: #b7c9e8;
+`;
+
+const style29 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: 11px;
+color: #9ec4b1;
+`;
+
+const style30 = css`
+margin-top: calc(var(--spacing) * 1);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style31 = css`
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: calc(var(--spacing) * 2);
+font-size: 11px;
+`;
+
+const style32 = css`
+color: #89dc9a;
+`;
+
+const style33 = css`
+color: #c8d3e8;
+`;
+
+const style34 = css`
+color: #79d78e;
+`;
+
+const style35 = css`
+color: #8ca4cf;
+`;
+
+const style36 = css`
+margin-top: calc(var(--spacing) * 1);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 0.5) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 0.5) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style37 = css`
+font-size: 10px;
+color: #88a2c7;
+`;
+
+const style38 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: 11px;
+color: #ebcf8b;
+`;
+
+const style39 = css`
+margin-top: calc(var(--spacing) * 2);
+border-radius: var(--radius-md);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: #456a41;
+background-color: #112a1d;
+padding-inline: calc(var(--spacing) * 2);
+padding-block: calc(var(--spacing) * 1);
+font-size: 11px;
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: #b9efc4;
+&:disabled {
+    opacity: 50%;
+  }
+`;
+
+const style40 = css`
+margin-top: auto;
+border-top-style: var(--tw-border-style);
+  border-top-width: 1px;
+border-color: var(--border-strong);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 3);
+`;
+
+const style41 = css`
+margin-inline: calc(var(--spacing) * 4);
+margin-bottom: calc(var(--spacing) * 4);
+border-radius: var(--radius-xl);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: rgba(196,98,91,0.3);
+background-color: var(--danger-bg);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--danger);
+`;

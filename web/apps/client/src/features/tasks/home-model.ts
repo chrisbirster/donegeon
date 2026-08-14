@@ -230,11 +230,15 @@ export function scheduleBadgeLabel(task: Task, kind: "due" | "deadline"): string
   if (!storedFormatted && !inputToken) return null;
 
   const prefix = kind === "due" ? "Due" : "Deadline";
-  if (storedFormatted && inputToken && storedFormatted.toLowerCase() !== inputToken.toLowerCase()) {
-    return `${prefix} ${inputToken} -> ${storedFormatted}`;
+  const inputLabel = inputToken?.replace(
+    kind === "due" ? /^due\s+(?:on\s+)?/i : /^deadline\s+(?:on\s+)?/i,
+    "",
+  ).trim();
+  if (storedFormatted && inputLabel && storedFormatted.toLowerCase() !== inputLabel.toLowerCase()) {
+    return `${prefix} ${inputLabel} → ${storedFormatted}`;
   }
 
-  return `${prefix} ${storedFormatted || inputToken}`;
+  return `${prefix} ${storedFormatted || inputLabel}`;
 }
 
 export function parseScheduleInstant(value: string | undefined): Date | null {
@@ -439,4 +443,3 @@ export function toString(value: unknown): string {
   if (typeof value === "string") return value;
   return "";
 }
-

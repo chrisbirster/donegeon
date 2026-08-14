@@ -1,3 +1,4 @@
+import Button from "../components/Button";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onSettled } from "solid-js";
 import { hasEntitlement, workspacePlanLabel, workspacePlanProfile } from "../../../../shared/pricing/catalog";
 import AppShell from "../components/AppShell";
@@ -5,6 +6,7 @@ import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
 import { formatDate, formatRoleLabel, parseInviteEmails, roleBadgeClass } from "../features/team/team-settings-model";
 import { type TeamInvitation, type TeamMember, type TeamSettings } from "../server/api";
+import { style1, style2, style3, style4, style5, style6, style7, style8, style9, style10, style11, style12, style13, style14, style15, style16, style17, style18, style19, style20, style21, style22, style23, style24, style25, style26, style27, style28, style29, style30, style31, style32, style33, style34, style35, style36, style37, style38, style39, style40, style41, style42, style43, style44, style45, style46, style47, style48, style49, style50, style51, style52, style53, style54, style55, style56, style57, style58, style59, style60, style61, style62, style63 } from "./styles/TeamSettingsRoute.styles";
 export default function TeamSettingsRoute() {
   const api = useApi();
   const toast = useToast();
@@ -130,7 +132,6 @@ export default function TeamSettingsRoute() {
       setActionError("Team name is required.");
       return;
     }
-
     setSaveTeamLoading(true);
     setActionError("");
     setActionNotice("");
@@ -339,72 +340,72 @@ export default function TeamSettingsRoute() {
     }
   }
 
-  const mobileSidebarSectionClass = "app-panel rounded-2xl px-3 py-3";
-  const heroClass = "app-panel-strong rounded-[30px] px-5 py-5 text-center md:px-8 md:py-6";
-  const sectionClass = "app-panel rounded-[28px] p-5";
-  const subCardClass = "app-panel-soft rounded-2xl p-4";
+  const mobileSidebarSectionClass = style1;
+  const heroClass = style2;
+  const sectionClass = style3;
+  const subCardClass = style4;
   const highlightCardClass =
-    "rounded-2xl border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] p-4 shadow-[var(--shadow-elevated)]";
+    style5;
   const badgeClass =
-    "rounded-full border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-text)]";
+    style6;
   const chipClass =
-    "rounded-full border border-[var(--border-strong)] bg-[var(--panel-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-soft)]";
-  const inputClass = "app-input-surface mt-2 w-full rounded-xl px-3 py-2 text-sm";
+    style7;
+  const inputClass = style8;
   const primaryButtonClass =
-    "app-button-primary rounded-xl border border-[rgba(255,139,80,0.3)] px-4 py-2 text-sm font-semibold transition disabled:opacity-60";
+    style9;
   const secondaryButtonClass =
-    "app-button-secondary rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-60";
+    style10;
   const secondaryButtonSmallClass =
-    "app-button-secondary rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-60";
+    style11;
   const dangerButtonClass =
-    "rounded-lg border border-[rgba(196,98,91,0.28)] bg-[var(--danger-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] transition hover:border-[rgba(196,98,91,0.42)] disabled:opacity-60";
+    style12;
   const infoBannerClass =
-    "rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-4 py-3 text-sm text-[var(--text-soft)]";
+    style13;
   const warningBannerClass =
-    "rounded-xl border border-[rgba(223,173,87,0.24)] bg-[var(--warning-bg)] px-4 py-3 text-sm text-[var(--warning)]";
+    style14;
   const errorBannerClass =
-    "rounded-xl border border-[rgba(196,98,91,0.3)] bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger)]";
+    style15;
   const successBannerClass =
-    "rounded-xl border border-[rgba(49,122,86,0.26)] bg-[var(--success-bg)] px-4 py-3 text-sm text-[var(--success)]";
-  const sectionHeadingClass = "text-sm font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]";
+    style16;
+  const sectionHeadingClass = style17;
 
   return (
     <AppShell
       activeView="team"
       mobileSidebar={
-        <div class="space-y-3 text-sm text-[var(--text-soft)]">
+        <div class={style18}>
           <section class={mobileSidebarSectionClass}>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Team</p>
-            <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.team.name || "Team settings"}</p>
+            <p class={style19}>Team</p>
+            <p class={style20}>{settings()?.team.name || "Team settings"}</p>
             <Show when={settings()}>
               {(current) => (
-                <p class="mt-1 text-xs text-[var(--text-soft)]">Role: {formatRoleLabel(current().currentUserRole)}</p>
+                <p class={style21}>Role: {formatRoleLabel(current().currentUserRole)}</p>
               )}
             </Show>
           </section>
 
           <section class={mobileSidebarSectionClass}>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Members</p>
-            <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.members.length || 0}</p>
+            <p class={style19}>Members</p>
+            <p class={style20}>{settings()?.members.length || 0}</p>
           </section>
           <section class={mobileSidebarSectionClass}>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Pending Invites</p>
-            <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.invitations.length || 0}</p>
+            <p class={style19}>Pending Invites</p>
+            <p class={style20}>{settings()?.invitations.length || 0}</p>
           </section>
         </div>
       }
     >
-      <section class="h-full overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-        <div class="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <section class={style22}>
+        <div class={style23}>
           <header class={heroClass}>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Donegeon Command Settings</p>
-            <h1 class="font-display mt-2 text-2xl font-semibold tracking-tight text-[var(--text-main)] md:text-4xl">
+            <p class={style19}>Donegeon Command Settings</p>
+            <h1 class={style24}>
               {settings()?.team.name || "Team"} Command Ledger
             </h1>
-            <p class="mx-auto mt-2 max-w-2xl text-sm text-[var(--text-soft)]">
+            <p class={style25}>
               Every account starts on Free. Team powers unlock by board membership and role.
             </p>
-            <div class="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
+            <div class={style26}>
               <a href="#plan" class={secondaryButtonSmallClass}>Plan & Billing</a>
               <a href="#team-profile" class={secondaryButtonSmallClass}>Team Profile</a>
               <a href="#team-members" class={secondaryButtonSmallClass}>Members & Invites</a>
@@ -412,36 +413,36 @@ export default function TeamSettingsRoute() {
           </header>
           <Show when={!loading() && settings()}>
             <section class={sectionClass}>
-              <div class="flex items-center justify-between gap-3">
+              <div class={style27}>
                 <h2 class={sectionHeadingClass}>Access & Entitlements</h2>
                 <span class={badgeClass}>
                   {currentPlanBadge()} / {formatRoleLabel(currentRole())}
                 </span>
               </div>
-              <div class="mt-3 grid gap-3 md:grid-cols-3">
+              <div class={style28}>
                 <article class={subCardClass}>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Personal Board</p>
-                  <p class="mt-1 text-sm font-medium text-[var(--text-main)]">Free by default</p>
-                  <p class="mt-2 text-xs text-[var(--text-soft)]">
+                  <p class={style29}>Personal Board</p>
+                  <p class={style30}>Free by default</p>
+                  <p class={style31}>
                     Every user starts on Free for their personal Donegeon board after login.
                   </p>
                 </article>
                 <article class={highlightCardClass}>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-text)]">Active Team Workspace</p>
-                  <p class="mt-1 text-sm font-medium text-[var(--text-main)]">{settings()!.team.name}</p>
-                  <p class="mt-2 text-xs text-[var(--text-soft)]">{roleSummary()}</p>
+                  <p class={style32}>Active Team Workspace</p>
+                  <p class={style30}>{settings()!.team.name}</p>
+                  <p class={style31}>{roleSummary()}</p>
                 </article>
                 <article class={subCardClass}>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Plan Scope</p>
-                  <p class="mt-1 text-sm font-medium text-[var(--text-main)]">{currentPlan()}</p>
-                  <p class="mt-2 text-xs text-[var(--text-soft)]">{planSummary()}</p>
+                  <p class={style29}>Plan Scope</p>
+                  <p class={style30}>{currentPlan()}</p>
+                  <p class={style31}>{planSummary()}</p>
                 </article>
               </div>
-              <div class={`mt-3 ${infoBannerClass}`}>
+              <div class={` ${style33} ${infoBannerClass}`}>
                 Team board access is role-based per workspace. Billing and team-admin actions are limited to owner/admin accounts.
               </div>
               <Show when={teamAdminFrozen()}>
-                <p class={`mt-3 ${warningBannerClass}`}>
+                <p class={` ${style33} ${warningBannerClass}`}>
                   This workspace is on Free. Existing members and boards stay accessible, but invitations, role changes, board-member management, and other team admin actions are frozen until you return to Pro.
                 </p>
               </Show>
@@ -462,39 +463,39 @@ export default function TeamSettingsRoute() {
           <Show when={!loading() && settings()}>
             <>
               <section id="plan" class={sectionClass}>
-                <div class="flex items-center justify-between gap-3">
+                <div class={style27}>
                   <h2 class={sectionHeadingClass}>Billing</h2>
                   <span class={badgeClass}>
                     {currentPlanBadge()}
                   </span>
                 </div>
-                <p class="mt-2 text-sm text-[var(--text-soft)]">
+                <p class={style34}>
                   {billingSummary()}
                 </p>
                 <Show when={currentBillingState() === "trial" && settings()!.team.trialEndsAt}>
                   {(trialEndsAt) => (
-                    <p class="mt-2 text-sm text-[var(--text-soft)]">
+                    <p class={style34}>
                       Trial ends on {formatDate(trialEndsAt())}
                     </p>
                   )}
                 </Show>
-                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                <div class={style35}>
                   <article class={subCardClass}>
-                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Free</p>
-                    <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">$0</p>
-                    <p class="mt-2 text-sm text-[var(--text-soft)]">Core task workflow, personal board gameplay, and calendar sync.</p>
-                    <button
+                    <p class={style36}>Free</p>
+                    <p class={style37}>$0</p>
+                    <p class={style34}>Core task workflow, personal board gameplay, and calendar sync.</p>
+                    <Button
                       type="button"
-                      class={`mt-3 w-full ${secondaryButtonClass} opacity-80`}
+                      class={` ${style38} ${secondaryButtonClass} ${style39} `}
                       disabled
                     >
                       {freeCardLabel()}
-                    </button>
+                    </Button>
                   </article>
                   <article class={highlightCardClass}>
-                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--accent-text)]">Pro</p>
-                    <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">$12/user/mo</p>
-                    <p class="mt-2 text-sm text-[var(--text-soft)]">Shared boards, invitations, role controls, and board member management.</p>
+                    <p class={style40}>Pro</p>
+                    <p class={style37}>$12/user/mo</p>
+                    <p class={style34}>Shared boards, invitations, role controls, and board member management.</p>
                     <Show
                       when={currentPlanFamily() === "pro" && currentBillingState() === "trial"}
                       fallback={
@@ -504,115 +505,115 @@ export default function TeamSettingsRoute() {
                             <Show
                               when={currentPlanFamily() === "enterprise"}
                               fallback={
-                                <div class="mt-3 flex gap-2">
-                                  <button
+                                <div class={style41}>
+                                  <Button
                                     type="button"
-                                    class={`flex-1 ${primaryButtonClass}`}
+                                    class={` ${style42} ${primaryButtonClass}`}
                                     disabled={billingLoading() || !canManage()}
                                     onClick={() => void startBilling("pro_trial")}
                                   >
                                     Start 14-day trial
-                                  </button>
-                                  <button
+                                  </Button>
+                                  <Button
                                     type="button"
-                                    class={`flex-1 ${secondaryButtonClass}`}
+                                    class={` ${style42} ${secondaryButtonClass}`}
                                     disabled={billingLoading() || !canManage()}
                                     onClick={() => void startBilling("pro")}
                                   >
                                     Upgrade
-                                  </button>
+                                  </Button>
                                 </div>
                               }
                             >
-                              <button
+                              <Button
                                 type="button"
-                                class={`mt-3 w-full ${secondaryButtonClass} opacity-80`}
+                                class={` ${style38} ${secondaryButtonClass} ${style39} `}
                                 disabled
                               >
                                 Included in Enterprise
-                              </button>
+                              </Button>
                             </Show>
                           }
                         >
-                          <div class="mt-3 flex gap-2">
-                            <button
+                          <div class={style41}>
+                            <Button
                               type="button"
-                              class={`flex-1 ${secondaryButtonClass}`}
+                              class={` ${style42} ${secondaryButtonClass}`}
                               disabled={billingLoading() || !canManage() || !hasPaidSubscription()}
                               onClick={() => void openBillingPortal()}
                             >
                               Manage billing
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
-                              class={`flex-1 ${secondaryButtonClass} opacity-80`}
+                              class={` ${style42} ${secondaryButtonClass} ${style39} `}
                               disabled
                             >
                               Current plan
-                            </button>
+                            </Button>
                           </div>
                         </Show>
                       }
                     >
-                      <div class="mt-3 flex gap-2">
-                        <button
+                      <div class={style41}>
+                        <Button
                           type="button"
-                          class={`flex-1 ${secondaryButtonClass}`}
+                          class={` ${style42} ${secondaryButtonClass}`}
                           disabled={billingLoading() || !canManage()}
                           onClick={() => void endTrial()}
                         >
                           End trial
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          class={`flex-1 ${primaryButtonClass}`}
+                          class={` ${style42} ${primaryButtonClass}`}
                           disabled={billingLoading() || !canManage()}
                           onClick={() => void startBilling("pro")}
                         >
                           Start paid plan
-                        </button>
+                        </Button>
                       </div>
                     </Show>
                   </article>
                   <article class={subCardClass}>
-                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Enterprise</p>
-                    <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">Custom</p>
-                    <p class="mt-2 text-sm text-[var(--text-soft)]">Pro product access with sales-led rollout, security review, and procurement support.</p>
-                    <button
+                    <p class={style36}>Enterprise</p>
+                    <p class={style37}>Custom</p>
+                    <p class={style34}>Pro product access with sales-led rollout, security review, and procurement support.</p>
+                    <Button
                       type="button"
-                      class={`mt-3 w-full ${secondaryButtonClass}`}
+                      class={` ${style38} ${secondaryButtonClass}`}
                       disabled={currentPlanFamily() === "enterprise" || billingLoading() || !canManage()}
                       onClick={() => void startBilling("enterprise")}
                     >
                       {currentPlanFamily() === "enterprise" ? "Current plan" : "Talk to Sales"}
-                    </button>
+                    </Button>
                   </article>
                 </div>
                 <Show when={currentPlanFamily() !== "free"}>
-                  <p class="mt-3 text-sm text-[var(--text-soft)]">
+                  <p class={style43}>
                     Free remains the fallback after cancellation. Existing boards and members stay in place, but new invites and other team-admin actions freeze until the workspace returns to Pro.
                   </p>
                 </Show>
                 <Show when={currentPlanFamily() === "pro" && currentBillingState() === "paid"}>
-                  <p class="mt-2 text-sm text-[var(--text-soft)]">
+                  <p class={style34}>
                     Manage billing opens Stripe so owners/admins can cancel at period end, update payment details, or review invoices.
                   </p>
                 </Show>
                 <Show when={!canManage()}>
-                  <p class="mt-3 text-sm text-[var(--text-soft)]">
+                  <p class={style43}>
                     You can use team features on boards you were invited to. Only owners/admins can change team billing.
                   </p>
                 </Show>
               </section>
               <section id="team-profile" class={sectionClass}>
-                <div class="flex items-center justify-between gap-3">
+                <div class={style27}>
                   <h2 class={sectionHeadingClass}>Team Profile</h2>
                   <span class={chipClass}>
                     {formatRoleLabel(settings()!.currentUserRole)}
                   </span>
                 </div>
-                <form class="mt-3 flex flex-col gap-3 md:flex-row md:items-end" onSubmit={(event) => void saveTeamName(event)}>
-                  <label class="flex-1 text-xs uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                <form class={style44} onSubmit={(event) => void saveTeamName(event)}>
+                  <label class={style45}>
                     Team name
                     <input
                       value={teamNameInput()}
@@ -621,26 +622,26 @@ export default function TeamSettingsRoute() {
                       disabled={!canManageTeamProfile() || saveTeamLoading()}
                     />
                   </label>
-                  <button
+                  <Button
                     type="submit"
                     class={primaryButtonClass}
                     disabled={!canManageTeamProfile() || saveTeamLoading()}
                   >
                     {saveTeamLoading() ? "Saving..." : "Save team"}
-                  </button>
+                  </Button>
                 </form>
                 <Show when={canManage() && !canManageTeamProfile()}>
-                  <p class={`mt-3 ${warningBannerClass}`}>
+                  <p class={` ${style33} ${warningBannerClass}`}>
                     Team profile changes are frozen on Free. Upgrade to Pro to rename or manage this shared workspace.
                   </p>
                 </Show>
               </section>
               <section id="team-members" class={sectionClass}>
-                <div class="flex items-center justify-between">
+                <div class={style46}>
                   <h2 class={sectionHeadingClass}>Team Members</h2>
-                  <span class="text-xs text-[var(--text-soft)]">{settings()!.members.length} member(s)</span>
+                  <span class={style47}>{settings()!.members.length} member(s)</span>
                 </div>
-                <div class="mt-3 space-y-2">
+                <div class={style48}>
                   <For each={settings()!.members}>
                     {(member) => {
                       const isCurrentUser = () => settings()!.currentUserId === member.userId;
@@ -650,20 +651,20 @@ export default function TeamSettingsRoute() {
                         canManageRoles() && !isCurrentUser() && member.role !== "owner";
                       return (
                         <article class={subCardClass}>
-                          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div class="min-w-0">
-                              <p class="truncate text-sm font-medium text-[var(--text-main)]">{member.name || member.email}</p>
-                              <p class="truncate text-xs text-[var(--text-soft)]">{member.email}</p>
-                              <p class="mt-1 text-[11px] text-[var(--text-dim)]">Joined {formatDate(member.createdAt)}</p>
+                          <div class={style49}>
+                            <div class={style50}>
+                              <p class={style51}>{member.name || member.email}</p>
+                              <p class={style52}>{member.email}</p>
+                              <p class={style53}>Joined {formatDate(member.createdAt)}</p>
                             </div>
-                            <div class="flex flex-wrap items-center gap-2">
-                              <span class={`rounded-md border px-2 py-0.5 text-[11px] ${roleBadgeClass(member.role)}`}>
+                            <div class={style54}>
+                              <span class={` ${style55} ${roleBadgeClass(member.role)}`}>
                                 {formatRoleLabel(member.role)}
                               </span>
                               <Show when={canEditMemberRole()}>
                                 <select
                                   value={member.role}
-                                  class="app-input-surface rounded-lg px-2 py-1 text-xs disabled:opacity-60"
+                                  class={style56}
                                   disabled={!!roleSavingByUserID()[member.userId]}
                                   onChange={(event) => {
                                     const nextRole = event.currentTarget.value;
@@ -680,14 +681,14 @@ export default function TeamSettingsRoute() {
                                 </select>
                               </Show>
                               <Show when={canRemove()}>
-                                <button
+                                <Button
                                   type="button"
                                   class={dangerButtonClass}
                                   disabled={removingUserID() === member.userId}
                                   onClick={() => void removeMember(member)}
                                 >
                                   {removingUserID() === member.userId ? "Removing..." : "Remove"}
-                                </button>
+                                </Button>
                               </Show>
                               <Show when={isCurrentUser()}>
                                 <span class={chipClass}>
@@ -702,18 +703,18 @@ export default function TeamSettingsRoute() {
                   </For>
                 </div>
                 <Show when={settings()!.currentUserRole === "owner" && !canManageRoles()}>
-                  <p class={`mt-3 ${warningBannerClass}`}>
+                  <p class={` ${style33} ${warningBannerClass}`}>
                     Role changes and member removal are frozen on Free. Upgrade to Pro to manage team membership again.
                   </p>
                 </Show>
               </section>
               <section class={sectionClass}>
-                <div class="flex items-center justify-between gap-3">
+                <div class={style27}>
                   <h2 class={sectionHeadingClass}>Invitations</h2>
-                  <span class="text-xs text-[var(--text-soft)]">{settings()!.invitations.length} pending</span>
+                  <span class={style47}>{settings()!.invitations.length} pending</span>
                 </div>
-                <form class="mt-3" onSubmit={(event) => void inviteMembers(event)}>
-                  <label class="block text-xs uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                <form class={style33} onSubmit={(event) => void inviteMembers(event)}>
+                  <label class={style57}>
                     Invite role
                     <select
                       value={inviteRole()}
@@ -729,7 +730,7 @@ export default function TeamSettingsRoute() {
                       <option value="admin">Admin</option>
                     </select>
                   </label>
-                  <label class="mt-3 block text-xs uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                  <label class={style58}>
                     Invite by email
                     <textarea
                       rows={3}
@@ -740,48 +741,48 @@ export default function TeamSettingsRoute() {
                       disabled={!canManageInvites() || inviteLoading()}
                     />
                   </label>
-                  <p class="mt-2 text-xs text-[var(--text-dim)]">Use commas or new lines for multiple invite emails.</p>
-                  <button
+                  <p class={style59}>Use commas or new lines for multiple invite emails.</p>
+                  <Button
                     type="submit"
-                    class={`mt-3 ${primaryButtonClass}`}
+                    class={` ${style33} ${primaryButtonClass}`}
                     disabled={!canManageInvites() || inviteLoading()}
                   >
                     {inviteLoading() ? "Sending..." : "Send invite"}
-                  </button>
+                  </Button>
                 </form>
                 <Show when={canManage() && !canManageInvites()}>
-                  <p class={`mt-3 ${warningBannerClass}`}>
+                  <p class={` ${style33} ${warningBannerClass}`}>
                     Invitations are frozen on Free. Existing members keep access, but new invites require Pro.
                   </p>
                 </Show>
-                <div class="mt-4 space-y-2">
+                <div class={style60}>
                   <Show
                     when={settings()!.invitations.length > 0}
                     fallback={<p class={infoBannerClass}>No pending invitations.</p>}
                   >
                     <For each={settings()!.invitations}>
                       {(invitation) => (
-                        <article class={`${subCardClass} flex flex-col gap-2 md:flex-row md:items-center md:justify-between`}>
-                          <div class="min-w-0">
-                            <p class="truncate text-sm text-[var(--text-main)]">{invitation.email}</p>
-                            <p class="text-[11px] text-[var(--text-dim)]">Invited {formatDate(invitation.createdAt)}</p>
+                        <article class={`${subCardClass} ${style61} `}>
+                          <div class={style50}>
+                            <p class={style62}>{invitation.email}</p>
+                            <p class={style63}>Invited {formatDate(invitation.createdAt)}</p>
                           </div>
-                          <div class="flex flex-wrap items-center gap-2">
-                            <span class={`rounded-md border px-2 py-0.5 text-[11px] ${roleBadgeClass(invitation.role)}`}>
+                          <div class={style54}>
+                            <span class={` ${style55} ${roleBadgeClass(invitation.role)}`}>
                               {formatRoleLabel(invitation.role)}
                             </span>
                             <span class={chipClass}>
                               {invitation.status}
                             </span>
                             <Show when={canManageInvites()}>
-                              <button
+                              <Button
                                 type="button"
                                 class={dangerButtonClass}
                                 disabled={cancelingInviteCode() === invitation.invitationCode}
                                 onClick={() => void cancelInvitation(invitation)}
                               >
                                 {cancelingInviteCode() === invitation.invitationCode ? "Canceling..." : "Cancel"}
-                              </button>
+                              </Button>
                             </Show>
                           </div>
                         </article>

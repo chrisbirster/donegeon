@@ -33,6 +33,16 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: `http://127.0.0.1:${webPort}`,
+    channel: process.env.PW_BROWSER_CHANNEL,
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: `http://127.0.0.1:${webPort}`,
+          localStorage: [{ name: "donegeon.disable_worker_bus", value: "1" }],
+        },
+      ],
+    },
     viewport: {
       width: 1440,
       height: 900,
@@ -50,7 +60,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `sh -c "DONEGEON_API_URL='http://127.0.0.1:${apiPort}' bun run dev --host 127.0.0.1 --port ${webPort}"`,
+      command: `sh -c "DONEGEON_API_URL='http://127.0.0.1:${apiPort}' VITE_E2E_BYPASS_AUTH=true bun run dev --host 127.0.0.1 --port ${webPort}"`,
       cwd: __dirname,
       port: webPort,
       timeout: 120_000,

@@ -31,8 +31,8 @@ import SidebarAccountCard from "../../components/SidebarAccountCard";
 export const DEFAULT_BOARD = "default";
 export const BOARD_DEV_CONTROLS_ENABLED = import.meta.env.DEV;
 
-export const CARD_WIDTH = 92;
-export const CARD_HEIGHT = 124;
+export const CARD_WIDTH = 110;
+export const CARD_HEIGHT = 165;
 export const STACK_OFFSET_Y = 20;
 export const DECK_ROW_SIDE_PADDING = 20;
 export const DECK_ROW_BOTTOM = 14;
@@ -49,7 +49,9 @@ export const MINIMAP_PADDING = 72;
 export const DECK_ROW_MAX_VISIBLE = 4;
 export const DECK_ROW_PREFS_KEY = "donegeon.board.deck-row.v1";
 export const MOBILE_BREAKPOINT = 768;
-export const MOBILE_DECK_SCALE = 0.88;
+// Decks and packs use the same physical footprint as every other board card.
+// Keep this at 1 so rendering, deck-row layout, hit testing, and minimap bounds agree.
+export const MOBILE_DECK_SCALE = 1;
 export const DEFAULT_VILLAGER_STAMINA = 8;
 export const BOARD_GRID_SPACING = 22;
 export const BOARD_GRID_ORIGIN_OFFSET = 1;
@@ -490,4 +492,3 @@ export function scheduleValidationWarning(dueValue: string | undefined, deadline
   const deadlineLabel = formatScheduleDateTime(deadlineValue) ?? (deadlineValue ?? "").trim();
   return `Schedule check: deadline resolves before due (${deadlineLabel} < ${dueLabel}).`;
 }
-

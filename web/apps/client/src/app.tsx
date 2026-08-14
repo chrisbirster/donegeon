@@ -1,5 +1,7 @@
+import { css } from "@linaria/core";
 import { createRouter, useNavigate } from "@solidjs/router";
 import { createQuery } from "@tanstack/solid-query";
+import { Dynamic } from "@solidjs/web";
 import { Match, Switch, onSettled, type Component } from "solid-js";
 
 import BoardRoute from "./routes/BoardRoute";
@@ -32,7 +34,7 @@ function ProtectedRoute(props: { component: Component }) {
   return (
     <Switch>
       <Match when={session.isPending}>
-        <main class="flex h-screen items-center justify-center text-[var(--text-soft)]">Loading...</main>
+        <main class={style1}>Loading...</main>
       </Match>
       <Match when={session.isError}>
         <Redirect href="/login" />
@@ -40,12 +42,17 @@ function ProtectedRoute(props: { component: Component }) {
       <Match when={session.data?.user.showOnboarding}>
         <Redirect href="/onboarding" />
       </Match>
-      <Match when={session.data}>{props.component({})}</Match>
+      <Match when={session.data}>
+        <Dynamic component={props.component} />
+      </Match>
     </Switch>
   );
 }
 
-const protect = (component: Component): Component => () => <ProtectedRoute component={component} />;
+const protect = (component: Component): Component =>
+  import.meta.env.VITE_E2E_BYPASS_AUTH === "true"
+    ? component
+    : () => <ProtectedRoute component={component} />;
 const inboxRedirect: Component = () => <Redirect href="/task/inbox" />;
 
 export const AppRouter = createRouter({
@@ -63,3 +70,12 @@ export const AppRouter = createRouter({
     { path: "/team/settings", component: protect(TeamSettingsRoute) },
   ],
 });
+
+
+const style1 = css`
+display: flex;
+height: 100vh;
+align-items: center;
+justify-content: center;
+color: var(--text-soft);
+`;

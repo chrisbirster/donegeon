@@ -4,6 +4,7 @@ import MarketingLayout from "../components/MarketingLayout";
 import { usePublicConfig } from "../context/PublicConfigContext";
 import { docs, formatPublishDate, posts } from "../lib/content";
 import { FEATURES, PLAN_SUMMARIES, TRUST_POINTS, planHref, waitlistHref } from "../lib/site";
+import { completeStamp, heroArtwork, missionBoard, missionColumns, missionTitle, style1, style2, style3, style4, style5, style6, style7, style8, style9, style10, style11, style12, style13, style14, style15, style16, style17, style18, style19, style20, style21, style22, style23, style24, style25, style26, style27, style28, style29, style30, style31, style32, style33, style34, style35, style36, style37, style38, style39, style40, style41, style42, style43, style44, style45, style46, style47, style48, style49 } from "./styles/HomeRoute.styles";
 
 const featuredDocs = docs.filter((entry) => entry.featured).slice(0, 3);
 const docHighlights = featuredDocs.length > 0 ? featuredDocs : docs.slice(0, 3);
@@ -58,107 +59,90 @@ function HomeContent() {
 
   return (
     <>
-      <section class="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_420px] lg:items-start">
+      <section class={`${heroArtwork} ${style1}`}>
         <div>
-          <p class="section-label">Task management for teams that want clarity, momentum, and a little more fun.</p>
-          <h1 class="font-display max-w-4xl text-5xl font-semibold leading-[1.02] text-white md:text-7xl">
-            Turn messy work into a game your team wants to win.
+          <p class={style2}>Turn chaos into coordination. Make your team legendary.</p>
+          <h1 class={style3}>
+            Welcome to the Donegeon.
           </h1>
-          <p class="mt-6 max-w-2xl text-lg leading-8 text-[var(--text-soft)] md:text-xl">
-            Donegeon combines tasks, planning, and a shared strategy board so your team can stay focused, move faster, and
-            actually enjoy execution.
+          <p class={style4}>
+            Donegeon turns disorganized work into clear missions, shared intel, and team momentum. Plan the job. Assign the crew. Execute. Get paid.
           </p>
 
-          <div class="mt-8 flex flex-wrap gap-3">
+          <div class={style5}>
             <a
               href={heroPrimaryHref()}
-              class="inline-flex rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
+              class={style6}
             >
-              {publicConfig.openBeta ? "Start Free" : "Join waitlist"}
+              {publicConfig.openBeta ? "Enter the Donegeon" : "Join waitlist"}
             </a>
             <a
               href="/features"
-              class="inline-flex rounded-full border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] px-5 py-3 text-sm font-semibold text-[var(--text-main)] transition hover:border-[#4a6c8b] hover:bg-[rgba(255,255,255,0.08)]"
+              class={style7}
             >
               See how it works
             </a>
           </div>
 
-          <div class="mt-10 grid gap-4 sm:grid-cols-3">
-            <div class="rounded-[1.6rem] border border-[var(--border-strong)] bg-[rgba(9,17,26,0.78)] p-5 shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
-              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Built for planning</p>
-              <p class="mt-2 font-display text-4xl font-semibold text-white">{FEATURES.length}</p>
-              <p class="mt-2 text-sm text-[var(--text-soft)]">
+          <div class={style8}>
+            <div class={style9}>
+              <p class={style10}>Built for planning</p>
+              <p class={style11}>{FEATURES.length}</p>
+              <p class={style12}>
                 Feature areas covering capture, scheduling, boards, collaboration, and more.
               </p>
             </div>
 
-            <div class="rounded-[1.6rem] border border-[var(--border-strong)] bg-[rgba(9,17,26,0.78)] p-5 shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
-              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Built for teamwork</p>
-              <p class="mt-2 font-display text-4xl font-semibold text-white">{docs.length}</p>
-              <p class="mt-2 text-sm text-[var(--text-soft)]">Guides and walkthroughs to help your team get started faster.</p>
+            <div class={style9}>
+              <p class={style10}>Built for teamwork</p>
+              <p class={style11}>{docs.length}</p>
+              <p class={style12}>Guides and walkthroughs to help your team get started faster.</p>
             </div>
 
-            <div class="rounded-[1.6rem] border border-[var(--border-strong)] bg-[rgba(9,17,26,0.78)] p-5 shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
-              <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Built for momentum</p>
-              <p class="mt-2 font-display text-4xl font-semibold text-white">{posts.length}</p>
-              <p class="mt-2 text-sm text-[var(--text-soft)]">
+            <div class={style9}>
+              <p class={style10}>Built for momentum</p>
+              <p class={style11}>{posts.length}</p>
+              <p class={style12}>
                 Product updates and ideas to keep teams learning as Donegeon grows.
               </p>
             </div>
           </div>
         </div>
 
-        <aside class="rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(18,34,51,0.95),rgba(10,18,28,0.95))] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.3)]">
-          <p class="section-label">Why teams try Donegeon</p>
-          <div class="mt-5 space-y-5">
-            <div class="rounded-[1.3rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-              <p class="text-sm font-semibold text-white">Clear planning</p>
-              <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
-                Capture work quickly, organize what matters, and keep recurring responsibilities from disappearing into the backlog.
-              </p>
-            </div>
-
-            <div class="rounded-[1.3rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-              <p class="text-sm font-semibold text-white">Shared visibility</p>
-              <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
-                Lists, boards, guides, pricing, and team flows are easy to understand whether you are evaluating for yourself or a group.
-              </p>
-            </div>
-
-            <div class="rounded-[1.3rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-4">
-              <p class="text-sm font-semibold text-white">More engaging execution</p>
-              <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
-                Work feels less like maintaining a spreadsheet and more like moving a team toward a shared objective.
-              </p>
-            </div>
+        <aside class={`${style13} ${missionBoard}`}>
+          <p class={missionTitle}>Mission Board</p>
+          <div class={missionColumns}>
+            <div><b>Planning</b><span>Stakeout</span><span>Recon</span></div>
+            <div><b>In Progress</b><span>Data heist</span><span>Clean getaway</span></div>
+            <div><b>Review</b><span>Evidence docs</span><span>Money drop</span></div>
+            <div><b>Done</b><span class={completeStamp}>Complete</span></div>
           </div>
         </aside>
       </section>
 
-      <section class="mt-20">
-        <div class="flex items-end justify-between gap-4">
+      <section class={style18}>
+        <div class={style19}>
           <div>
-            <p class="section-label">Everything your team needs</p>
-            <h2 class="font-display text-3xl font-semibold text-white md:text-4xl">Everything your team needs to plan and execute.</h2>
+            <p class={style2}>Everything your team needs</p>
+            <h2 class={style20}>Everything your team needs to plan and execute.</h2>
           </div>
-          <a href="/features" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+          <a href="/features" class={style21}>
             Explore features
           </a>
         </div>
 
-        <div class="mt-8 grid gap-5 md:grid-cols-2">
+        <div class={style22}>
           <For each={homeFeatureHighlights}>
             {(feature) => (
-              <article class="rounded-[1.8rem] border border-[var(--border-strong)] bg-[rgba(11,19,29,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-                <div class="flex items-center justify-between gap-4">
-                  <p class="rounded-full bg-[rgba(138,228,163,0.12)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#9fe8b4]">
+              <article class={style23}>
+                <div class={style24}>
+                  <p class={style25}>
                     {feature.category}
                   </p>
                 </div>
-                <h3 class="mt-4 font-display text-2xl font-semibold text-white">{feature.title}</h3>
-                <p class="mt-3 text-sm leading-7 text-[var(--text-soft)]">{feature.description}</p>
-                <ul class="mt-5 space-y-2 text-sm text-[var(--text-main)]">
+                <h3 class={style26}>{feature.title}</h3>
+                <p class={style27}>{feature.description}</p>
+                <ul class={style28}>
                   <For each={feature.bullets}>{(bullet) => <li>• {bullet}</li>}</For>
                 </ul>
               </article>
@@ -167,63 +151,63 @@ function HomeContent() {
         </div>
       </section>
 
-      <section class="mt-20 grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-          <div class="flex items-end justify-between gap-4">
+      <section class={style29}>
+        <div class={style30}>
+          <div class={style19}>
             <div>
-              <p class="section-label">Learn the essentials</p>
-              <h2 class="font-display text-3xl font-semibold text-white">Guides that help your team get started quickly.</h2>
+              <p class={style2}>Learn the essentials</p>
+              <h2 class={style31}>Guides that help your team get started quickly.</h2>
             </div>
-            <a href="/docs" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+            <a href="/docs" class={style21}>
               Browse docs
             </a>
           </div>
 
-          <div class="mt-6 grid gap-4">
+          <div class={style32}>
             <For each={docHighlights}>
               {(entry) => (
                 <a
                   href={`/docs/${entry.slug}`}
-                  class="rounded-[1.4rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-5 transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.05)]"
+                  class={style33}
                 >
-                  <div class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  <div class={style34}>
                     <span>{entry.category}</span>
                     <span>•</span>
                     <span>{entry.readingMinutes} min read</span>
                   </div>
-                  <h3 class="mt-3 font-display text-2xl font-semibold text-white">{entry.title}</h3>
-                  <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">{entry.excerpt}</p>
+                  <h3 class={style35}>{entry.title}</h3>
+                  <p class={style17}>{entry.excerpt}</p>
                 </a>
               )}
             </For>
           </div>
         </div>
 
-        <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-          <div class="flex items-end justify-between gap-4">
+        <div class={style30}>
+          <div class={style19}>
             <div>
-              <p class="section-label">Tips, updates, and product news</p>
-              <h2 class="font-display text-3xl font-semibold text-white">Stay in the loop as the product grows.</h2>
+              <p class={style2}>Tips, updates, and product news</p>
+              <h2 class={style31}>Stay in the loop as the product grows.</h2>
             </div>
-            <a href="/blog" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+            <a href="/blog" class={style21}>
               Visit blog
             </a>
           </div>
 
-          <div class="mt-6 space-y-4">
+          <div class={style36}>
             <For each={postHighlights}>
               {(entry) => (
                 <a
                   href={`/blog/${entry.slug}`}
-                  class="block rounded-[1.4rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-5 transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.05)]"
+                  class={style37}
                 >
-                  <div class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  <div class={style34}>
                     <span>{formatPublishDate(entry.publishedAt)}</span>
                     <span>•</span>
                     <span>{entry.readingMinutes} min read</span>
                   </div>
-                  <h3 class="mt-3 font-display text-2xl font-semibold text-white">{entry.title}</h3>
-                  <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">{entry.excerpt}</p>
+                  <h3 class={style35}>{entry.title}</h3>
+                  <p class={style17}>{entry.excerpt}</p>
                 </a>
               )}
             </For>
@@ -231,40 +215,40 @@ function HomeContent() {
         </div>
       </section>
 
-      <section class="mt-20 grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
-        <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(135deg,rgba(255,139,80,0.1),rgba(82,142,196,0.08)_58%,rgba(138,228,163,0.08))] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-          <p class="section-label">Simple pricing as you grow</p>
-          <h2 class="font-display text-3xl font-semibold text-white">Start simple and add more when your team is ready.</h2>
-          <p class="mt-3 max-w-2xl text-base leading-7 text-[var(--text-soft)]">
+      <section class={style38}>
+        <div class={style39}>
+          <p class={style2}>Simple pricing as you grow</p>
+          <h2 class={style31}>Start simple and add more when your team is ready.</h2>
+          <p class={style40}>
             Start free, add collaboration when it matters, and talk to us when rollout needs more support.
           </p>
 
-          <div class="mt-7 grid gap-4 md:grid-cols-3">
+          <div class={style41}>
             <For each={PLAN_SUMMARIES}>
               {(plan) => (
                 <article
-                  class={`rounded-[1.5rem] border p-5 ${
+                  class={` ${style42} ${
                     plan.featured
-                      ? "border-[#5478a2] bg-[rgba(18,35,54,0.94)]"
-                      : "border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"
+                      ? style43
+                      : style44
                   }`}
                 >
-                  <p class="text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">{plan.name}</p>
-                  <h3 class="mt-3 font-display text-3xl font-semibold text-white">{plan.price}</h3>
-                  <p class="mt-1 text-sm text-[var(--text-muted)]">{plan.cadence}</p>
-                  <p class="mt-3 text-sm leading-7 text-[var(--text-soft)]">{plan.description}</p>
+                  <p class={style45}>{plan.name}</p>
+                  <h3 class={style46}>{plan.price}</h3>
+                  <p class={style47}>{plan.cadence}</p>
+                  <p class={style27}>{plan.description}</p>
                 </article>
               )}
             </For>
           </div>
         </div>
 
-        <div class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-          <p class="section-label">Why teams stick with it</p>
-          <ul class="mt-5 space-y-4">
+        <div class={style30}>
+          <p class={style2}>Why teams stick with it</p>
+          <ul class={style48}>
             <For each={TRUST_POINTS}>
               {(item) => (
-                <li class="rounded-[1.2rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-4 text-sm leading-7 text-[var(--text-main)]">
+                <li class={style49}>
                   {item}
                 </li>
               )}

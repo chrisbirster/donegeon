@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 330">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%"><stop stop-color="#3a2244"/><stop offset="1" stop-color="#090812"/></radialGradient>
+    <radialGradient id="gold"><stop stop-color="#fff0a0"/><stop offset=".45" stop-color="#ffc229"/><stop offset="1" stop-color="#ba5b00"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="#ff3f86" opacity=".18"/></pattern>
+  </defs>
+  <rect x="5" y="5" width="210" height="320" rx="20" fill="url(#bg)" stroke="#ff3f86" stroke-width="7"/>
+  <rect x="17" y="17" width="186" height="52" rx="9" fill="#f4bd3d" stroke="#080812" stroke-width="6"/>
+  <text x="110" y="55" text-anchor="middle" font-family="Impact, sans-serif" font-size="32" letter-spacing="3">LOOT</text>
+  <rect x="17" y="78" width="186" height="180" rx="12" fill="#191226" stroke="#ffc229" stroke-width="5"/>
+  <rect x="17" y="78" width="186" height="180" rx="12" fill="url(#dots)"/>
+  <g filter="url(#glow)">
+    <circle cx="110" cy="164" r="64" fill="#080812" stroke="#ff3f86" stroke-width="5"/>
+    <circle cx="110" cy="164" r="53" fill="url(#gold)" stroke="#fff0a0" stroke-width="4"/>
+    <circle cx="110" cy="164" r="39" fill="none" stroke="#8d4200" stroke-width="4"/>
+    <text x="110" y="184" text-anchor="middle" font-family="Impact, sans-serif" font-size="60" fill="#6e3100">D</text>
+  </g>
+  <rect x="17" y="267" width="186" height="46" rx="8" fill="#f4bd3d" stroke="#080812" stroke-width="6"/>
+  <text x="110" y="300" text-anchor="middle" font-family="Impact, sans-serif" font-size="28" letter-spacing="3">COIN</text>
+</svg>

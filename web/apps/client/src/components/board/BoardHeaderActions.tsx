@@ -1,3 +1,5 @@
+import Button from "../Button";
+import { css } from "@linaria/core";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
@@ -158,76 +160,112 @@ export default function BoardHeaderActions() {
   } = useBoard();
   return (
         <>
-          <div class="hidden items-center gap-2 md:flex">
+          <div class={style1}>
             <Show when={activeBoardChoice()?.isTeamBoard}>
               <span class={boardChipClass}>
                 Team board
               </span>
             </Show>
-            <button
+            <Button
               type="button"
+              variant="warning"
               class={boardWarningButtonClass}
               onClick={openStorePage}
               disabled={busy()}
               data-testid="board-open-store-header"
             >
               Store
-            </button>
+            </Button>
           </div>
 
-          <div class="hidden items-center gap-3 text-xs text-[var(--text-soft)] lg:flex">
-            <span class="flex items-center gap-1" title="Coins">
+          <div class={style2}>
+            <span class={style3} title="Coins">
               <span>🪙</span>
-              <span class="tabular-nums">{summary().inventory.coin ?? 0}</span>
+              <span class={style4}>{summary().inventory.coin ?? 0}</span>
             </span>
-            <span class="flex items-center gap-1" title="Paper">
+            <span class={style3} title="Paper">
               <span>📄</span>
-              <span class="tabular-nums">{summary().inventory.paper ?? 0}</span>
+              <span class={style4}>{summary().inventory.paper ?? 0}</span>
             </span>
-            <span class="flex items-center gap-1" title="Ink">
+            <span class={style3} title="Ink">
               <span>🖋️</span>
-              <span class="tabular-nums">{summary().inventory.ink ?? 0}</span>
+              <span class={style4}>{summary().inventory.ink ?? 0}</span>
             </span>
-            <span class="flex items-center gap-1" title="Gear">
+            <span class={style3} title="Gear">
               <span>⚙️</span>
-              <span class="tabular-nums">{summary().inventory.gear ?? 0}</span>
+              <span class={style4}>{summary().inventory.gear ?? 0}</span>
             </span>
-            <span class="flex items-center gap-1" title="Parts">
+            <span class={style3} title="Parts">
               <span>🔩</span>
-              <span class="tabular-nums">{summary().inventory.parts ?? 0}</span>
+              <span class={style4}>{summary().inventory.parts ?? 0}</span>
             </span>
           </div>
 
-          <button
+          <Button
             type="button"
+            variant="secondary"
             class={boardHeaderButtonClass}
             onClick={() => setNotificationHistoryOpen(true)}
             data-testid="board-open-notifications"
           >
             Notifications {toast.history().length}
-          </button>
+          </Button>
           <Show when={showDeveloperBoardActions}>
             <>
-              <button
+              <Button
                 type="button"
+                variant="danger"
                 class={boardDangerButtonClass}
                 onClick={() => void endDay()}
                 disabled={busy()}
                 data-testid="board-end-day"
               >
                 End Day
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
                 class={boardHeaderButtonClass}
                 onClick={() => void refreshBoard()}
                 disabled={busy()}
                 data-testid="board-refresh"
               >
                 Refresh
-              </button>
+              </Button>
             </>
           </Show>
         </>
   );
 }
+
+
+const style1 = css`
+display: none;
+align-items: center;
+gap: calc(var(--spacing) * 2);
+@media (width >= 48rem) {
+    display: flex;
+  }
+`;
+
+const style2 = css`
+display: none;
+align-items: center;
+gap: calc(var(--spacing) * 3);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-soft);
+@media (width >= 64rem) {
+    display: flex;
+  }
+`;
+
+const style3 = css`
+display: flex;
+align-items: center;
+gap: calc(var(--spacing) * 1);
+`;
+
+const style4 = css`
+font-variant-numeric: tabular-nums;
+`;

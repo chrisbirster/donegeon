@@ -1,3 +1,4 @@
+import Button from "../Button";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
@@ -139,6 +140,7 @@ import {
   parseEmailEntries,
   sameStringArray,
 } from "../../features/board/board-rules";import { useBoard } from "../../page/BoardContext";
+import { style1, style2, style3, style4, style5, style6, style7, style8, style9, style10, style11, style12, style13, style14, style15, style16, style17, style18, style19, style20, style21, style22, style23, style24, style25, style26, style27, style28, style29, style30, style31, style32, style33, style34, style35, style36, style37, style38, style39, style40, style41 } from "./styles/BoardSettingsModal.styles";
 
 export default function BoardSettingsModal() {
   const {
@@ -181,7 +183,7 @@ export default function BoardSettingsModal() {
   return (
       <Show when={createBoardModalOpen()}>
         <div
-          class={`fixed inset-0 z-[80] flex items-center justify-center p-3 backdrop-blur-sm md:p-4 ${boardModalBackdropClass()}`}
+          class={` ${style1} ${boardModalBackdropClass()}`}
           onClick={closeCreateBoardModal}
         >
           <div
@@ -189,91 +191,91 @@ export default function BoardSettingsModal() {
             onClick={(event) => event.stopPropagation()}
             data-testid="board-create-modal"
           >
-            <div class="flex items-start justify-between gap-3">
+            <div class={style2}>
               <div>
-                <p class="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Board Settings</p>
-                <p class="mt-1 text-sm text-[var(--text-soft)]">
+                <p class={style3}>Board Settings</p>
+                <p class={style4}>
                   Create boards, rename them, remove them, and manage which teammates can access each board.
                 </p>
               </div>
-              <button
+              <Button
                 type="button"
                 class={boardHeaderButtonClass}
                 onClick={closeCreateBoardModal}
                 disabled={boardCrudBusy()}
               >
                 Close
-              </button>
+              </Button>
             </div>
 
-            <div class="mt-4 grid gap-4 md:grid-cols-[260px_minmax(0,1fr)]">
-              <div class="space-y-4">
-                <section class="app-panel-soft rounded-2xl p-4">
-                  <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Create board</p>
+            <div class={style5}>
+              <div class={style6}>
+                <section class={style7}>
+                  <p class={style8}>Create board</p>
                   <form
-                    class="mt-3 space-y-3"
+                    class={style9}
                     onSubmit={(event) => {
                       event.preventDefault();
                       void submitCreateBoardFromModal();
                     }}
                   >
-                    <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+                    <label class={style10}>
                       Board name
                       <input
                         ref={setCreateBoardInputRef}
                         value={newBoardName()}
                         onInput={(event) => setNewBoardName(event.currentTarget.value)}
                         placeholder="Sprint Board"
-                        class="app-input-surface mt-1 w-full rounded-xl px-3 py-2 text-sm"
+                        class={style11}
                         data-testid="board-create-name-input"
                       />
                     </label>
                     <Show when={createBoardSlugHint()}>
                       {(slug) => (
-                        <p class="rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--text-soft)]">
-                          Quick add token: <span class="font-semibold text-[var(--text-main)]">#{slug()}</span>
+                        <p class={style12}>
+                          Quick add token: <span class={style13}>#{slug()}</span>
                         </p>
                       )}
                     </Show>
-                    <button
+                    <Button
                       type="submit"
-                      class="app-button-primary w-full rounded-xl border border-[rgba(255,139,80,0.28)] px-3 py-2 text-sm font-semibold disabled:opacity-60"
+                      class={style14}
                       disabled={boardCrudBusy() || !newBoardName().trim()}
                       data-testid="board-create-submit"
                     >
                       {boardCrudBusy() ? "Creating..." : "Create board"}
-                    </button>
+                    </Button>
                   </form>
                 </section>
 
-                <section class="app-panel-soft rounded-2xl p-4">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Boards</p>
-                    <span class="text-xs text-[var(--text-soft)]">{boardChoices().length}</span>
+                <section class={style7}>
+                  <div class={style15}>
+                    <p class={style8}>Boards</p>
+                    <span class={style16}>{boardChoices().length}</span>
                   </div>
-                  <div class="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                  <div class={style17}>
                     <For each={boardChoices()}>
                       {(choice) => {
                         const selected = () => managedBoardID() === choice.boardID;
                         const isActive = () => activeBoardID() === choice.boardID;
                         return (
-                          <button
+                          <Button
                             type="button"
-                            class={`w-full rounded-2xl border px-3 py-3 text-left transition ${
+                            class={` ${style18} ${
                               selected()
-                                ? "border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)]"
-                                : "border-[var(--border-strong)] bg-[var(--panel)] hover:border-[var(--border-hover)]"
+                                ? style19
+                                : style20
                             }`}
                             onClick={() => setManagedBoard(choice.boardID)}
                           >
-                            <div class="flex items-start justify-between gap-3">
-                              <div class="min-w-0">
-                                <p class="truncate text-sm font-semibold text-[var(--text-main)]">{choice.name}</p>
-                                <p class="mt-1 text-xs text-[var(--text-soft)]">
+                            <div class={style2}>
+                              <div class={style21}>
+                                <p class={style22}>{choice.name}</p>
+                                <p class={style23}>
                                   {choice.isTeamBoard ? "Shared team board" : "Personal board"}
                                 </p>
                               </div>
-                              <div class="flex shrink-0 flex-col items-end gap-1">
+                              <div class={style24}>
                                 <Show when={choice.isTeamBoard}>
                                   <span class={boardChipClass}>Team</span>
                                 </Show>
@@ -282,7 +284,7 @@ export default function BoardSettingsModal() {
                                 </Show>
                               </div>
                             </div>
-                          </button>
+                          </Button>
                         );
                       }}
                     </For>
@@ -293,79 +295,79 @@ export default function BoardSettingsModal() {
               <Show
                 when={managedBoardChoice()}
                 fallback={
-                  <section class="app-panel-soft rounded-2xl p-4">
-                    <p class="text-sm text-[var(--text-soft)]">Select a board to manage.</p>
+                  <section class={style7}>
+                    <p class={style25}>Select a board to manage.</p>
                   </section>
                 }
               >
                 {(choice) => (
-                  <div class="space-y-4">
-                    <section class="app-panel-soft rounded-2xl p-4">
-                      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div class={style6}>
+                    <section class={style7}>
+                      <div class={style26}>
                         <div>
-                          <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Board details</p>
-                          <p class="mt-1 text-lg font-semibold text-[var(--text-main)]">{choice().name}</p>
-                          <p class="mt-1 text-sm text-[var(--text-soft)]">
+                          <p class={style8}>Board details</p>
+                          <p class={style27}>{choice().name}</p>
+                          <p class={style4}>
                             {choice().isTeamBoard ? "This board belongs to your team workspace." : "This board belongs to your personal workspace."}
                           </p>
                         </div>
-                        <div class="flex flex-wrap gap-2">
+                        <div class={style28}>
                           <Show when={managedBoardID() !== activeBoardID()}>
-                            <button
+                            <Button
                               type="button"
                               class={boardHeaderButtonClass}
                               onClick={() => switchBoard(managedBoardID())}
                             >
                               Open board
-                            </button>
+                            </Button>
                           </Show>
-                          <button
+                          <Button
                             type="button"
                             class={boardDangerButtonClass}
                             disabled={boardCrudBusy() || managedBoardID() === DEFAULT_BOARD}
                             onClick={() => void deleteBoard(managedBoardID())}
                           >
                             Delete board
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
                       <form
-                        class="mt-4 flex flex-col gap-3 md:flex-row md:items-end"
+                        class={style29}
                         onSubmit={(event) => {
                           event.preventDefault();
                           void renameManagedBoard();
                         }}
                       >
-                        <label class="flex-1 text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+                        <label class={style30}>
                           Board name
                           <input
                             value={managedBoardName()}
                             onInput={(event) => setManagedBoardName(event.currentTarget.value)}
-                            class="app-input-surface mt-1 w-full rounded-xl px-3 py-2 text-sm"
+                            class={style11}
                           />
                         </label>
-                        <button
+                        <Button
                           type="submit"
                           class={boardHeaderButtonClass}
                           disabled={boardCrudBusy() || !managedBoardName().trim()}
                         >
                           {boardCrudBusy() ? "Saving..." : "Save name"}
-                        </button>
+                        </Button>
                       </form>
                       <Show when={managedBoardID() === DEFAULT_BOARD}>
-                        <p class="mt-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--text-soft)]">
+                        <p class={style31}>
                           The default board can be renamed, but it cannot be deleted.
                         </p>
                       </Show>
                     </section>
 
-                    <section class="app-panel-soft rounded-2xl p-4">
-                      <div class="flex items-center justify-between gap-3">
+                    <section class={style7}>
+                      <div class={style15}>
                         <div>
-                          <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Board access</p>
-                          <p class="mt-1 text-sm text-[var(--text-soft)]">
-                            Select or deselect teammates to control access for <span class="font-semibold text-[var(--text-main)]">{choice().name}</span>.
+                          <p class={style8}>Board access</p>
+                          <p class={style4}>
+                            Select or deselect teammates to control access for <span class={style13}>{choice().name}</span>.
                           </p>
                         </div>
                         <span class={boardChipClass}>{boardMembers().length} member(s)</span>
@@ -374,7 +376,7 @@ export default function BoardSettingsModal() {
                       <Show
                         when={canManageBoardMembers()}
                         fallback={
-                          <p class="mt-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-sm text-[var(--text-soft)]">
+                          <p class={style32}>
                             {boardMemberManagementNotice()}
                           </p>
                         }
@@ -383,28 +385,28 @@ export default function BoardSettingsModal() {
                           <Show
                             when={teamSettings()?.members && teamSettings()!.members.length > 0}
                             fallback={
-                              <p class="mt-3 rounded-xl border border-[var(--border-strong)] bg-[var(--panel-soft)] px-3 py-2 text-sm text-[var(--text-soft)]">
+                              <p class={style32}>
                                 No team members are available yet.
                               </p>
                             }
                           >
-                            <div class="mt-3 space-y-2">
+                            <div class={style33}>
                               <For each={teamSettings()?.members ?? []}>
                                 {(member) => {
                                   const checked = () => boardMemberIDs().has(member.userId);
                                   const disabled = () => boardMembersBusy() || (member.userId === currentUserID() && checked());
                                   return (
-                                    <label class="flex items-start gap-3 rounded-2xl border border-[var(--border-strong)] bg-[var(--panel)] px-3 py-3">
+                                    <label class={style34}>
                                       <input
                                         type="checkbox"
-                                        class="mt-1 h-4 w-4 accent-[var(--accent)]"
+                                        class={style35}
                                         checked={checked()}
                                         disabled={disabled()}
                                         onChange={(event) => void toggleManagedBoardMember(member, event.currentTarget.checked)}
                                       />
-                                      <div class="min-w-0 flex-1">
-                                        <p class="truncate text-sm font-semibold text-[var(--text-main)]">{member.name || member.email}</p>
-                                        <p class="truncate text-xs text-[var(--text-soft)]">{member.email}</p>
+                                      <div class={style36}>
+                                        <p class={style22}>{member.name || member.email}</p>
+                                        <p class={style37}>{member.email}</p>
                                       </div>
                                       <span class={boardChipClass}>{member.role}</span>
                                     </label>
@@ -414,34 +416,34 @@ export default function BoardSettingsModal() {
                             </div>
                           </Show>
 
-                          <div class="mt-4 border-t border-[var(--border-strong)] pt-4">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+                          <div class={style38}>
+                            <label class={style10}>
                               Add by email
                               <textarea
                                 rows={3}
                                 value={boardInviteEmail()}
                                 onInput={(event) => setBoardInviteEmail(event.currentTarget.value)}
-                                class="app-input-surface mt-1 w-full rounded-xl px-3 py-2 text-sm"
+                                class={style11}
                                 placeholder="teammate@company.com"
                                 disabled={boardMembersBusy()}
                               />
                             </label>
-                            <p class="mt-2 text-xs text-[var(--text-soft)]">
+                            <p class={style39}>
                               Existing team members are added immediately. Unknown emails receive a team invite first, then they can be added to the board after accepting.
                             </p>
                             <Show when={!canManageBoardInvites()}>
-                              <p class="mt-2 rounded-xl border border-[rgba(223,173,87,0.24)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]">
+                              <p class={style40}>
                                 Invite-by-email requires team invite access on this workspace.
                               </p>
                             </Show>
-                            <button
+                            <Button
                               type="button"
-                              class={`mt-3 ${boardHeaderButtonClass}`}
+                              class={` ${style41} ${boardHeaderButtonClass}`}
                               onClick={() => void inviteBoardMembersByEmail()}
                               disabled={boardMembersBusy() || !boardInviteEmail().trim()}
                             >
                               {boardMembersBusy() ? "Working..." : "Add or invite"}
-                            </button>
+                            </Button>
                           </div>
                         </>
                       </Show>

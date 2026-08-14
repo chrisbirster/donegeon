@@ -1,3 +1,5 @@
+import Button from "../Button";
+import { css } from "@linaria/core";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
@@ -152,29 +154,29 @@ export default function BoardNotificationHistory() {
   return (
       <Show when={notificationHistoryOpen()}>
         <div
-          class={`fixed inset-0 z-[78] flex items-center justify-center p-3 backdrop-blur-sm md:p-4 ${boardModalBackdropClass()}`}
+          class={` ${style1} ${boardModalBackdropClass()}`}
           onClick={() => setNotificationHistoryOpen(false)}
         >
           <div
-            class="app-panel-strong w-full max-w-lg rounded-[28px] p-4"
+            class={style2}
             onClick={(event) => event.stopPropagation()}
             data-testid="board-notification-history"
           >
-            <div class="flex items-center justify-between gap-3">
+            <div class={style3}>
               <div>
-                <p class="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Recent Notifications</p>
-                <p class="mt-1 text-sm text-[var(--text-soft)]">Recent board alerts and status messages for this session.</p>
+                <p class={style4}>Recent Notifications</p>
+                <p class={style5}>Recent board alerts and status messages for this session.</p>
               </div>
-              <button
+              <Button
                 type="button"
                 class={boardHeaderButtonClass}
                 onClick={() => setNotificationHistoryOpen(false)}
               >
                 Close
-              </button>
+              </Button>
             </div>
 
-            <div class="mt-4 space-y-2" data-testid="board-notification-history-list">
+            <div class={style6} data-testid="board-notification-history-list">
               <Show
                 when={toast.history().length > 0}
                 fallback={
@@ -185,15 +187,15 @@ export default function BoardNotificationHistory() {
               >
                 <For each={toast.history()}>
                   {(entry) => (
-                    <article class={`rounded-lg border px-3 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.25)] ${notificationToneClass(entry.tone)}`}>
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <p class="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-80">
+                    <article class={` ${style7} ${notificationToneClass(entry.tone)}`}>
+                      <div class={style8}>
+                        <div class={style9}>
+                          <p class={style10}>
                             {notificationToneLabel(entry.tone)}
                           </p>
-                          <p class="mt-1 text-sm leading-snug">{entry.message}</p>
+                          <p class={style11}>{entry.message}</p>
                         </div>
-                        <span class="shrink-0 text-[11px] opacity-75">{formatNotificationTime(entry.createdAt)}</span>
+                        <span class={style12}>{formatNotificationTime(entry.createdAt)}</span>
                       </div>
                     </article>
                   )}
@@ -201,18 +203,128 @@ export default function BoardNotificationHistory() {
               </Show>
             </div>
 
-            <div class="mt-4 flex justify-end">
-              <button
+            <div class={style13}>
+              <Button
                 type="button"
                 class={boardHeaderButtonClass}
                 onClick={() => toast.clearHistory()}
                 disabled={toast.history().length === 0}
               >
                 Clear history
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </Show>
   );
 }
+
+
+const style1 = css`
+position: fixed;
+inset: calc(var(--spacing) * 0);
+z-index: 78;
+display: flex;
+align-items: center;
+justify-content: center;
+padding: calc(var(--spacing) * 3);
+--tw-backdrop-blur: blur(var(--blur-sm));
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+@media (width >= 48rem) {
+    padding: calc(var(--spacing) * 4);
+  }
+`;
+
+const style2 = css`
+width: 100%;
+max-width: var(--container-lg);
+border-radius: 28px;
+padding: calc(var(--spacing) * 4);
+background: linear-gradient(180deg, var(--panel-strong-start), var(--panel-strong-end)); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+`;
+
+const style3 = css`
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: calc(var(--spacing) * 3);
+`;
+
+const style4 = css`
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--text-dim);
+text-transform: uppercase;
+`;
+
+const style5 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-soft);
+`;
+
+const style6 = css`
+margin-top: calc(var(--spacing) * 4);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 2) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 2) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style7 = css`
+border-radius: var(--radius-lg);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+--tw-shadow: 0 12px 28px var(--tw-shadow-color, rgba(0,0,0,0.25));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+`;
+
+const style8 = css`
+display: flex;
+align-items: flex-start;
+justify-content: space-between;
+gap: calc(var(--spacing) * 3);
+`;
+
+const style9 = css`
+min-width: calc(var(--spacing) * 0);
+`;
+
+const style10 = css`
+font-size: 11px;
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.08em;
+  letter-spacing: 0.08em;
+text-transform: uppercase;
+opacity: 80%;
+`;
+
+const style11 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-leading: var(--leading-snug);
+  line-height: var(--leading-snug);
+`;
+
+const style12 = css`
+flex-shrink: 0;
+font-size: 11px;
+opacity: 75%;
+`;
+
+const style13 = css`
+margin-top: calc(var(--spacing) * 4);
+display: flex;
+justify-content: flex-end;
+`;

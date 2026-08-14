@@ -1,3 +1,5 @@
+import Button from "../Button";
+import { css } from "@linaria/core";
 import { Show } from "solid-js";
 
 import { localBetaToggleAvailable } from "../../lib/openBeta";
@@ -10,31 +12,95 @@ type LocalBetaToggleProps = {
 export default function LocalBetaToggle(props: LocalBetaToggleProps) {
   return (
     <Show when={localBetaToggleAvailable()}>
-      <div class="fixed bottom-4 left-4 z-50 rounded-2xl border border-[var(--border-strong)] bg-[rgba(6,10,16,0.92)] px-4 py-3 shadow-[0_20px_40px_rgba(0,0,0,0.35)] backdrop-blur">
-        <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Local beta toggle</p>
-        <div class="mt-3 flex gap-2">
-          <button
+      <div class={style1}>
+        <p class={style2}>Local beta toggle</p>
+        <div class={style3}>
+          <Button
             type="button"
             aria-pressed={props.openBeta ? "true" : "false"}
             onClick={() => props.onToggle(true)}
-            class={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-              props.openBeta ? "bg-[var(--success)] text-[#102117]" : "bg-[rgba(255,255,255,0.03)] text-[var(--text-soft)]"
+            class={` ${style4} ${
+              props.openBeta ? style5 : style6
             }`}
           >
             Open beta
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             aria-pressed={!props.openBeta ? "true" : "false"}
             onClick={() => props.onToggle(false)}
-            class={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-              !props.openBeta ? "bg-[var(--accent)] text-[#1d1108]" : "bg-[rgba(255,255,255,0.03)] text-[var(--text-soft)]"
+            class={` ${style4} ${
+              !props.openBeta ? style7 : style6
             }`}
           >
             Waitlist
-          </button>
+          </Button>
         </div>
       </div>
     </Show>
   );
 }
+
+
+const style1 = css`
+position: fixed;
+bottom: calc(var(--spacing) * 4);
+left: calc(var(--spacing) * 4);
+z-index: 50;
+border-radius: var(--radius-2xl);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: rgba(6,10,16,0.92);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 3);
+--tw-shadow: 0 20px 40px var(--tw-shadow-color, rgba(0,0,0,0.35));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+--tw-backdrop-blur: blur(8px);
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+`;
+
+const style2 = css`
+font-size: 11px;
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.14em;
+  letter-spacing: 0.14em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style3 = css`
+margin-top: calc(var(--spacing) * 3);
+display: flex;
+gap: calc(var(--spacing) * 2);
+`;
+
+const style4 = css`
+border-radius: calc(infinity * 1px);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 1.5);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+`;
+
+const style5 = css`
+background-color: var(--success);
+color: #102117;
+`;
+
+const style6 = css`
+background-color: rgba(255,255,255,0.03);
+color: var(--text-soft);
+`;
+
+const style7 = css`
+background-color: var(--accent);
+color: #1d1108;
+`;

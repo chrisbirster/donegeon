@@ -1,3 +1,5 @@
+import Button from "../Button";
+import { css } from "@linaria/core";
 import { createSignal } from "solid-js";
 
 import { workspacePlanLabel } from "../../../../../shared/pricing/catalog";
@@ -55,59 +57,217 @@ export default function WaitlistCard(props: WaitlistCardProps) {
   }
 
   return (
-    <main class="flex h-screen items-center justify-center px-4 text-[var(--text-main)]">
-      <div class="app-panel w-full max-w-md rounded-2xl p-6">
-        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Donegeon</p>
-        <p class="mt-3 inline-flex rounded-full border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--accent-text)]">
+    <main class={style1}>
+      <div class={style2}>
+        <p class={style3}>Donegeon</p>
+        <p class={style4}>
           Open beta starts {props.openBetaStartsLabel}
         </p>
 
-        <h1 class="font-display mt-4 text-2xl font-semibold tracking-[-0.03em] text-white">
+        <h1 class={style5}>
           {props.title || "Join the waitlist"}
         </h1>
-        <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">
+        <p class={style6}>
           {props.description ||
             "Donegeon is currently in closed beta. Leave your name and email and we'll notify you as soon as access opens."}
         </p>
         {requestedPlan ? (
-          <p class="mt-2 text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Requested plan: {requestedPlan}</p>
+          <p class={style7}>Requested plan: {requestedPlan}</p>
         ) : null}
 
-        <form class="mt-6" onSubmit={(event) => void submit(event)}>
-          <label class="block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Name</label>
+        <form class={style8} onSubmit={(event) => void submit(event)}>
+          <label class={style9}>Name</label>
           <input
             type="text"
             required
             value={name()}
             onInput={(event) => setName(event.currentTarget.value)}
-            class="app-input-surface mt-2 w-full rounded-lg px-3 py-2"
+            class={style10}
             placeholder="Your name"
           />
 
-          <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Email</label>
+          <label class={style11}>Email</label>
           <input
             type="email"
             required
             value={email()}
             onInput={(event) => setEmail(event.currentTarget.value)}
-            class="app-input-surface mt-2 w-full rounded-lg px-3 py-2"
+            class={style10}
             placeholder="you@company.com"
           />
-          <p class="mt-2 text-xs text-[var(--text-muted)]">Confirmation emails are sent from no-reply@donegeon.com.</p>
+          <p class={style12}>Confirmation emails are sent from no-reply@donegeon.com.</p>
 
-          <button
+          <Button
             type="submit"
             disabled={saving() || !name().trim() || !email().trim()}
-            class="app-button-primary mt-5 w-full rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
+            class={style13}
           >
             {saving() ? "Joining..." : "Join the waitlist"}
-          </button>
+          </Button>
         </form>
 
-        {success() ? <p class="mt-4 text-sm text-[var(--success)]">{success()}</p> : null}
-        {deliveryWarning() ? <p class="mt-2 text-xs text-[var(--warning)]">{deliveryWarning()}</p> : null}
-        {error() ? <p class="mt-3 text-sm text-[var(--danger)]">{error()}</p> : null}
+        {success() ? <p class={style14}>{success()}</p> : null}
+        {deliveryWarning() ? <p class={style15}>{deliveryWarning()}</p> : null}
+        {error() ? <p class={style16}>{error()}</p> : null}
       </div>
     </main>
   );
 }
+
+
+const style1 = css`
+display: flex;
+height: 100vh;
+align-items: center;
+justify-content: center;
+padding-inline: calc(var(--spacing) * 4);
+color: var(--text-main);
+`;
+
+const style2 = css`
+width: 100%;
+max-width: var(--container-md);
+border-radius: var(--radius-2xl);
+padding: calc(var(--spacing) * 6);
+background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+`;
+
+const style3 = css`
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style4 = css`
+margin-top: calc(var(--spacing) * 3);
+display: inline-flex;
+border-radius: calc(infinity * 1px);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: rgba(255,139,80,0.24);
+background-color: var(--accent-wash);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 1);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--accent-text);
+text-transform: uppercase;
+`;
+
+const style5 = css`
+margin-top: calc(var(--spacing) * 4);
+font-size: var(--text-2xl);
+  line-height: var(--tw-leading, var(--text-2xl--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: -0.03em;
+  letter-spacing: -0.03em;
+color: var(--color-white);
+font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+`;
+
+const style6 = css`
+margin-top: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-leading: calc(var(--spacing) * 7);
+  line-height: calc(var(--spacing) * 7);
+color: var(--text-soft);
+`;
+
+const style7 = css`
+margin-top: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style8 = css`
+margin-top: calc(var(--spacing) * 6);
+`;
+
+const style9 = css`
+display: block;
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style10 = css`
+margin-top: calc(var(--spacing) * 2);
+width: 100%;
+border-radius: var(--radius-lg);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+background: var(--panel-soft); border: 1px solid var(--border-strong); color: var(--text-main); &:focus { border-color: var(--accent); outline: none; }
+`;
+
+const style11 = css`
+margin-top: calc(var(--spacing) * 5);
+display: block;
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style12 = css`
+margin-top: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-muted);
+`;
+
+const style13 = css`
+margin-top: calc(var(--spacing) * 5);
+width: 100%;
+border-radius: var(--radius-lg);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+&:disabled {
+    opacity: 60%;
+  }
+background: var(--accent); color: #1d1108; transition: background-color 160ms ease; &:hover { background: var(--accent-soft); }
+`;
+
+const style14 = css`
+margin-top: calc(var(--spacing) * 4);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--success);
+`;
+
+const style15 = css`
+margin-top: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--warning);
+`;
+
+const style16 = css`
+margin-top: calc(var(--spacing) * 3);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--danger);
+`;

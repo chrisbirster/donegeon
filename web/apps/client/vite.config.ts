@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
-import tailwindcss from "@tailwindcss/vite";
+import wyw from "@wyw-in-js/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 const apiTarget = process.env.DONEGEON_API_URL || "http://localhost:42069";
@@ -9,7 +9,7 @@ const pwaDevEnabled = process.env.DONEGEON_PWA_DEV === "1";
 export default defineConfig({
   plugins: [
     solid(),
-    tailwindcss(),
+    wyw(),
     VitePWA({
       strategies: "injectManifest",
       srcDir: "src",

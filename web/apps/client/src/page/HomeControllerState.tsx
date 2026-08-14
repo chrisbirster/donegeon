@@ -274,6 +274,9 @@ import {
     if (view.kind === "project") {
       const projectID = view.projectId?.trim();
       if (!projectID) return [] as Task[];
+      if (projectMap().get(projectID)?.isInboxProject) {
+        return taskList.filter((task) => isInboxTask(task));
+      }
       return taskList.filter((task) => task.projectId?.trim() === projectID);
     }
     return taskList.filter((task) => isInboxTask(task));

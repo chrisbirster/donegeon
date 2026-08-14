@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "check:buttons": "node ../scripts/check-buttons.mjs",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test:e2e": "turbo run test:e2e --filter=@donegeon/client",
