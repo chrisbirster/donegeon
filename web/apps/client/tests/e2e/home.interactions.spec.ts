@@ -76,7 +76,7 @@ function desktopViewButton(page: Page, name: "Inbox" | "Today" | "Upcomming") {
 
 async function openMobileAndTapView(page: Page, name: "Inbox" | "Today" | "Upcomming") {
   await openMobileHomeSidebar(page);
-  await sidebarPanel(page).getByRole("button", { name: new RegExp(`^${name}\\b`, "i") }).first().click();
+  await sidebarPanel(page).getByRole("button", { name: viewButtonPattern(name) }).first().click();
 }
 
 function favoritesList(page: Page) {

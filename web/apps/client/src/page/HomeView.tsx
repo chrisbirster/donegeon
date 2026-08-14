@@ -1,28 +1,9 @@
-import {
-  For,
-  Show,
-  createTrackedEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  onSettled,
-} from "solid-js";
-import { useLocation, useNavigate } from "@solidjs/router";
-import { createQuery } from "@tanstack/solid-query";
-
-import {
-  type Project,
-  type QuickAddParsed,
-  type Task,
-} from "../server/api";
-import { useApi } from "../context/ApiContext";
-import { useToast } from "../context/ToastContext";
-import { mergeNormalizedLabels } from "../lib/quickAddLabels";
-import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
+import { For, Show } from "solid-js";
 import AppShell from "../components/AppShell";
 import SidebarAccountCard from "../components/SidebarAccountCard";
 import TaskQuickAddComposer from "../components/task/TaskQuickAddComposer";
 import TaskViewHeader from "../components/task/TaskViewHeader";
+import HomeMobileSidebar from "../components/task/HomeMobileSidebar";
 
 import {
   TokenKind,
@@ -259,87 +240,7 @@ export default function HomeView() {
     <AppShell
       activeView="task"
       accountPlacement="sidebar"
-      mobileSidebar={
-        <div class="space-y-5">
-          <div class={sidebarCardClass}>
-            <div class="flex items-center justify-between">
-              <h2 class="font-display text-sm font-semibold tracking-tight text-white">Tasks</h2>
-              <button
-                type="button"
-                class={smallActionButtonClass}
-                onClick={focusComposer}
-              >
-                Add
-              </button>
-            </div>
-            <button
-              type="button"
-              class={searchButtonClass}
-              onClick={openSearchModal}
-            >
-              <span>Search</span>
-              <span class="text-xs text-[var(--text-dim)]">⌘K</span>
-            </button>
-          </div>
-
-          <div class={sidebarCardClass}>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Views</p>
-            <div class="mt-2 space-y-1">
-              <button
-                type="button"
-                class={`${sidebarItemBaseClass} ${isViewActive("inbox") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
-                onClick={() => navigateToView("inbox")}
-              >
-                <span>Inbox</span>
-                <span class="text-xs text-[var(--text-dim)]">{inboxCount()}</span>
-              </button>
-              <button
-                type="button"
-                class={`${sidebarItemBaseClass} ${isViewActive("today") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
-                onClick={() => navigateToView("today")}
-              >
-                <span>Today</span>
-                <span class="text-xs text-[var(--text-dim)]">{todayCount()}</span>
-              </button>
-              <button
-                type="button"
-                class={`${sidebarItemBaseClass} ${isViewActive("upcomming") ? sidebarItemActiveClass : sidebarItemIdleClass}`}
-                onClick={() => navigateToView("upcomming")}
-              >
-                <span>Upcoming</span>
-                <span class="text-xs text-[var(--text-dim)]">{upcomingCount()}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class={sidebarCardClass}>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Projects</p>
-            <div class="mt-2 space-y-1">
-              <For each={sidebarProjects()}>
-                {(project) => (
-                  <button
-                    type="button"
-                    class={`${sidebarItemBaseClass} ${isProjectActive(project.id) ? sidebarItemActiveClass : sidebarItemIdleClass}`}
-                    onClick={() => navigateToProject(project.id)}
-                  >
-                    <span class="min-w-0">
-                      <span class="block truncate">{project.name}</span>
-                      <Show when={projectQuickAddAlias(project)}>
-                        {(alias) => (
-                          <span class="block text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                            #{alias()}
-                          </span>
-                        )}
-                      </Show>
-                    </span>
-                    <span class="ml-2 text-xs text-[var(--text-dim)]">{sidebarProjectCount(project)}</span>
-                  </button>
-                )}
-              </For>
-            </div>
-          </div>
-        </div>
-      }
+      mobileSidebar={<HomeMobileSidebar />}
     >
       <div class="h-full overflow-hidden p-3 md:p-6">
         <div class="grid h-full min-h-0 w-full grid-cols-1 gap-4 md:grid-cols-[300px_minmax(0,1fr)]">
