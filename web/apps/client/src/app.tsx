@@ -15,7 +15,10 @@ import { useApi } from "./context/ApiContext";
 
 function Redirect(props: { href: string }) {
   const navigate = useNavigate();
-  onSettled(() => navigate(props.href, { replace: true }));
+  onSettled(() => {
+    const timer = window.setTimeout(() => navigate(props.href, { replace: true }), 0);
+    return () => window.clearTimeout(timer);
+  });
   return null;
 }
 

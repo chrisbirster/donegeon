@@ -406,13 +406,14 @@ export default function ProfileRoute() {
   }
 
   onSettled(() => {
+    let navigationTimer: number | undefined;
     const params = new URLSearchParams(location.search);
     const calendarStatus = (params.get("calendar") || "").trim().toLowerCase();
     const calendarProvider = (params.get("provider") || "").trim().toLowerCase();
     const calendarMessage = (params.get("message") || "").trim();
     const cleanProfileRoute = profileHref(boardIDFromSearch(location.search));
     if (calendarStatus || calendarProvider || calendarMessage) {
-      navigate(cleanProfileRoute, { replace: true });
+      navigationTimer = window.setTimeout(() => navigate(cleanProfileRoute, { replace: true }), 0);
     }
     if (calendarStatus === "connected") {
       const label = calendarProvider ? calendarProviderLabel(calendarProvider) : "Calendar";
@@ -421,11 +422,16 @@ export default function ProfileRoute() {
         await loadBase();
         await syncCalendar();
       })();
-      return;
+      return () => {
+        if (navigationTimer !== undefined) window.clearTimeout(navigationTimer);
+      };
     } else if (calendarStatus === "error") {
       setCalendarError(calendarMessage || "Calendar connection failed. Try again.");
     }
     void loadBase();
+    return () => {
+      if (navigationTimer !== undefined) window.clearTimeout(navigationTimer);
+    };
   });
 
   createTrackedEffect(() => {
