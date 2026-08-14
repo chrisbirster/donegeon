@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import { For } from "solid-js";
 
 import MarketingLayout from "../components/MarketingLayout";
@@ -79,12 +78,12 @@ function PricingContent() {
             <h2 class="font-display text-3xl font-semibold text-white">Choose the plan that fits your team.</h2>
           </div>
           <div class="flex gap-3 text-sm text-[var(--text-muted)]">
-            <A href="/features" class="transition hover:text-white">
+            <a href="/features" class="transition hover:text-white">
               Product detail
-            </A>
-            <A href="/docs" class="transition hover:text-white">
+            </a>
+            <a href="/docs" class="transition hover:text-white">
               Docs
-            </A>
+            </a>
           </div>
         </div>
 
@@ -103,7 +102,7 @@ function PricingContent() {
                 {(group) => (
                   <>
                     <tr>
-                      <td colSpan="4" class="border-t border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[#9fe8b4]">
+                      <td colspan="4" class="border-t border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[#9fe8b4]">
                         {group.title}
                       </td>
                     </tr>

@@ -1,5 +1,5 @@
-import { A, useLocation } from "@solidjs/router";
-import { type ParentProps, Show, createSignal, onMount } from "solid-js";
+import { useLocation } from "@solidjs/router";
+import { type ParentProps, Show, createSignal, onSettled } from "solid-js";
 
 import LocalBetaToggle from "./LocalBetaToggle";
 import { PublicConfigProvider } from "../context/PublicConfigContext";
@@ -40,7 +40,7 @@ export default function MarketingLayout(props: ParentProps) {
   const [publicConfig, setPublicConfig] = createSignal(applyLocalOpenBetaOverride(defaultPublicConfig()));
   const [configChecked, setConfigChecked] = createSignal(import.meta.env.DEV);
 
-  onMount(async () => {
+  onSettled(() => void (async () => {
     void (async () => {
       try {
         const response = await fetch(`${APP_URL}/api/public/config`);
@@ -78,7 +78,7 @@ export default function MarketingLayout(props: ParentProps) {
     } finally {
       setChecked(true);
     }
-  });
+  })());
 
   function setLocalOpenBeta(next: boolean) {
     writeLocalOpenBetaOverride(next);
@@ -114,7 +114,7 @@ export default function MarketingLayout(props: ParentProps) {
         <header class="sticky top-0 z-40 border-b border-[var(--border-strong)] bg-[rgba(6,10,16,0.78)] backdrop-blur-xl">
           <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4 md:px-10">
             <div class="flex items-center gap-4">
-              <A href="/" class="flex items-center gap-3">
+              <a href="/" class="flex items-center gap-3">
                 <span class="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#355471] bg-[#0f1d2c] text-sm font-semibold text-[#ffd8ad] shadow-[0_12px_24px_rgba(0,0,0,0.28)]">
                   D
                 </span>
@@ -122,12 +122,12 @@ export default function MarketingLayout(props: ParentProps) {
                   <p class="font-display text-lg font-semibold tracking-[0.08em] text-white">Donegeon</p>
                   <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Task management for teams</p>
                 </div>
-              </A>
+              </a>
             </div>
 
             <nav class="hidden items-center gap-2 md:flex">
               {NAV_ITEMS.map((item) => (
-                <A
+                <a
                   href={item.href}
                   class={`rounded-full px-3 py-2 text-sm transition ${
                     isActivePath(location.pathname, item.href)
@@ -136,17 +136,17 @@ export default function MarketingLayout(props: ParentProps) {
                   }`}
                 >
                   {item.label}
-                </A>
+                </a>
               ))}
             </nav>
 
             <div class="flex items-center gap-3">
-              <A
+              <a
                 href="/pricing"
                 class="hidden rounded-full border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-sm text-[var(--text-main)] transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.06)] md:inline-flex"
               >
                 View plans
-              </A>
+              </a>
 
               <Show when={checked()}>
                 <Show
@@ -177,7 +177,7 @@ export default function MarketingLayout(props: ParentProps) {
           <div class="border-t border-[rgba(255,255,255,0.04)] md:hidden">
             <div class="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-6 py-3 md:px-10">
               {NAV_ITEMS.map((item) => (
-                <A
+                <a
                   href={item.href}
                   class={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm transition ${
                     isActivePath(location.pathname, item.href)
@@ -186,7 +186,7 @@ export default function MarketingLayout(props: ParentProps) {
                   }`}
                 >
                   {item.label}
-                </A>
+                </a>
               ))}
             </div>
           </div>
@@ -239,8 +239,8 @@ export default function MarketingLayout(props: ParentProps) {
             <div>
               <p class="font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Product</p>
               <div class="mt-3 flex flex-col gap-2 text-[var(--text-muted)]">
-                <A href="/features">Features</A>
-                <A href="/pricing">Pricing</A>
+                <a href="/features">Features</a>
+                <a href="/pricing">Pricing</a>
                 <a href={APP_URL}>Open app</a>
               </div>
             </div>
@@ -248,8 +248,8 @@ export default function MarketingLayout(props: ParentProps) {
             <div>
               <p class="font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Resources</p>
               <div class="mt-3 flex flex-col gap-2 text-[var(--text-muted)]">
-                <A href="/docs">Documentation</A>
-                <A href="/blog">Blog</A>
+                <a href="/docs">Documentation</a>
+                <a href="/blog">Blog</a>
                 <a href={PLAN_LINKS.enterprise}>Enterprise contact</a>
               </div>
             </div>

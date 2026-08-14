@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 
 import MarketingLayout from "../components/MarketingLayout";
 
@@ -12,18 +11,18 @@ export default function NotFoundRoute() {
           Use the site navigation to get back to the product overview, docs, blog, or pricing.
         </p>
         <div class="mt-7 flex justify-center gap-3">
-          <A
+          <a
             href="/"
             class="inline-flex rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
           >
             Back home
-          </A>
-          <A
+          </a>
+          <a
             href="/docs"
             class="inline-flex rounded-full border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] px-5 py-3 text-sm font-semibold text-[var(--text-main)] transition hover:border-[#4a6c8b] hover:bg-[rgba(255,255,255,0.08)]"
           >
             Read docs
-          </A>
+          </a>
         </div>
       </section>
     </MarketingLayout>

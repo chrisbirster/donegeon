@@ -78,7 +78,7 @@ export function ToastProvider(props: ParentProps) {
   };
 
   return (
-    <ToastContext.Provider value={api}>
+    <ToastContext value={api}>
       {props.children}
       <div class="pointer-events-none fixed bottom-[max(14px,env(safe-area-inset-bottom))] left-3 z-[140] flex w-[min(360px,calc(100vw-1.5rem))] flex-col gap-2 md:left-4">
         <For each={toasts()}>
@@ -101,14 +101,10 @@ export function ToastProvider(props: ParentProps) {
           )}
         </For>
       </div>
-    </ToastContext.Provider>
+    </ToastContext>
   );
 }
 
 export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) {
-    throw new Error("ToastContext is not available");
-  }
-  return ctx;
+  return useContext(ToastContext);
 }

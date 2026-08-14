@@ -143,7 +143,10 @@ func run() error {
 		Addr:              ":" + cfg.HTTPPort,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       cfg.RequestTimeout,
+		WriteTimeout:      cfg.RequestTimeout,
 		IdleTimeout:       cfg.RequestTimeout,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	logger.Info("donegeon_server_start", slog.String("addr", server.Addr), slog.String("db_path", cfg.DBPath))

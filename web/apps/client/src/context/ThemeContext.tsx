@@ -1,4 +1,4 @@
-import { type ParentProps, createContext, createEffect, createMemo, createSignal, onCleanup, onMount, useContext } from "solid-js";
+import { type ParentProps, createContext, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, useContext } from "solid-js";
 
 import {
   applyResolvedTheme,
@@ -24,11 +24,11 @@ export function ThemeProvider(props: ParentProps) {
 
   const resolvedTheme = createMemo<ResolvedTheme>(() => resolveTheme(preference(), systemTheme()));
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     applyResolvedTheme(resolvedTheme());
   });
 
-  onMount(() => {
+  onSettled(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
       setSystemTheme(mediaQuery.matches ? "dark" : "light");
@@ -50,7 +50,7 @@ export function ThemeProvider(props: ParentProps) {
   }
 
   return (
-    <ThemeContext.Provider
+    <ThemeContext
       value={{
         preference,
         resolvedTheme,
@@ -58,14 +58,10 @@ export function ThemeProvider(props: ParentProps) {
       }}
     >
       {props.children}
-    </ThemeContext.Provider>
+    </ThemeContext>
   );
 }
 
 export function useTheme() {
-  const value = useContext(ThemeContext);
-  if (!value) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-  return value;
+  return useContext(ThemeContext);
 }

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import { createSignal, onMount } from "solid-js";
+import { createSignal, onSettled } from "solid-js";
 
 import { pricingCatalog } from "../../../../shared/pricing/catalog";
 import { useApi } from "../context/ApiContext";
@@ -44,7 +44,7 @@ export default function OnboardingRoute() {
   const [personalBoardSpacingHint, setPersonalBoardSpacingHint] = createSignal(false);
   const [teamBoardSpacingHint, setTeamBoardSpacingHint] = createSignal(false);
 
-  onMount(async () => {
+  onSettled(() => void (async () => {
     const params = new URLSearchParams(location.search);
     setPlan(normalizePlan(params.get("plan") || "personal"));
     try {
@@ -57,7 +57,7 @@ export default function OnboardingRoute() {
     } catch {
       navigate("/login", { replace: true });
     }
-  });
+  })());
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();

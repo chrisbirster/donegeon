@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, createTrackedEffect, onSettled } from "solid-js";
 
 import AppShell from "../components/AppShell";
 import { useApi } from "../context/ApiContext";
@@ -405,7 +405,7 @@ export default function ProfileRoute() {
     navigate(profileHref(normalized));
   }
 
-  onMount(() => {
+  onSettled(() => {
     const params = new URLSearchParams(location.search);
     const calendarStatus = (params.get("calendar") || "").trim().toLowerCase();
     const calendarProvider = (params.get("provider") || "").trim().toLowerCase();
@@ -428,7 +428,7 @@ export default function ProfileRoute() {
     void loadBase();
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const boardID = activeBoardID();
     void loadBoard(boardID);
   });

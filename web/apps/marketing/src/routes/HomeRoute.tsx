@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import { For } from "solid-js";
 
 import MarketingLayout from "../components/MarketingLayout";
@@ -77,12 +76,12 @@ function HomeContent() {
             >
               {publicConfig.openBeta ? "Start Free" : "Join waitlist"}
             </a>
-            <A
+            <a
               href="/features"
               class="inline-flex rounded-full border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] px-5 py-3 text-sm font-semibold text-[var(--text-main)] transition hover:border-[#4a6c8b] hover:bg-[rgba(255,255,255,0.08)]"
             >
               See how it works
-            </A>
+            </a>
           </div>
 
           <div class="mt-10 grid gap-4 sm:grid-cols-3">
@@ -143,9 +142,9 @@ function HomeContent() {
             <p class="section-label">Everything your team needs</p>
             <h2 class="font-display text-3xl font-semibold text-white md:text-4xl">Everything your team needs to plan and execute.</h2>
           </div>
-          <A href="/features" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+          <a href="/features" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
             Explore features
-          </A>
+          </a>
         </div>
 
         <div class="mt-8 grid gap-5 md:grid-cols-2">
@@ -175,15 +174,15 @@ function HomeContent() {
               <p class="section-label">Learn the essentials</p>
               <h2 class="font-display text-3xl font-semibold text-white">Guides that help your team get started quickly.</h2>
             </div>
-            <A href="/docs" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+            <a href="/docs" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
               Browse docs
-            </A>
+            </a>
           </div>
 
           <div class="mt-6 grid gap-4">
             <For each={docHighlights}>
               {(entry) => (
-                <A
+                <a
                   href={`/docs/${entry.slug}`}
                   class="rounded-[1.4rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-5 transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.05)]"
                 >
@@ -194,7 +193,7 @@ function HomeContent() {
                   </div>
                   <h3 class="mt-3 font-display text-2xl font-semibold text-white">{entry.title}</h3>
                   <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">{entry.excerpt}</p>
-                </A>
+                </a>
               )}
             </For>
           </div>
@@ -206,15 +205,15 @@ function HomeContent() {
               <p class="section-label">Tips, updates, and product news</p>
               <h2 class="font-display text-3xl font-semibold text-white">Stay in the loop as the product grows.</h2>
             </div>
-            <A href="/blog" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+            <a href="/blog" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
               Visit blog
-            </A>
+            </a>
           </div>
 
           <div class="mt-6 space-y-4">
             <For each={postHighlights}>
               {(entry) => (
-                <A
+                <a
                   href={`/blog/${entry.slug}`}
                   class="block rounded-[1.4rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-5 transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.05)]"
                 >
@@ -225,7 +224,7 @@ function HomeContent() {
                   </div>
                   <h3 class="mt-3 font-display text-2xl font-semibold text-white">{entry.title}</h3>
                   <p class="mt-2 text-sm leading-7 text-[var(--text-soft)]">{entry.excerpt}</p>
-                </A>
+                </a>
               )}
             </For>
           </div>

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
 import { hasEntitlement, workspacePlanProfile } from "../../../../shared/pricing/catalog";
 import { useApi } from "../context/ApiContext";
@@ -28,938 +28,117 @@ import {
 import AppShell from "../components/AppShell";
 import SidebarAccountCard from "../components/SidebarAccountCard";
 
-const DEFAULT_BOARD = "default";
-const BOARD_DEV_CONTROLS_ENABLED = import.meta.env.DEV;
-
-const CARD_WIDTH = 92;
-const CARD_HEIGHT = 124;
-const STACK_OFFSET_Y = 20;
-const DECK_ROW_SIDE_PADDING = 20;
-const DECK_ROW_BOTTOM = 14;
-const MOBILE_DECK_ROW_BOTTOM = 10;
-const DECK_ROW_MIN_STEP = 54;
-const DECK_ROW_MAX_STEP = 112;
-const Z_INDEX_WORLD_MAX = 3999;
-const Z_INDEX_DRAG = 4500;
-const Z_INDEX_DRAG_OVER_COLLECT = 7000;
-const Z_INDEX_DECK_BASE = 5000;
-const MINIMAP_WIDTH = 220;
-const MINIMAP_HEIGHT = 144;
-const MINIMAP_PADDING = 72;
-const DECK_ROW_MAX_VISIBLE = 4;
-const DECK_ROW_PREFS_KEY = "donegeon.board.deck-row.v1";
-const MOBILE_BREAKPOINT = 768;
-const MOBILE_DECK_SCALE = 0.88;
-const DEFAULT_VILLAGER_STAMINA = 8;
-const BOARD_GRID_SPACING = 22;
-const BOARD_GRID_ORIGIN_OFFSET = 1;
-
-const MERGE_GAP_DISTANCE = 16;
-const MIN_MERGE_OVERLAP = 900;
-const BOARD_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
-
-type ApiError = Error & {
-  status?: number;
-  body?: any;
-};
-
-type DragState = {
-  stackId: string;
-  pointerId: number;
-  offsetX: number;
-  offsetY: number;
-  startX: number;
-  startY: number;
-  mode: "stack" | "split";
-  splitIndex: number;
-  draggedCount: number;
-};
-
-type Rect = {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-};
-
-type StackPreview = {
-  title: string;
-  subtitle: string;
-  kind: string;
-  icon: string;
-  shellClass: string;
-  titleClass: string;
-  isDeck: boolean;
-  isPack: boolean;
-};
-
-type WorldRect = {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-};
-
-type BoardSummary = {
-  villagerCount: number;
-  zombieCount: number;
-  activeTaskCount: number;
-  deckCount: number;
-  completedCount: number;
-  dayTicks: number;
-  inventory: Record<string, number>;
-};
-
-type VillagerStatus = {
-  villagerID: string;
-  stackID: string;
-  name: string;
-  stamina: number;
-  maxStamina: number;
-  level: number;
-  xp: number;
-  nextLevel: number;
-  nextLevelXP: number;
-  xpToNextLevel: number;
-  perks: string[];
-};
-
-type PanDragState = {
-  pointerId: number;
-  startClientX: number;
-  startClientY: number;
-  startPanX: number;
-  startPanY: number;
-};
-
-type TokenKind =
-  | "project"
-  | "label"
-  | "assignee"
-  | "priority"
-  | "deadline"
-  | "recurrence"
-  | "due"
-  | "text";
-
-type TokenPiece = {
-  value: string;
-  kind: TokenKind;
-};
-
-type MiningSession = {
-  startedAt: number;
-  durationMs: number;
-};
-
-type DeckRowSlot =
-  | {
-      kind: "deck";
-      defId: string;
-      stack: BoardStack;
-    }
-  | {
-      kind: "hub";
-      overflowCount: number;
-    };
-
-type BoardChoice = {
-  boardID: string;
-  projectID: string;
-  name: string;
-  isTeamBoard: boolean;
-};
-
-const DECK_PRIORITY_ORDER = [
-  "deck.first_day",
-  "deck.collect",
-  "deck.organization",
-  "deck.survival",
-  "deck.humble_beginnings",
-  "deck.seeking_wisdom",
-  "deck.reap_sow",
-  "deck.armory",
-  "deck.explorers",
-] as const;
-
-function dataString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function dataNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return undefined;
-}
-
-function dataStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
-
-function dataObject(value: unknown): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  return value as Record<string, unknown>;
-}
-
-const QUICK_ADD_TOKEN_PATTERN =
-  /(\{[^{}]+\}|#[A-Za-z][A-Za-z0-9_-]*|@[A-Za-z0-9][A-Za-z0-9_-]*|\+[A-Za-z][A-Za-z0-9_-]*|\bp[1-4]\b|\bevery\s+[A-Za-z0-9 ]+\b|\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b|\btomorrow\b)/gi;
-
-function classifyToken(value: string): TokenKind {
-  if (value.startsWith("#")) return "project";
-  if (value.startsWith("@")) return "label";
-  if (value.startsWith("+")) return "assignee";
-  if (/^p[1-4]$/i.test(value)) return "priority";
-  if (value.startsWith("{") && value.endsWith("}")) return "deadline";
-  if (value.toLowerCase().startsWith("every")) return "recurrence";
-  return "due";
-}
-
-function tokenizeQuickAdd(value: string): TokenPiece[] {
-  if (!value) return [];
-
-  const pieces: TokenPiece[] = [];
-  let cursor = 0;
-  QUICK_ADD_TOKEN_PATTERN.lastIndex = 0;
-
-  for (let match = QUICK_ADD_TOKEN_PATTERN.exec(value); match !== null; match = QUICK_ADD_TOKEN_PATTERN.exec(value)) {
-    const token = match[0];
-    const start = match.index;
-    const end = start + token.length;
-
-    if (start > cursor) {
-      pieces.push({
-        value: value.slice(cursor, start),
-        kind: "text",
-      });
-    }
-
-    pieces.push({
-      value: token,
-      kind: classifyToken(token),
-    });
-    cursor = end;
-  }
-
-  if (cursor < value.length) {
-    pieces.push({
-      value: value.slice(cursor),
-      kind: "text",
-    });
-  }
-
-  return pieces;
-}
-
-function tokenClass(kind: TokenKind): string {
-  switch (kind) {
-    case "project":
-      return "text-[#ffd2d2] bg-[#7f1d1d]";
-    case "label":
-      return "text-[#ffdff5] bg-[#6b214d]";
-    case "assignee":
-      return "text-[#fbe2ff] bg-[#5b2470]";
-    case "priority":
-      return "text-[#ffe5d5] bg-[#9a3412]";
-    case "deadline":
-      return "text-[#e3dcff] bg-[#4338ca]";
-    case "recurrence":
-      return "text-[#d8ffd4] bg-[#14532d]";
-    case "due":
-      return "text-[#ffe6cc] bg-[#92400e]";
-    default:
-      return "text-[var(--text-main)]";
-  }
-}
-
-function questTypeLabel(value: string): string {
-  switch (value.trim().toLowerCase()) {
-    case "daily":
-      return "Daily";
-    case "story":
-      return "Story";
-    case "seasonal":
-      return "Seasonal";
-    case "boss":
-      return "Boss";
-    case "failure":
-      return "Failure";
-    default:
-      return value.trim() || "Quest";
-  }
-}
-
-function humanizeToken(value: string): string {
-  const normalized = value
-    .trim()
-    .replaceAll(".", " ")
-    .replaceAll("_", " ");
-  if (!normalized) return "Unknown";
-  return normalized
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function questObjectiveLabel(objective: BoardQuestObjective): string {
-  const op = objective.op.trim().toLowerCase();
-  const count = objective.count ?? objective.target ?? 1;
-  switch (op) {
-    case "complete_task":
-      return `Complete ${count} task${count === 1 ? "" : "s"}`;
-    case "create_task":
-      return `Create ${count} task${count === 1 ? "" : "s"}`;
-    case "assign_villager":
-      return `Assign ${count} villager${count === 1 ? "" : "s"}`;
-    case "open_deck":
-      return objective.ref ? `Open ${humanizeToken(objective.ref)} ${count}x` : `Open a deck ${count}x`;
-    case "attach_modifier":
-      return `Attach ${count} modifier${count === 1 ? "" : "s"}`;
-    case "clear_zombie":
-      return `Clear ${count} zombie${count === 1 ? "" : "s"}`;
-    case "keep_zombies_below":
-      return `Keep zombies <= ${objective.target ?? objective.value ?? 0}`;
-    case "reduce_backlog_to":
-      return `Reduce backlog to <= ${objective.target ?? objective.value ?? 0}`;
-    case "process_inbox_count":
-      return `Process inbox ${count}x`;
-    default:
-      return `${humanizeToken(objective.op)} ${count}x`;
-  }
-}
-
-function questObjectiveProgressLabel(objective: BoardQuestObjective): string {
-  const op = objective.op.trim().toLowerCase();
-  if (op === "keep_zombies_below" || op === "reduce_backlog_to") {
-    return `Now ${objective.current}`;
-  }
-  const target = objective.target > 0 ? objective.target : objective.count ?? objective.value ?? 1;
-  const current = Math.max(0, objective.current);
-  return `${Math.min(current, target)}/${target}`;
-}
-
-function questRewardLabel(reward: BoardQuestReward): string {
-  const kind = reward.kind.trim().toLowerCase();
-  switch (kind) {
-    case "currency":
-      return `+${reward.amount ?? 0} ${reward.currency || "coin"}`;
-    case "xp":
-      return `+${reward.xp ?? reward.amount ?? 0} XP`;
-    case "card":
-      return `Card: ${humanizeToken(reward.cardType ?? "unknown")} x${reward.cardCount ?? 1}`;
-    case "roll_table":
-      return `Drop: ${humanizeToken(reward.tableId ?? "table")}`;
-    case "cosmetic":
-      return `Cosmetic: ${humanizeToken(reward.cardType ?? reward.tableId ?? "unlock")}`;
-    default:
-      return humanizeToken(kind || "reward");
-  }
-}
-
-function taskCompletionToastMessage(patch: unknown): string {
-  const payload = dataObject(patch);
-  const reward = dataObject(payload?.reward);
-  const villagerProgress = dataObject(payload?.villagerProgress);
-
-  const parts = ["Task completed."];
-  const rewardType = dataString(reward?.type);
-  const rewardAmount = Math.max(0, Math.floor(dataNumber(reward?.amount) ?? 0));
-  const rewardMode = dataString(reward?.mode);
-  if (rewardType && rewardAmount > 0) {
-    const rewardLabel = `${humanizeToken(rewardType)} x${rewardAmount}`;
-    parts.push(rewardMode === "spawned" ? `Reward spawned: ${rewardLabel}.` : `Reward: ${rewardLabel}.`);
-  }
-
-  const xpGained = Math.max(0, Math.floor(dataNumber(villagerProgress?.xpGained) ?? 0));
-  if (xpGained > 0) {
-    parts.push(`Villager XP +${xpGained}.`);
-  }
-
-  return parts.join(" ");
-}
-
-function notificationToneClass(tone: string | undefined): string {
-  switch ((tone ?? "").trim().toLowerCase()) {
-    case "success":
-      return "border-[rgba(70,140,98,0.34)] bg-[var(--success-bg)] text-[var(--success)]";
-    case "error":
-      return "border-[rgba(196,98,91,0.28)] bg-[var(--danger-bg)] text-[var(--danger)]";
-    default:
-      return "border-[var(--border-strong)] bg-[var(--panel-soft)] text-[var(--text-main)]";
-  }
-}
-
-function notificationToneLabel(tone: string | undefined): string {
-  switch ((tone ?? "").trim().toLowerCase()) {
-    case "success":
-      return "Success";
-    case "error":
-      return "Alert";
-    default:
-      return "Info";
-  }
-}
-
-function addChip(value: string | undefined, label: string): string | null {
-  if (!value || !value.trim()) return null;
-  return `${label}: ${value}`;
-}
-
-const scheduleDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-const notificationTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-function formatScheduleDateTime(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const raw = value.trim();
-  if (!raw) return undefined;
-
-  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-  if (ymd) {
-    const dateOnly = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
-    return scheduleDateTimeFormatter.format(dateOnly);
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return raw;
-  }
-  return scheduleDateTimeFormatter.format(parsed);
-}
-
-function formatNotificationTime(value: number | undefined): string {
-  if (!value || !Number.isFinite(value)) return "";
-  return notificationTimeFormatter.format(new Date(value));
-}
-
-function scheduleTokenFromInput(
-  scheduleInput: string | undefined,
-  kind: "due" | "deadline",
-): string | undefined {
-  const source = (scheduleInput ?? "").trim();
-  if (!source) return undefined;
-  const token = tokenizeQuickAdd(source)
-    .find((item) => item.kind === kind)
-    ?.value?.trim();
-  if (!token) return undefined;
-  if (kind === "deadline" && token.startsWith("{") && token.endsWith("}")) {
-    const inner = token.slice(1, -1).trim();
-    return inner || undefined;
-  }
-  return token;
-}
-
-function parseScheduleInstant(value: string | undefined): Date | null {
-  if (!value) return null;
-  const raw = value.trim();
-  if (!raw) return null;
-
-  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-  if (ymd) {
-    return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-}
-
-function scheduleValidationWarning(dueValue: string | undefined, deadlineValue: string | undefined): string | null {
-  const due = parseScheduleInstant(dueValue);
-  const deadline = parseScheduleInstant(deadlineValue);
-  if (!due || !deadline) return null;
-  if (deadline.getTime() >= due.getTime()) return null;
-
-  const dueLabel = formatScheduleDateTime(dueValue) ?? (dueValue ?? "").trim();
-  const deadlineLabel = formatScheduleDateTime(deadlineValue) ?? (deadlineValue ?? "").trim();
-  return `Schedule check: deadline resolves before due (${deadlineLabel} < ${dueLabel}).`;
-}
-
-function cardKind(defID: string): string {
-  const [kind] = defID.split(".");
-  return kind || "unknown";
-}
-
-function isDeckDef(defID: string): boolean {
-  return cardKind(defID) === "deck" && !defID.endsWith("_pack");
-}
-
-function isPackDef(defID: string): boolean {
-  return cardKind(defID) === "deck" && defID.endsWith("_pack");
-}
-
-function prettifyDefID(defID: string): string {
-  const normalized = defID.replaceAll(".", " ").replaceAll("_", " ").trim();
-  if (!normalized) return "Card";
-  return normalized
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function deckDisplayName(defID: string): string {
-  switch (defID) {
-    case "deck.first_day":
-      return "First Day";
-    case "deck.collect":
-      return "Collect";
-    case "deck.organization":
-      return "Organization";
-    case "deck.survival":
-      return "Survival";
-    case "deck.humble_beginnings":
-      return "Humble Beginnings";
-    case "deck.seeking_wisdom":
-      return "Seeking Wisdom";
-    case "deck.reap_sow":
-      return "Reap & Sow";
-    case "deck.armory":
-      return "Armory";
-    case "deck.explorers":
-      return "Explorers";
-    default:
-      return prettifyDefID(defID.replace(/_pack$/, ""));
-  }
-}
-
-function cardIcon(card: BoardCard | null): string {
-  if (!card) return "·";
-
-  const defID = card.defId;
-  if (defID === "resource.tree") return "🌲";
-  if (defID === "food.apple") return "🍎";
-  if (defID === "villager.basic") return "🧑";
-  if (defID === "zombie.basic") return "🧟";
-  if (defID === "loot.coin" || defID === "coin") return "🪙";
-  if (defID === "loot.paper") return "📄";
-  if (defID === "loot.ink") return "🖋️";
-  if (defID === "loot.gear") return "⚙️";
-  if (defID === "loot.parts") return "🔩";
-
-  const kind = cardKind(defID);
-  switch (kind) {
-    case "task":
-      return "📝";
-    case "deck":
-      return isPackDef(defID) ? "🎴" : "📦";
-    case "resource":
-      return "⛏️";
-    case "food":
-      return "🥫";
-    case "villager":
-      return "🧑";
-    case "zombie":
-      return "☠";
-    case "loot":
-      return "🎁";
-    default:
-      return "⬡";
-  }
-}
-
-function cardSkin(kind: string, defID: string): { shellClass: string; titleClass: string } {
-  if (isPackDef(defID)) {
-    return {
-      shellClass: "border-[#6f5d2f] bg-[#efe0b1] text-[#241a08]",
-      titleClass: "bg-[#d9c27f] text-[#2b2009]",
-    };
-  }
-
-  switch (kind) {
-    case "task":
-      return {
-        shellClass: "border-[#714f52] bg-[#e4b5b8] text-[#241417]",
-        titleClass: "bg-[#d4979c] text-[#2d1417]",
-      };
-    case "villager":
-      return {
-        shellClass: "border-[#6f5a37] bg-[#e2c593] text-[#211609]",
-        titleClass: "bg-[#d4ab6d] text-[#2b1b08]",
-      };
-    case "resource":
-      return {
-        shellClass: "border-[#4f6b49] bg-[#b5d6aa] text-[#10200c]",
-        titleClass: "bg-[#94bd87] text-[#11260d]",
-      };
-    case "food":
-      return {
-        shellClass: "border-[#77563a] bg-[#e6b074] text-[#251508]",
-        titleClass: "bg-[#d4924d] text-[#2b1809]",
-      };
-    case "zombie":
-      return {
-        shellClass: "border-[#6f3f4a] bg-[#cf9ba7] text-[#220e12]",
-        titleClass: "bg-[#bb7f8c] text-[#2a0f14]",
-      };
-    case "deck":
-      return {
-        shellClass: "border-[#4a5875] bg-[#afb9ca] text-[#121722]",
-        titleClass: "bg-[#8f9db3] text-[#111a2b]",
-      };
-    case "loot":
-      return {
-        shellClass: "border-[#6d633d] bg-[#ddd0a1] text-[#1d1807]",
-        titleClass: "bg-[#c9b774] text-[#201807]",
-      };
-    default:
-      return {
-        shellClass: "border-[#4b505a] bg-[#bbc2cc] text-[#141820]",
-        titleClass: "bg-[#9ea7b3] text-[#111722]",
-      };
-  }
-}
-
-function titleFromCard(card: BoardCard | null): string {
-  if (!card) return "Unknown";
-  const title = dataString(card.data?.title);
-  if (title) return title;
-  if (card.defId === "task.blank") return "Blank Task";
-  if (isDeckDef(card.defId)) return deckDisplayName(card.defId);
-  if (isPackDef(card.defId)) return `${deckDisplayName(card.defId)} Pack`;
-  return prettifyDefID(card.defId);
-}
-
-function subtitleFromCard(card: BoardCard | null): string {
-  if (!card) return "";
-  const kind = cardKind(card.defId);
-  if (isDeckDef(card.defId)) return "DECK";
-  if (isPackDef(card.defId)) return "PACK";
-  if (kind === "task") {
-    const priority = dataNumber(card.data?.priority);
-    if (priority && priority >= 1 && priority <= 4) {
-      return `TASK · P${priority}`;
-    }
-    return "TASK";
-  }
-  return kind.toUpperCase();
-}
-
-function descriptionFromCard(card: BoardCard | null): string {
-  if (!card) return "";
-  return dataString(card.data?.description);
-}
-
-function cardFromStack(stack: BoardStack | null, state: BoardStateResponse | null): BoardCard | null {
-  if (!stack || !state || stack.cards.length === 0) return null;
-  const topID = stack.cards[stack.cards.length - 1];
-  return state.cards[topID] ?? null;
-}
-
-function taskCardFromStack(stack: BoardStack | null, state: BoardStateResponse | null): BoardCard | null {
-  if (!stack || !state || stack.cards.length === 0) return null;
-  for (let index = stack.cards.length - 1; index >= 0; index -= 1) {
-    const card = state.cards[stack.cards[index]];
-    if (card && card.defId.startsWith("task.")) {
-      return card;
-    }
-  }
-  return null;
-}
-
-function villagerStatusForStack(stack: BoardStack | null, snapshot: BoardStateResponse | null): VillagerStatus | null {
-  if (!stack || !snapshot || stack.cards.length === 0) return null;
-
-  for (const cardID of stack.cards) {
-    const card = snapshot.cards[cardID];
-    if (!card || cardKind(card.defId) !== "villager") continue;
-
-    const villagerID = dataString(card.data?.villagerId) || stack.id;
-    const progress = snapshot.meta?.villagers?.[villagerID];
-    const stamina = Math.max(0, Math.floor(dataNumber(progress?.stamina) ?? DEFAULT_VILLAGER_STAMINA));
-    const maxStamina = Math.max(stamina, Math.floor(dataNumber(progress?.maxStamina) ?? DEFAULT_VILLAGER_STAMINA));
-    const level = Math.max(1, Math.floor(dataNumber(progress?.level) ?? 1));
-    const xp = Math.max(0, Math.floor(dataNumber(progress?.xp) ?? 0));
-    const nextLevel = Math.max(level, Math.floor(dataNumber(progress?.nextLevel) ?? level));
-    const nextLevelXP = Math.max(xp, Math.floor(dataNumber(progress?.nextLevelXP) ?? xp));
-    const xpToNextLevel = Math.max(0, Math.floor(dataNumber(progress?.xpToNextLevel) ?? 0));
-    const perks = dataStringArray(progress?.perks);
-    const name = dataString(card.data?.name) || titleFromCard(card) || "Villager";
-
-    return {
-      villagerID,
-      stackID: stack.id,
-      name,
-      stamina,
-      maxStamina,
-      level,
-      xp,
-      nextLevel,
-      nextLevelXP,
-      xpToNextLevel,
-      perks,
-    };
-  }
-
-  return null;
-}
-
-function villagerTooltipLabel(status: VillagerStatus | null): string | undefined {
-  if (!status) return undefined;
-  return `${status.name} • Stamina ${status.stamina}/${status.maxStamina} • Lv ${status.level}`;
-}
-
-function cardFromCardIDs(cardIDs: string[], state: BoardStateResponse | null): BoardCard | null {
-  if (!state || cardIDs.length === 0) return null;
-  const topID = cardIDs[cardIDs.length - 1];
-  return state.cards[topID] ?? null;
-}
-
-function splitCardIDs(cardIDs: string[], index: number): { remaining: string[]; dragged: string[] } {
-  if (cardIDs.length === 0) {
-    return {
-      remaining: [],
-      dragged: [],
-    };
-  }
-
-  const clamped = Math.max(0, Math.min(cardIDs.length - 1, Math.trunc(index)));
-  if (clamped === 0) {
-    return {
-      remaining: cardIDs.slice(1),
-      dragged: cardIDs.slice(0, 1),
-    };
-  }
-
-  return {
-    remaining: cardIDs.slice(0, clamped),
-    dragged: cardIDs.slice(clamped),
-  };
-}
-
-function snapBoardCoordinate(value: number): number {
-  return Math.round((value - BOARD_GRID_ORIGIN_OFFSET) / BOARD_GRID_SPACING) * BOARD_GRID_SPACING + BOARD_GRID_ORIGIN_OFFSET;
-}
-
-function snapBoardPoint(point: BoardPoint): BoardPoint {
-  return {
-    x: snapBoardCoordinate(point.x),
-    y: snapBoardCoordinate(point.y),
-  };
-}
-
-function trailingCardIDs(cardIDs: string[], count: number): string[] {
-  if (cardIDs.length === 0 || count <= 0) return [];
-  const normalizedCount = Math.min(cardIDs.length, Math.max(1, Math.trunc(count)));
-  return cardIDs.slice(cardIDs.length - normalizedCount);
-}
-
-function stackHeightPx(cardCount: number): number {
-  return CARD_HEIGHT + Math.max(0, cardCount - 1) * STACK_OFFSET_Y;
-}
-
-function stackBounds(pos: BoardPoint, cardCount: number): Rect {
-  return {
-    left: pos.x,
-    top: pos.y,
-    right: pos.x + CARD_WIDTH,
-    bottom: pos.y + stackHeightPx(cardCount),
-  };
-}
-
-function overlapArea(a: Rect, b: Rect): number {
-  const left = Math.max(a.left, b.left);
-  const top = Math.max(a.top, b.top);
-  const right = Math.min(a.right, b.right);
-  const bottom = Math.min(a.bottom, b.bottom);
-  const width = right - left;
-  const height = bottom - top;
-  if (width <= 0 || height <= 0) return 0;
-  return width * height;
-}
-
-function rectGap(a: Rect, b: Rect): number {
-  const dx = Math.max(0, Math.max(a.left - b.right, b.left - a.right));
-  const dy = Math.max(0, Math.max(a.top - b.bottom, b.top - a.bottom));
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-function rectsIntersect(a: WorldRect, b: WorldRect): boolean {
-  return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
-}
-
-function packDeckID(card: BoardCard): string {
-  const fromData = dataString(card.data?.deckId);
-  if (fromData) return fromData;
-  if (card.defId.endsWith("_pack")) {
-    return card.defId.slice(0, -"_pack".length);
-  }
-  return "deck.first_day";
-}
-
-function projectSlug(value: string | undefined): string {
-  const normalized = (value ?? "").trim().toLowerCase();
-  if (!normalized) return "";
-  return normalized.includes("::") ? normalized.slice(normalized.lastIndexOf("::") + 2) : normalized;
-}
-
-function normalizeBoardID(raw: string | null | undefined): string {
-  const normalized = (raw ?? "").trim();
-  if (!normalized) return DEFAULT_BOARD;
-  if (!BOARD_ID_PATTERN.test(normalized)) return DEFAULT_BOARD;
-  return normalized;
-}
-
-function boardProjectIDForBoard(boardID: string): string {
-  const normalized = normalizeBoardID(boardID);
-  if (normalized === DEFAULT_BOARD) return "board";
-  return normalized;
-}
-
-function boardIDFromName(name: string): string | null {
-  const normalized = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (!normalized) return null;
-  if (normalized === "board") return null;
-  if (normalized.startsWith("board-")) return normalized;
-  return `board-${normalized}`;
-}
-
-function boardIDFromSearch(search: string): string {
-  const params = new URLSearchParams(search);
-  return normalizeBoardID(params.get("board"));
-}
-
-function boardHref(boardID: string): string {
-  const normalized = normalizeBoardID(boardID);
-  if (normalized === DEFAULT_BOARD) return "/board";
-  return `/board?board=${encodeURIComponent(normalized)}`;
-}
-
-function boardStoreHref(boardID: string): string {
-  const normalized = normalizeBoardID(boardID);
-  if (normalized === DEFAULT_BOARD) return "/board/store";
-  return `/board/store?board=${encodeURIComponent(normalized)}`;
-}
-
-function isBoardProject(projectID: string | undefined): boolean {
-  const slug = projectSlug(projectID);
-  return slug === "board" || slug.startsWith("board-");
-}
-
-function boardIDForProject(projectID: string | undefined): string | undefined {
-  const slug = projectSlug(projectID);
-  if (!isBoardProject(slug)) return undefined;
-  if (slug === "board") return DEFAULT_BOARD;
-  return slug;
-}
-
-function matchesBoardProject(projectID: string | undefined, boardID: string): boolean {
-  const slug = projectSlug(projectID);
-  return slug === boardProjectIDForBoard(boardID).toLowerCase();
-}
-
-function boardChoicesFromProjects(projects: Project[], activeBoardID: string): BoardChoice[] {
-  const byBoardID = new Map<string, BoardChoice>();
-  byBoardID.set(DEFAULT_BOARD, {
-    boardID: DEFAULT_BOARD,
-    projectID: "board",
-    name: "Board",
-    isTeamBoard: false,
-  });
-
-  for (const project of projects) {
-    const boardID = boardIDForProject(project.id);
-    if (!boardID) continue;
-    const normalizedBoardID = normalizeBoardID(boardID);
-    const existing = byBoardID.get(normalizedBoardID);
-    if (existing) {
-      if (existing.name === "Board" && project.name.trim()) {
-        existing.name = project.name.trim();
-      }
-      existing.projectID = boardProjectIDForBoard(normalizedBoardID);
-      existing.isTeamBoard = existing.isTeamBoard || project.isTeamBoard === true;
-      continue;
-    }
-    byBoardID.set(normalizedBoardID, {
-      boardID: normalizedBoardID,
-      projectID: boardProjectIDForBoard(normalizedBoardID),
-      name: project.name.trim() || boardProjectIDForBoard(normalizedBoardID),
-      isTeamBoard: project.isTeamBoard === true,
-    });
-  }
-
-  const normalizedActive = normalizeBoardID(activeBoardID);
-  if (!byBoardID.has(normalizedActive)) {
-    byBoardID.set(normalizedActive, {
-      boardID: normalizedActive,
-      projectID: boardProjectIDForBoard(normalizedActive),
-      name: boardProjectIDForBoard(normalizedActive),
-      isTeamBoard: false,
-    });
-  }
-
-  const choices = [...byBoardID.values()];
-  choices.sort((a, b) => {
-    if (a.boardID === DEFAULT_BOARD && b.boardID !== DEFAULT_BOARD) return -1;
-    if (b.boardID === DEFAULT_BOARD && a.boardID !== DEFAULT_BOARD) return 1;
-    return a.name.localeCompare(b.name);
-  });
-  return choices;
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function ensureBoardProjectToken(text: string, projectID: string): string {
-  const trimmed = text.trim();
-  if (!trimmed) return trimmed;
-  const normalizedProject = projectID.trim();
-  if (!normalizedProject) return trimmed;
-  const projectPattern = new RegExp(`(^|\\s)#${escapeRegex(normalizedProject)}\\b`, "i");
-  if (projectPattern.test(trimmed)) {
-    return trimmed;
-  }
-  return `${trimmed} #${normalizedProject}`;
-}
-
-function normalizeLabelToken(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, "")
-    .replace(/[_\-\s]+/g, "");
-}
-
-function hasBoardLiveLabel(labels: string[] | undefined): boolean {
-  if (!labels || labels.length === 0) return false;
-  return labels.some((label) => normalizeLabelToken(label) === "boardlive");
-}
-
-function parseEmailEntries(raw: string): string[] {
-  return raw
-    .split(/[\n,;]+/g)
-    .map((value) => value.trim().toLowerCase())
-    .filter((value) => value.length > 0);
-}
-
-function sameStringArray(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] !== b[index]) return false;
-  }
-  return true;
-}
+import {
+  DEFAULT_BOARD,
+  BOARD_DEV_CONTROLS_ENABLED,
+  CARD_WIDTH,
+  CARD_HEIGHT,
+  STACK_OFFSET_Y,
+  DECK_ROW_SIDE_PADDING,
+  DECK_ROW_BOTTOM,
+  MOBILE_DECK_ROW_BOTTOM,
+  DECK_ROW_MIN_STEP,
+  DECK_ROW_MAX_STEP,
+  Z_INDEX_WORLD_MAX,
+  Z_INDEX_DRAG,
+  Z_INDEX_DRAG_OVER_COLLECT,
+  Z_INDEX_DECK_BASE,
+  MINIMAP_WIDTH,
+  MINIMAP_HEIGHT,
+  MINIMAP_PADDING,
+  DECK_ROW_MAX_VISIBLE,
+  DECK_ROW_PREFS_KEY,
+  MOBILE_BREAKPOINT,
+  MOBILE_DECK_SCALE,
+  DEFAULT_VILLAGER_STAMINA,
+  BOARD_GRID_SPACING,
+  BOARD_GRID_ORIGIN_OFFSET,
+  MERGE_GAP_DISTANCE,
+  MIN_MERGE_OVERLAP,
+  BOARD_ID_PATTERN,
+  ApiError,
+  DragState,
+  Rect,
+  StackPreview,
+  WorldRect,
+  BoardSummary,
+  VillagerStatus,
+  PanDragState,
+  TokenKind,
+  TokenPiece,
+  MiningSession,
+  DeckRowSlot,
+  BoardChoice,
+  DECK_PRIORITY_ORDER,
+  dataString,
+  dataNumber,
+  dataStringArray,
+  dataObject,
+  QUICK_ADD_TOKEN_PATTERN,
+  classifyToken,
+  tokenizeQuickAdd,
+  tokenClass,
+  questTypeLabel,
+  humanizeToken,
+  questObjectiveLabel,
+  questObjectiveProgressLabel,
+  questRewardLabel,
+  taskCompletionToastMessage,
+  notificationToneClass,
+  notificationToneLabel,
+  addChip,
+  scheduleDateTimeFormatter,
+  notificationTimeFormatter,
+  formatScheduleDateTime,
+  formatNotificationTime,
+  scheduleTokenFromInput,
+  parseScheduleInstant,
+  scheduleValidationWarning,
+} from "../features/board/board-model";
+import {
+  cardKind,
+  isDeckDef,
+  isPackDef,
+  prettifyDefID,
+  deckDisplayName,
+  cardIcon,
+  cardSkin,
+  titleFromCard,
+  subtitleFromCard,
+  descriptionFromCard,
+  cardFromStack,
+  taskCardFromStack,
+  villagerStatusForStack,
+  villagerTooltipLabel,
+  cardFromCardIDs,
+  splitCardIDs,
+  snapBoardCoordinate,
+  snapBoardPoint,
+  trailingCardIDs,
+  stackHeightPx,
+  stackBounds,
+  overlapArea,
+  rectGap,
+  rectsIntersect,
+  packDeckID,
+  projectSlug,
+  normalizeBoardID,
+  boardProjectIDForBoard,
+  boardIDFromName,
+  boardIDFromSearch,
+  boardHref,
+  boardStoreHref,
+  isBoardProject,
+  boardIDForProject,
+  matchesBoardProject,
+  boardChoicesFromProjects,
+  escapeRegex,
+  ensureBoardProjectToken,
+  normalizeLabelToken,
+  hasBoardLiveLabel,
+  parseEmailEntries,
+  sameStringArray,
+} from "../features/board/board-rules";
 
 export default function BoardRoute() {
   const api = useApi();
@@ -1106,15 +285,15 @@ export default function BoardRoute() {
     return index;
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     setBoardSelectorValue(activeBoardID());
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     writeStoredBoardSelection(activeBoardID());
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.has("board")) return;
     const storedBoardID = readStoredBoardSelection();
@@ -1187,7 +366,7 @@ export default function BoardRoute() {
   });
   const deckVisibleLimit = createMemo(() => Math.min(DECK_ROW_MAX_VISIBLE, deckOrderedDefIDs().length));
   const deckRowDefIDs = createMemo(() => deckOrderedDefIDs().slice(0, deckVisibleLimit()));
-  const deckOverflowDefIDs = createMemo(() => deckOrderedDefIDs().slice(deckVisibleLimit()));
+  const deckOverflowDefIDs = createMemo<string[]>(() => deckOrderedDefIDs().slice(deckVisibleLimit()));
   const deckRowSlots = createMemo<DeckRowSlot[]>(() => {
     const slots: DeckRowSlot[] = [];
     const byDefID = deckStackByDefID();
@@ -1488,7 +667,7 @@ export default function BoardRoute() {
     return [...byID.values()].sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     activeBoardID();
     hasPrimedExhaustedVillagers = false;
     setExhaustedVillagerIDs([]);
@@ -1496,7 +675,7 @@ export default function BoardRoute() {
     setNotificationHistoryOpen(false);
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const currentState = state();
     if (!currentState) {
       hasPrimedExhaustedVillagers = false;
@@ -1653,7 +832,7 @@ export default function BoardRoute() {
     scheduleValidationWarning(detailStoredDue(), detailStoredDeadline()),
   );
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const candidates = addableBoardMembers();
     const selected = pendingBoardMemberID();
     if (candidates.length === 0) {
@@ -1946,7 +1125,7 @@ export default function BoardRoute() {
     return Math.round(seconds * 1000);
   }
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const current = state();
     if (!current) {
       setMiningSessionsByStackID({});
@@ -1985,7 +1164,7 @@ export default function BoardRoute() {
     });
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const active = new Set(Object.keys(miningSessionsByStackID()));
 
     setMiningCompletedCyclesByStackID((existing) => {
@@ -2007,7 +1186,7 @@ export default function BoardRoute() {
     });
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const sessions = miningSessionsByStackID();
     const tick = miningTickMs();
     const completedCycles = miningCompletedCyclesByStackID();
@@ -2082,7 +1261,7 @@ export default function BoardRoute() {
     }
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const prefs = deckOrderPrefs();
     if (typeof window === "undefined") return;
     try {
@@ -2096,7 +1275,7 @@ export default function BoardRoute() {
     }
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     if (deckOverflowDefIDs().length === 0 && deckHubOpen()) {
       setDeckHubOpen(false);
     }
@@ -3360,7 +2539,7 @@ export default function BoardRoute() {
     }));
   }
 
-  onMount(() => {
+  onSettled(() => {
     void loadProjects();
     void loadTeamSettings();
 
@@ -3392,7 +2571,7 @@ export default function BoardRoute() {
     let resizeObserver: ResizeObserver | undefined;
     if (boardRef && "ResizeObserver" in window) {
       resizeObserver = new ResizeObserver(() => syncViewport());
-      resizeObserver.observe(boardRef);
+      resizeObserver.observe(boardRef!);
     }
     window.addEventListener("resize", syncViewport);
 
@@ -3729,13 +2908,13 @@ export default function BoardRoute() {
   const SYNC_INTERVAL_MS = 2 * 60 * 1000;
   let syncTimer: ReturnType<typeof setInterval> | undefined;
 
-  onMount(() => {
+  onSettled(() => {
     syncTimer = setInterval(() => {
       void loadBoard({ syncTasks: false });
     }, SYNC_INTERVAL_MS);
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const boardID = activeBoardID();
     setError("");
     setSelectedStackID(null);
@@ -3768,7 +2947,7 @@ export default function BoardRoute() {
     })();
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     if (!createBoardModalOpen()) return;
     window.setTimeout(() => createBoardInputRef?.focus(), 0);
   });
@@ -4609,7 +3788,7 @@ export default function BoardRoute() {
                       <For each={deckRowDefIDs()}>
                         {(defID, index) => (
                           <div
-                            draggable
+                            draggable="true"
                             data-testid="board-deck-hub-row-item"
                             data-def-id={defID}
                             class={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
@@ -4657,7 +3836,7 @@ export default function BoardRoute() {
                       <For each={deckOverflowDefIDs()}>
                         {(defID, index) => (
                           <div
-                            draggable
+                            draggable="true"
                             data-testid="board-deck-hub-reserve-item"
                             data-def-id={defID}
                             class={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${

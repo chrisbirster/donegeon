@@ -105,7 +105,7 @@ export default function SettingsRoute() {
                           : "app-panel-soft hover:border-[var(--border-hover)]"
                       }`}
                       onClick={() => theme.setPreference(option.value)}
-                      aria-pressed={selected()}
+                      aria-pressed={selected() ? "true" : "false"}
                       data-testid={`theme-option-${option.value}`}
                     >
                       <div class="flex items-center justify-between gap-3">

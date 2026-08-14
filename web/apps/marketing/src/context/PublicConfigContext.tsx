@@ -9,7 +9,7 @@ type PublicConfigProviderProps = ParentProps<{
 }>;
 
 export function PublicConfigProvider(props: PublicConfigProviderProps) {
-  return <PublicConfigContext.Provider value={props.config}>{props.children}</PublicConfigContext.Provider>;
+  return <PublicConfigContext value={props.config}>{props.children}</PublicConfigContext>;
 }
 
 export function usePublicConfig() {

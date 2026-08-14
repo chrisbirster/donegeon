@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, createTrackedEffect, onSettled } from "solid-js";
 
 import { hasEntitlement, workspacePlanLabel, workspacePlanProfile } from "../../../../shared/pricing/catalog";
 import AppShell from "../components/AppShell";
@@ -71,13 +71,13 @@ export default function TeamSettingsRoute() {
   const [actionError, setActionError] = createSignal("");
   const [actionNotice, setActionNotice] = createSignal("");
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const message = actionError().trim();
     if (!message) return;
     toast.error(message);
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const message = actionNotice().trim();
     if (!message) return;
     toast.success(message);
@@ -167,7 +167,7 @@ export default function TeamSettingsRoute() {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void loadSettings();
   });
 

@@ -1,4 +1,4 @@
-import { A, useParams } from "@solidjs/router";
+import { useParams } from "@solidjs/router";
 import { Show, createMemo } from "solid-js";
 
 import MarkdownContent from "../components/MarkdownContent";
@@ -21,21 +21,21 @@ export default function BlogPostRoute() {
             <p class="section-label">Blog</p>
             <h1 class="font-display text-4xl font-semibold text-white">Post not found</h1>
             <p class="mt-4 text-base leading-7 text-[var(--text-soft)]">That article is not available right now.</p>
-            <A
+            <a
               href="/blog"
               class="mt-6 inline-flex rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
             >
               Back to blog
-            </A>
+            </a>
           </section>
         }
       >
         {(entry) => (
           <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
             <article class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-              <A href="/blog" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+              <a href="/blog" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
                 ← Back to blog
-              </A>
+              </a>
 
               <div class="mt-5 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">
                 <span>{entry().category}</span>
@@ -101,13 +101,13 @@ export default function BlogPostRoute() {
                 <p class="section-label">More from the blog</p>
                 <div class="mt-4 space-y-3">
                   {relatedPosts().map((item) => (
-                    <A
+                    <a
                       href={`/blog/${item.slug}`}
                       class="block rounded-[1.1rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-4 text-sm transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.06)]"
                     >
                       <span class="block font-semibold text-white">{item.title}</span>
                       <span class="mt-1 block text-[var(--text-muted)]">{formatPublishDate(item.publishedAt)}</span>
-                    </A>
+                    </a>
                   ))}
                 </div>
               </div>

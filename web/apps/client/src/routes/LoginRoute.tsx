@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import { Show, createMemo, createSignal, onMount } from "solid-js";
+import { Show, createMemo, createSignal, onSettled } from "solid-js";
 
 import LocalBetaToggle from "../components/auth/LocalBetaToggle";
 import WaitlistCard from "../components/auth/WaitlistCard";
@@ -59,7 +59,7 @@ export default function LoginRoute() {
     }));
   }
 
-  onMount(async () => {
+  onSettled(() => void (async () => {
     try {
       const configResponse = await withTimeout(api.public.config(), 1500, { config: defaultPublicConfig() });
       const config = applyLocalOpenBetaOverride(configResponse.config, location.search);
@@ -110,7 +110,7 @@ export default function LoginRoute() {
     } catch {
       // Not logged in yet.
     }
-  });
+  })());
 
   async function submitRequest(event: SubmitEvent) {
     event.preventDefault();
@@ -121,7 +121,14 @@ export default function LoginRoute() {
         email: email().trim(),
       });
       setChallengeId(res.challengeId);
-      setDebugCode((res.debugCode || "").trim());
+      const developmentCode = (res.debugCode || "").trim();
+      setDebugCode(developmentCode);
+      // The API only returns debugCode when the backend explicitly enables the
+      // local-development auth helper. Pre-fill it so a nearly invisible code
+      // cannot leave local users stuck on the verification step.
+      if (developmentCode) {
+        setCode(developmentCode);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -174,7 +181,7 @@ export default function LoginRoute() {
 
             {!challengeId() ? (
               <form onSubmit={(event) => void submitRequest(event)}>
-                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Sign in</h1>
+                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--text-main)]">Sign in</h1>
                 <p class="mt-1 text-sm text-[var(--text-soft)]">Log in with your email to start onboarding your team.</p>
                 {inviteCode() ? (
                   <p class="mt-2 text-xs text-[var(--text-muted)]">
@@ -189,7 +196,7 @@ export default function LoginRoute() {
                   type="email"
                   required
                   value={email()}
-                  readOnly={inviteEmailLocked()}
+                  readonly={inviteEmailLocked()}
                   onInput={(event) => {
                     if (!inviteEmailLocked()) {
                       setEmail(event.currentTarget.value);
@@ -212,9 +219,9 @@ export default function LoginRoute() {
               </form>
             ) : (
               <form onSubmit={(event) => void submitVerify(event)}>
-                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Check your email</h1>
+                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--text-main)]">Check your email</h1>
                 <p class="mt-1 text-sm text-[var(--text-soft)]">
-                  We sent a code to <span class="text-white">{email()}</span>.
+                  We sent a code to <span class="font-medium text-[var(--text-main)]">{email()}</span>.
                 </p>
 
                 <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Verification Code</label>
@@ -227,10 +234,12 @@ export default function LoginRoute() {
                   class="app-input-surface mt-2 w-full rounded-lg px-3 py-2 text-center text-2xl tracking-[0.25em]"
                   placeholder="000000"
                   maxlength="6"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
                 />
                 {debugCode() ? (
-                  <p class="mt-2 rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] px-2 py-1 text-xs text-[#cfe3ff]">
-                    Dev OTP: <span class="font-semibold text-white">{debugCode()}</span>
+                  <p class="app-panel-soft mt-2 rounded-md px-2 py-1 text-xs text-[var(--text-soft)]">
+                    Dev OTP (filled automatically): <span class="font-semibold text-[var(--text-main)]">{debugCode()}</span>
                   </p>
                 ) : null}
 
@@ -246,7 +255,7 @@ export default function LoginRoute() {
                   <button
                     type="button"
                     onClick={() => setChallengeId(null)}
-                    class="mt-3 w-full text-xs text-[var(--text-muted)] transition hover:text-white"
+                    class="mt-3 w-full text-xs text-[var(--text-muted)] transition hover:text-[var(--text-main)]"
                   >
                     Use a different email
                   </button>

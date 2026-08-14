@@ -159,7 +159,8 @@ test.describe("Login + onboarding interactions", () => {
 
     expect(capturedEmail).toBe(email);
     await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
-    await expect(page.getByText("Dev OTP:")).toBeVisible();
+    await expect(page.getByText("Dev OTP (filled automatically):")).toBeVisible();
+    await expect(page.getByPlaceholder("000000")).toHaveValue("123456");
   });
 
   test("prevents submitting invalid email format on login request form", async ({ page }) => {
@@ -304,11 +305,11 @@ test.describe("Login + onboarding interactions", () => {
     await gotoLogin(page);
     await page.getByPlaceholder("you@company.com").fill("verify@example.com");
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByPlaceholder("000000").fill("123456");
+    await expect(page.getByPlaceholder("000000")).toHaveValue("123456");
     await page.getByRole("button", { name: "Verify" }).click();
 
     await expect(page).toHaveURL(/\/onboarding\?plan=personal$/);
-    await expect(page.getByRole("heading", { name: "Create your team" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Set up your workspace" })).toBeVisible();
   });
 
   test("shows error when verification form submission fails", async ({ page }) => {

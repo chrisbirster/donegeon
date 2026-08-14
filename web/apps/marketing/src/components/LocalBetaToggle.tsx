@@ -15,7 +15,7 @@ export default function LocalBetaToggle(props: LocalBetaToggleProps) {
         <div class="mt-3 flex gap-2">
           <button
             type="button"
-            aria-pressed={props.openBeta}
+            aria-pressed={props.openBeta ? "true" : "false"}
             onClick={() => props.onToggle(true)}
             class={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
               props.openBeta ? "bg-[#5bd08d] text-[#102117]" : "bg-[rgba(255,255,255,0.06)] text-[var(--text-main)]"
@@ -25,7 +25,7 @@ export default function LocalBetaToggle(props: LocalBetaToggleProps) {
           </button>
           <button
             type="button"
-            aria-pressed={!props.openBeta}
+            aria-pressed={!props.openBeta ? "true" : "false"}
             onClick={() => props.onToggle(false)}
             class={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
               !props.openBeta ? "bg-[#ff8b50] text-[#1d1108]" : "bg-[rgba(255,255,255,0.06)] text-[var(--text-main)]"

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal, createTrackedEffect } from "solid-js";
 
 import AppShell from "../components/AppShell";
 import { useApi } from "../context/ApiContext";
@@ -161,7 +161,7 @@ export default function BoardStorePage() {
     return [...groups.entries()];
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     writeStoredBoardSelection(activeBoardID());
   });
 
@@ -210,12 +210,12 @@ export default function BoardStorePage() {
     }
   }
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const boardID = activeBoardID();
     void loadStorePage(boardID);
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const params = new URLSearchParams(location.search);
     const status = params.get("store");
     if (!status) return;

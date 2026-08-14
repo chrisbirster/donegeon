@@ -1,6 +1,6 @@
-import { Navigate, Route } from "@solidjs/router";
+import { createRouter, useNavigate } from "@solidjs/router";
 import { createQuery } from "@tanstack/solid-query";
-import { Match, Switch, type Component } from "solid-js";
+import { Match, Switch, onSettled, type Component } from "solid-js";
 
 import BoardRoute from "./routes/BoardRoute";
 import BoardStoreRoute from "./routes/BoardStoreRoute";
@@ -13,18 +13,17 @@ import TeamSettingsRoute from "./routes/TeamSettingsRoute";
 import WaitlistRoute from "./routes/WaitlistRoute";
 import { useApi } from "./context/ApiContext";
 
-type ProtectedRouteProps = {
-  component: Component;
-};
+function Redirect(props: { href: string }) {
+  const navigate = useNavigate();
+  onSettled(() => navigate(props.href, { replace: true }));
+  return null;
+}
 
-function ProtectedRoute(props: ProtectedRouteProps) {
+function ProtectedRoute(props: { component: Component }) {
   const api = useApi();
   const session = createQuery(() => ({
     queryKey: ["auth", "me"],
-    queryFn: async () => {
-      const response = await api.auth.me();
-      return response.session;
-    },
+    queryFn: async () => (await api.auth.me()).session,
   }));
 
   return (
@@ -33,35 +32,31 @@ function ProtectedRoute(props: ProtectedRouteProps) {
         <main class="flex h-screen items-center justify-center text-[var(--text-soft)]">Loading...</main>
       </Match>
       <Match when={session.isError}>
-        <Navigate href="/login" />
+        <Redirect href="/login" />
       </Match>
-      <Match when={session.data && session.data.user.showOnboarding}>
-        <Navigate href="/onboarding" />
+      <Match when={session.data?.user.showOnboarding}>
+        <Redirect href="/onboarding" />
       </Match>
-      <Match when={session.data}>
-        {(() => {
-          const ComponentRef = props.component;
-          return <ComponentRef />;
-        })()}
-      </Match>
+      <Match when={session.data}>{props.component({})}</Match>
     </Switch>
   );
 }
 
-export default function App() {
-  return (
-    <>
-      <Route path="/" component={() => <Navigate href="/task/inbox" />} />
-      <Route path="/login" component={LoginRoute} />
-      <Route path="/waitlist" component={WaitlistRoute} />
-      <Route path="/onboarding" component={OnboardingRoute} />
-      <Route path="/task" component={() => <Navigate href="/task/inbox" />} />
-      <Route path="/task/*" component={() => <ProtectedRoute component={HomeRoute} />} />
-      <Route path="/board/store" component={() => <ProtectedRoute component={BoardStoreRoute} />} />
-      <Route path="/board" component={() => <ProtectedRoute component={BoardRoute} />} />
-      <Route path="/profile" component={() => <ProtectedRoute component={ProfileRoute} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={SettingsRoute} />} />
-      <Route path="/team/settings" component={() => <ProtectedRoute component={TeamSettingsRoute} />} />
-    </>
-  );
-}
+const protect = (component: Component): Component => () => <ProtectedRoute component={component} />;
+const inboxRedirect: Component = () => <Redirect href="/task/inbox" />;
+
+export const AppRouter = createRouter({
+  routes: [
+    { path: "/", component: inboxRedirect },
+    { path: "/login", component: LoginRoute },
+    { path: "/waitlist", component: WaitlistRoute },
+    { path: "/onboarding", component: OnboardingRoute },
+    { path: "/task", component: inboxRedirect },
+    { path: "/task/*rest", component: protect(HomeRoute) },
+    { path: "/board/store", component: protect(BoardStoreRoute) },
+    { path: "/board", component: protect(BoardRoute) },
+    { path: "/profile", component: protect(ProfileRoute) },
+    { path: "/settings", component: protect(SettingsRoute) },
+    { path: "/team/settings", component: protect(TeamSettingsRoute) },
+  ],
+});

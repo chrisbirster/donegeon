@@ -1,5 +1,5 @@
-import { A } from "@solidjs/router";
-import { Show, createSignal, type JSX } from "solid-js";
+import { Show, createSignal } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 import { storedBoardHref } from "../lib/boardSelection";
 import SidebarAccountCard from "./SidebarAccountCard";
@@ -72,46 +72,46 @@ export default function AppShell(props: ShellProps) {
           </Show>
           <span class={`font-display text-sm font-semibold tracking-[0.08em] ${boardTone() ? "text-white" : "text-[var(--text-main)]"}`}>Donegeon</span>
           <nav class="hidden items-center gap-1 text-xs md:flex">
-            <A
+            <a
               href="/task/inbox"
               class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "task")}`}
             >
               Tasks
-            </A>
-            <A
+            </a>
+            <a
               href={boardHref()}
               class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "board")}`}
             >
               Board
-            </A>
-            <A
+            </a>
+            <a
               href="/profile"
               class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "profile")}`}
             >
               Profile
-            </A>
-            <A
+            </a>
+            <a
               href="/team/settings"
               class={`rounded-full px-3 py-1.5 transition ${navItemClass(props.activeView === "team")}`}
             >
               Team
-            </A>
+            </a>
           </nav>
         </div>
 
         <div class="flex items-center gap-2">
-          <A
+          <a
             href="/profile"
             class={`rounded-full px-3 py-1 text-xs transition md:hidden ${mobileActionClass(props.activeView === "profile")}`}
           >
             Profile
-          </A>
-          <A
+          </a>
+          <a
             href="/team/settings"
             class={`rounded-full px-3 py-1 text-xs transition md:hidden ${mobileActionClass(props.activeView === "team")}`}
           >
             Team
-          </A>
+          </a>
           {props.headerRight}
         </div>
       </header>
@@ -128,20 +128,20 @@ export default function AppShell(props: ShellProps) {
         }`}
       >
         <div class="grid grid-cols-2 gap-1">
-          <A
+          <a
             href="/task/inbox"
             class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${bottomNavItemClass(props.activeView === "task")}`}
           >
             <span class="text-sm">✓</span>
             <span>Tasks</span>
-          </A>
-          <A
+          </a>
+          <a
             href={boardHref()}
             class={`flex flex-col items-center justify-center rounded-lg px-2 py-1 text-[11px] transition ${bottomNavItemClass(props.activeView === "board")}`}
           >
             <span class="text-sm">▦</span>
             <span>Board</span>
-          </A>
+          </a>
         </div>
       </nav>
 

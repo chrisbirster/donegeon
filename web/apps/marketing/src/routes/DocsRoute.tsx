@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import { For } from "solid-js";
 
 import MarketingLayout from "../components/MarketingLayout";
@@ -46,7 +45,7 @@ export default function DocsRoute() {
               <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 <For each={items}>
                   {(entry) => (
-                    <A
+                    <a
                       href={`/docs/${entry.slug}`}
                       class="rounded-[1.8rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)] transition hover:border-[#466684] hover:bg-[rgba(15,24,35,0.9)]"
                     >
@@ -61,7 +60,7 @@ export default function DocsRoute() {
                       </div>
                       <h3 class="mt-4 font-display text-2xl font-semibold text-white">{entry.title}</h3>
                       <p class="mt-3 text-sm leading-7 text-[var(--text-soft)]">{entry.excerpt}</p>
-                    </A>
+                    </a>
                   )}
                 </For>
               </div>

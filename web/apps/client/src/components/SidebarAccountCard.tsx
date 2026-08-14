@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
 import { Show, createMemo, createSignal } from "solid-js";
 
@@ -75,7 +74,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
             class="app-panel mt-2 overflow-hidden rounded-xl"
             data-testid="appshell-account-menu"
           >
-            <A
+            <a
               href="/settings"
               class="block border-b border-[var(--border-strong)] px-3 py-2 text-sm text-[var(--text-main)] transition hover:bg-[rgba(255,255,255,0.04)]"
               onClick={() => {
@@ -85,8 +84,8 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
               data-testid="appshell-account-settings"
             >
               Settings
-            </A>
-            <A
+            </a>
+            <a
               href="/profile"
               class="block border-b border-[var(--border-strong)] px-3 py-2 text-sm text-[var(--text-main)] transition hover:bg-[rgba(255,255,255,0.04)]"
               onClick={() => {
@@ -96,7 +95,7 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
               data-testid="appshell-account-quest-log"
             >
               Quest Log
-            </A>
+            </a>
             <button
               type="button"
               class="block w-full px-3 py-2 text-left text-sm text-[var(--danger)] transition hover:bg-[var(--danger-bg)]"
