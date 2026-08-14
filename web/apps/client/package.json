@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint not configured'",
+    "test:unit": "bun test tests/unit",
     "test:e2e": "playwright test",
     "test:e2e:screenshots": "PW_SCREENSHOT_MODE=on playwright test",
     "test:e2e:headed": "playwright test --headed",
