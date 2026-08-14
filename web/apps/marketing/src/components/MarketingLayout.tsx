@@ -149,7 +149,10 @@ export default function MarketingLayout(props: ParentProps) {
                 View plans
               </a>
 
-              <Show when={checked()}>
+              <Show
+                when={checked()}
+                fallback={<a href={signInHref()} class={style18}>{publicConfig().openBeta ? "Sign in" : "Join waitlist"}</a>}
+              >
                 <Show
                   when={user()}
                   fallback={
@@ -256,6 +259,15 @@ export default function MarketingLayout(props: ParentProps) {
             </div>
 
             <div>
+              <p class={style38}>Company</p>
+              <div class={style39}>
+                <a href="mailto:hello@donegeon.com">About</a>
+                <a href="mailto:hello@donegeon.com?subject=Careers">Careers</a>
+                <a href="mailto:hello@donegeon.com">Contact</a>
+              </div>
+            </div>
+
+            <div>
               <p class={style38}>Support</p>
               <div class={style39}>
                 <a href="mailto:hello@donegeon.com">hello@donegeon.com</a>
@@ -263,6 +275,10 @@ export default function MarketingLayout(props: ParentProps) {
                 <span>Support for teams, trials, and enterprise rollout.</span>
               </div>
             </div>
+          </div>
+          <div class={style40}>
+            <span>© 2026 Donegeon, Inc. All rights reserved.</span>
+            <div class={style41}><a href="mailto:hello@donegeon.com?subject=Privacy">Privacy</a><a href="mailto:hello@donegeon.com?subject=Terms">Terms</a><a href="mailto:hello@donegeon.com?subject=Security">Security</a><span>Status</span></div>
           </div>
         </footer>
         <LocalBetaToggle openBeta={publicConfig().openBeta} onToggle={setLocalOpenBeta} />
@@ -437,9 +453,9 @@ transition-property: color, background-color, border-color, outline-color, text-
 `;
 
 const style15 = css`
-background: linear-gradient(135deg, rgba(255,138,0,.22), rgba(255,32,114,.12));
-color: #ffb15c;
-box-shadow: inset 0 -2px #ff5a20, 0 0 18px rgba(255,90,32,.16);
+background: linear-gradient(135deg, rgba(193,60,255,.16), rgba(239,58,215,.08));
+color: #f1d7ff;
+box-shadow: inset 0 -2px #d13cff, 0 0 18px rgba(193,60,255,.14);
 `;
 
 const style16 = css`
@@ -488,21 +504,21 @@ transition-property: color, background-color, border-color, outline-color, text-
 
 const style18 = css`
 display: inline-flex;
-border-radius: calc(infinity * 1px);
-background-color: var(--accent);
+border-radius: 5px;
+background: linear-gradient(135deg,#a51be8,#7211c2);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 2);
 font-size: var(--text-sm);
   line-height: var(--tw-leading, var(--text-sm--line-height));
 --tw-font-weight: var(--font-weight-semibold);
   font-weight: var(--font-weight-semibold);
-color: #1d1108;
+color: #fff;
 transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
   transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
   transition-duration: var(--tw-duration, var(--default-transition-duration));
 &:hover {
     @media (hover: hover) {
-      background-color: #ff9f6d;
+      filter: brightness(1.12);
     }
   }
 `;
@@ -600,7 +616,9 @@ border-radius: 2rem;
 border-style: var(--tw-border-style);
   border-width: 1px;
 border-color: var(--border-strong);
-background-image: linear-gradient(135deg,rgba(255,139,80,0.12),rgba(103,187,255,0.07) 55%,rgba(138,228,163,0.08));
+background-image: linear-gradient(90deg,rgba(23,8,39,.96),rgba(13,18,35,.78)),url('/images/donegeon-hero-city.png');
+background-size: cover;
+background-position: center 62%;
 padding: calc(var(--spacing) * 8);
 --tw-shadow: 0 30px 60px var(--tw-shadow-color, rgba(0,0,0,0.28));
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -655,20 +673,20 @@ gap: calc(var(--spacing) * 3);
 const style32 = css`
 display: inline-flex;
 border-radius: calc(infinity * 1px);
-background-color: var(--accent);
+background: linear-gradient(135deg,#a51be8,#7211c2);
 padding-inline: calc(var(--spacing) * 5);
 padding-block: calc(var(--spacing) * 3);
 font-size: var(--text-sm);
   line-height: var(--tw-leading, var(--text-sm--line-height));
 --tw-font-weight: var(--font-weight-semibold);
   font-weight: var(--font-weight-semibold);
-color: #1d1108;
+color: #fff;
 transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
   transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
   transition-duration: var(--tw-duration, var(--default-transition-duration));
 &:hover {
     @media (hover: hover) {
-      background-color: #ff9f6d;
+      filter: brightness(1.12);
     }
   }
 `;
@@ -717,7 +735,7 @@ padding-block: calc(var(--spacing) * 10);
 font-size: var(--text-sm);
   line-height: var(--tw-leading, var(--text-sm--line-height));
 @media (width >= 48rem) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: 1.35fr repeat(4, minmax(0, 1fr));
   }
 @media (width >= 48rem) {
     padding-inline: calc(var(--spacing) * 10);
@@ -754,4 +772,12 @@ display: flex;
 flex-direction: column;
 gap: calc(var(--spacing) * 2);
 color: var(--text-muted);
+`;
+
+const style40 = css`
+margin-inline:auto;display:flex;max-width:var(--container-6xl);align-items:center;justify-content:space-between;gap:20px;border-top:1px solid rgba(255,255,255,.08);padding:18px 24px;color:var(--text-muted);font-size:.68rem;@media(width>=48rem){padding-inline:40px}@media(width<600px){align-items:flex-start;flex-direction:column}
+`;
+
+const style41 = css`
+display:flex;flex-wrap:wrap;gap:18px;
 `;
