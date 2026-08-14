@@ -24,6 +24,7 @@ This repo now keeps large YAML specs split by domain. Use this page as the entry
 
 - `docs/specs/quickadd/01-core.yaml`
 - `docs/specs/quickadd/02-projects-and-labels.yaml`
+- `docs/specs/quickadd/02b-projects-and-labels.yaml`
 - `docs/specs/quickadd/03-metadata.yaml`
 - `docs/specs/quickadd/04-deadlines.yaml`
 - `docs/specs/quickadd/05-relative-due.yaml`
