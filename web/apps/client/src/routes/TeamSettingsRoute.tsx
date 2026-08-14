@@ -1,88 +1,37 @@
 import { For, Show, createMemo, createSignal, createTrackedEffect, onSettled } from "solid-js";
-
 import { hasEntitlement, workspacePlanLabel, workspacePlanProfile } from "../../../../shared/pricing/catalog";
 import AppShell from "../components/AppShell";
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
+import { formatDate, formatRoleLabel, parseInviteEmails, roleBadgeClass } from "../features/team/team-settings-model";
 import { type TeamInvitation, type TeamMember, type TeamSettings } from "../server/api";
-
-function parseInviteEmails(raw: string): string[] {
-  return raw
-    .split(/[\n,;]+/g)
-    .map((value) => value.trim().toLowerCase())
-    .filter((value) => value.length > 0);
-}
-
-function formatRoleLabel(role: string): string {
-  if (role === "owner") return "Owner";
-  if (role === "admin") return "Admin";
-  if (role === "editor" || role === "member") return "Editor";
-  if (role === "reader") return "Reader";
-  return "Unknown";
-}
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-function formatDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return dateFormatter.format(parsed);
-}
-
-function roleBadgeClass(role: string): string {
-  switch (role) {
-    case "owner":
-      return "border-[rgba(80,110,196,0.28)] bg-[rgba(80,110,196,0.12)] text-[var(--text-soft)]";
-    case "admin":
-      return "border-[rgba(72,133,166,0.28)] bg-[rgba(72,133,166,0.12)] text-[var(--text-soft)]";
-    case "editor":
-    case "member":
-      return "border-[rgba(71,138,91,0.28)] bg-[rgba(71,138,91,0.12)] text-[var(--text-soft)]";
-    case "reader":
-      return "border-[rgba(123,112,168,0.28)] bg-[rgba(123,112,168,0.12)] text-[var(--text-soft)]";
-    default:
-      return "border-[var(--border-strong)] bg-[var(--panel-soft)] text-[var(--text-soft)]";
-  }
-}
-
 export default function TeamSettingsRoute() {
   const api = useApi();
   const toast = useToast();
   const [settings, setSettings] = createSignal<TeamSettings | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal("");
-
   const [teamNameInput, setTeamNameInput] = createSignal("");
   const [saveTeamLoading, setSaveTeamLoading] = createSignal(false);
-
   const [inviteInput, setInviteInput] = createSignal("");
   const [inviteRole, setInviteRole] = createSignal<"admin" | "editor" | "reader">("editor");
   const [inviteLoading, setInviteLoading] = createSignal(false);
-
   const [roleSavingByUserID, setRoleSavingByUserID] = createSignal<Record<string, boolean>>({});
   const [removingUserID, setRemovingUserID] = createSignal<string | null>(null);
   const [cancelingInviteCode, setCancelingInviteCode] = createSignal<string | null>(null);
   const [billingLoading, setBillingLoading] = createSignal(false);
-
   const [actionError, setActionError] = createSignal("");
   const [actionNotice, setActionNotice] = createSignal("");
-
   createTrackedEffect(() => {
     const message = actionError().trim();
     if (!message) return;
     toast.error(message);
   });
-
   createTrackedEffect(() => {
     const message = actionNotice().trim();
     if (!message) return;
     toast.success(message);
   });
-
   const canManage = createMemo(() => settings()?.canManage ?? false);
   const currentRole = createMemo(() => settings()?.currentUserRole ?? "reader");
   const team = createMemo(() => settings()?.team ?? null);
@@ -125,7 +74,6 @@ export default function TeamSettingsRoute() {
   const hasPaidSubscription = createMemo(
     () => currentPlanFamily() === "pro" && currentBillingState() === "paid" && !!team()?.stripeSubscriptionId,
   );
-
   const roleSummary = createMemo(() => {
     const role = currentRole();
     if (role === "owner") {
@@ -139,7 +87,6 @@ export default function TeamSettingsRoute() {
     }
     return "Reader access: view invited team boards with limited editing controls.";
   });
-
   const planSummary = createMemo(() => {
     const activeTeam = team();
     if (!activeTeam) return "";
@@ -152,7 +99,6 @@ export default function TeamSettingsRoute() {
     }
     return "Free workspace: core task and board workflow stay available, but team admin actions are frozen until the workspace returns to Pro.";
   });
-
   async function loadSettings() {
     setLoading(true);
     setError("");
@@ -166,11 +112,9 @@ export default function TeamSettingsRoute() {
       setLoading(false);
     }
   }
-
   onSettled(() => {
     void loadSettings();
   });
-
   async function saveTeamName(event: SubmitEvent) {
     event.preventDefault();
     if (!canManage()) {
@@ -181,7 +125,6 @@ export default function TeamSettingsRoute() {
       setActionError("Team profile changes are unavailable on Free. Upgrade this workspace to Pro to continue.");
       return;
     }
-
     const nextName = teamNameInput().trim();
     if (!nextName) {
       setActionError("Team name is required.");
@@ -444,7 +387,6 @@ export default function TeamSettingsRoute() {
             <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Members</p>
             <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.members.length || 0}</p>
           </section>
-
           <section class={mobileSidebarSectionClass}>
             <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">Pending Invites</p>
             <p class="mt-2 text-sm font-semibold text-[var(--text-main)]">{settings()?.invitations.length || 0}</p>
@@ -468,7 +410,6 @@ export default function TeamSettingsRoute() {
               <a href="#team-members" class={secondaryButtonSmallClass}>Members & Invites</a>
             </div>
           </header>
-
           <Show when={!loading() && settings()}>
             <section class={sectionClass}>
               <div class="flex items-center justify-between gap-3">
@@ -477,7 +418,6 @@ export default function TeamSettingsRoute() {
                   {currentPlanBadge()} / {formatRoleLabel(currentRole())}
                 </span>
               </div>
-
               <div class="mt-3 grid gap-3 md:grid-cols-3">
                 <article class={subCardClass}>
                   <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Personal Board</p>
@@ -486,20 +426,17 @@ export default function TeamSettingsRoute() {
                     Every user starts on Free for their personal Donegeon board after login.
                   </p>
                 </article>
-
                 <article class={highlightCardClass}>
                   <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-text)]">Active Team Workspace</p>
                   <p class="mt-1 text-sm font-medium text-[var(--text-main)]">{settings()!.team.name}</p>
                   <p class="mt-2 text-xs text-[var(--text-soft)]">{roleSummary()}</p>
                 </article>
-
                 <article class={subCardClass}>
                   <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Plan Scope</p>
                   <p class="mt-1 text-sm font-medium text-[var(--text-main)]">{currentPlan()}</p>
                   <p class="mt-2 text-xs text-[var(--text-soft)]">{planSummary()}</p>
                 </article>
               </div>
-
               <div class={`mt-3 ${infoBannerClass}`}>
                 Team board access is role-based per workspace. Billing and team-admin actions are limited to owner/admin accounts.
               </div>
@@ -510,23 +447,18 @@ export default function TeamSettingsRoute() {
               </Show>
             </section>
           </Show>
-
           <Show when={loading()}>
             <p class={infoBannerClass}>Loading team settings...</p>
           </Show>
-
           <Show when={error()}>
             <p class={errorBannerClass}>{error()}</p>
           </Show>
-
           <Show when={actionError()}>
             <p class={errorBannerClass}>{actionError()}</p>
           </Show>
-
           <Show when={actionNotice()}>
             <p class={successBannerClass}>{actionNotice()}</p>
           </Show>
-
           <Show when={!loading() && settings()}>
             <>
               <section id="plan" class={sectionClass}>
@@ -559,7 +491,6 @@ export default function TeamSettingsRoute() {
                       {freeCardLabel()}
                     </button>
                   </article>
-
                   <article class={highlightCardClass}>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--accent-text)]">Pro</p>
                     <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">$12/user/mo</p>
@@ -643,7 +574,6 @@ export default function TeamSettingsRoute() {
                       </div>
                     </Show>
                   </article>
-
                   <article class={subCardClass}>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Enterprise</p>
                     <p class="mt-1 text-xl font-semibold text-[var(--text-main)]">Custom</p>
@@ -674,7 +604,6 @@ export default function TeamSettingsRoute() {
                   </p>
                 </Show>
               </section>
-
               <section id="team-profile" class={sectionClass}>
                 <div class="flex items-center justify-between gap-3">
                   <h2 class={sectionHeadingClass}>Team Profile</h2>
@@ -706,13 +635,11 @@ export default function TeamSettingsRoute() {
                   </p>
                 </Show>
               </section>
-
               <section id="team-members" class={sectionClass}>
                 <div class="flex items-center justify-between">
                   <h2 class={sectionHeadingClass}>Team Members</h2>
                   <span class="text-xs text-[var(--text-soft)]">{settings()!.members.length} member(s)</span>
                 </div>
-
                 <div class="mt-3 space-y-2">
                   <For each={settings()!.members}>
                     {(member) => {
@@ -721,7 +648,6 @@ export default function TeamSettingsRoute() {
                         canManageRoles() && !isCurrentUser() && member.role !== "owner";
                       const canRemove = () =>
                         canManageRoles() && !isCurrentUser() && member.role !== "owner";
-
                       return (
                         <article class={subCardClass}>
                           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -730,12 +656,10 @@ export default function TeamSettingsRoute() {
                               <p class="truncate text-xs text-[var(--text-soft)]">{member.email}</p>
                               <p class="mt-1 text-[11px] text-[var(--text-dim)]">Joined {formatDate(member.createdAt)}</p>
                             </div>
-
                             <div class="flex flex-wrap items-center gap-2">
                               <span class={`rounded-md border px-2 py-0.5 text-[11px] ${roleBadgeClass(member.role)}`}>
                                 {formatRoleLabel(member.role)}
                               </span>
-
                               <Show when={canEditMemberRole()}>
                                 <select
                                   value={member.role}
@@ -755,7 +679,6 @@ export default function TeamSettingsRoute() {
                                   <option value="reader">Reader</option>
                                 </select>
                               </Show>
-
                               <Show when={canRemove()}>
                                 <button
                                   type="button"
@@ -766,7 +689,6 @@ export default function TeamSettingsRoute() {
                                   {removingUserID() === member.userId ? "Removing..." : "Remove"}
                                 </button>
                               </Show>
-
                               <Show when={isCurrentUser()}>
                                 <span class={chipClass}>
                                   You
@@ -785,13 +707,11 @@ export default function TeamSettingsRoute() {
                   </p>
                 </Show>
               </section>
-
               <section class={sectionClass}>
                 <div class="flex items-center justify-between gap-3">
                   <h2 class={sectionHeadingClass}>Invitations</h2>
                   <span class="text-xs text-[var(--text-soft)]">{settings()!.invitations.length} pending</span>
                 </div>
-
                 <form class="mt-3" onSubmit={(event) => void inviteMembers(event)}>
                   <label class="block text-xs uppercase tracking-[0.12em] text-[var(--text-dim)]">
                     Invite role
@@ -834,7 +754,6 @@ export default function TeamSettingsRoute() {
                     Invitations are frozen on Free. Existing members keep access, but new invites require Pro.
                   </p>
                 </Show>
-
                 <div class="mt-4 space-y-2">
                   <Show
                     when={settings()!.invitations.length > 0}
@@ -847,7 +766,6 @@ export default function TeamSettingsRoute() {
                             <p class="truncate text-sm text-[var(--text-main)]">{invitation.email}</p>
                             <p class="text-[11px] text-[var(--text-dim)]">Invited {formatDate(invitation.createdAt)}</p>
                           </div>
-
                           <div class="flex flex-wrap items-center gap-2">
                             <span class={`rounded-md border px-2 py-0.5 text-[11px] ${roleBadgeClass(invitation.role)}`}>
                               {formatRoleLabel(invitation.role)}
