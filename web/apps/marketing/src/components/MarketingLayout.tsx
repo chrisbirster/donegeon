@@ -1,5 +1,6 @@
-import { A, useLocation } from "@solidjs/router";
-import { type ParentProps, Show, createSignal, onMount } from "solid-js";
+import { css } from "@linaria/core";
+import { useLocation } from "@solidjs/router";
+import { type ParentProps, Show, createSignal, onSettled } from "solid-js";
 
 import LocalBetaToggle from "./LocalBetaToggle";
 import { PublicConfigProvider } from "../context/PublicConfigContext";
@@ -40,7 +41,7 @@ export default function MarketingLayout(props: ParentProps) {
   const [publicConfig, setPublicConfig] = createSignal(applyLocalOpenBetaOverride(defaultPublicConfig()));
   const [configChecked, setConfigChecked] = createSignal(import.meta.env.DEV);
 
-  onMount(async () => {
+  onSettled(() => void (async () => {
     void (async () => {
       try {
         const response = await fetch(`${APP_URL}/api/public/config`);
@@ -78,7 +79,7 @@ export default function MarketingLayout(props: ParentProps) {
     } finally {
       setChecked(true);
     }
-  });
+  })());
 
   function setLocalOpenBeta(next: boolean) {
     writeLocalOpenBetaOverride(next);
@@ -95,15 +96,15 @@ export default function MarketingLayout(props: ParentProps) {
     publicConfig().openBeta ? planHref("pro_trial") : waitlistHref({ source: "marketing-footer", plan: "pro_trial" });
 
   return (
-    <div class="min-h-screen bg-[radial-gradient(circle_at_top,#163049_0%,#09131c_40%,#04070c_100%)] text-[var(--text-main)]">
-      <div class="surface-grid min-h-screen">
-        <Show when={configChecked() && !publicConfig().openBeta}>
-          <div class="border-b border-[rgba(255,255,255,0.08)] bg-[rgba(255,139,80,0.14)]">
-            <div class="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-3 text-sm text-[#ffe0c8] md:flex-row md:items-center md:justify-between md:px-10">
-              <p>Open beta starts {publicConfig().openBetaStartsLabel}. Join the waitlist for early access.</p>
+    <div class={style1}>
+      <div class={style2}>
+        <Show when={configChecked()}>
+          <div class={style3}>
+            <div class={style4}>
+              <p>☆ {publicConfig().openBeta ? "Open beta is live. Assemble your crew and get moving." : `Open beta starts ${publicConfig().openBetaStartsLabel}. Join the waitlist for early access.`}</p>
               <a
                 href={waitlistHref({ source: "marketing-banner" })}
-                class="font-semibold text-white transition hover:text-[#ffe0c8]"
+                class={style5}
               >
                 Join the waitlist
               </a>
@@ -111,42 +112,42 @@ export default function MarketingLayout(props: ParentProps) {
           </div>
         </Show>
 
-        <header class="sticky top-0 z-40 border-b border-[var(--border-strong)] bg-[rgba(6,10,16,0.78)] backdrop-blur-xl">
-          <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4 md:px-10">
-            <div class="flex items-center gap-4">
-              <A href="/" class="flex items-center gap-3">
-                <span class="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#355471] bg-[#0f1d2c] text-sm font-semibold text-[#ffd8ad] shadow-[0_12px_24px_rgba(0,0,0,0.28)]">
+        <header class={style6}>
+          <div class={style7}>
+            <div class={style8}>
+              <a href="/" class={style9}>
+                <span class={style10}>
                   D
                 </span>
                 <div>
-                  <p class="font-display text-lg font-semibold tracking-[0.08em] text-white">Donegeon</p>
-                  <p class="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Task management for teams</p>
+                  <p class={style11}>Donegeon</p>
+                  <p class={style12}>Task management for teams</p>
                 </div>
-              </A>
+              </a>
             </div>
 
-            <nav class="hidden items-center gap-2 md:flex">
+            <nav class={style13}>
               {NAV_ITEMS.map((item) => (
-                <A
+                <a
                   href={item.href}
-                  class={`rounded-full px-3 py-2 text-sm transition ${
+                  class={` ${style14} ${
                     isActivePath(location.pathname, item.href)
-                      ? "bg-[rgba(255,139,80,0.14)] text-[#ffd7b7]"
-                      : "text-[var(--text-muted)] hover:bg-[rgba(255,255,255,0.04)] hover:text-white"
+                      ? style15
+                      : style16
                   }`}
                 >
                   {item.label}
-                </A>
+                </a>
               ))}
             </nav>
 
-            <div class="flex items-center gap-3">
-              <A
+            <div class={style9}>
+              <a
                 href="/pricing"
-                class="hidden rounded-full border border-[var(--border-strong)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-sm text-[var(--text-main)] transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.06)] md:inline-flex"
+                class={style17}
               >
                 View plans
-              </A>
+              </a>
 
               <Show when={checked()}>
                 <Show
@@ -154,7 +155,7 @@ export default function MarketingLayout(props: ParentProps) {
                   fallback={
                     <a
                       href={signInHref()}
-                      class="inline-flex rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
+                      class={style18}
                     >
                       {publicConfig().openBeta ? "Sign in" : "Join waitlist"}
                     </a>
@@ -164,7 +165,7 @@ export default function MarketingLayout(props: ParentProps) {
                     <a
                       href={APP_URL}
                       title={currentUser().name || currentUser().email}
-                      class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#ff8b50] text-sm font-bold text-[#180d05] shadow-[0_12px_24px_rgba(255,139,80,0.2)] transition hover:bg-[#ffa16f]"
+                      class={style19}
                     >
                       {userInitials(currentUser())}
                     </a>
@@ -174,51 +175,51 @@ export default function MarketingLayout(props: ParentProps) {
             </div>
           </div>
 
-          <div class="border-t border-[rgba(255,255,255,0.04)] md:hidden">
-            <div class="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-6 py-3 md:px-10">
+          <div class={style20}>
+            <div class={style21}>
               {NAV_ITEMS.map((item) => (
-                <A
+                <a
                   href={item.href}
-                  class={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm transition ${
+                  class={` ${style22} ${
                     isActivePath(location.pathname, item.href)
-                      ? "bg-[rgba(255,139,80,0.14)] text-[#ffd7b7]"
-                      : "text-[var(--text-muted)]"
+                      ? style15
+                      : style23
                   }`}
                 >
                   {item.label}
-                </A>
+                </a>
               ))}
             </div>
           </div>
         </header>
 
         <PublicConfigProvider config={publicConfig()}>
-          <main class="mx-auto max-w-6xl px-6 py-10 md:px-10 md:py-14">{props.children}</main>
+          <main class={style24}>{props.children}</main>
         </PublicConfigProvider>
 
-        <section class="mx-auto max-w-6xl px-6 pb-8 md:px-10 md:pb-12">
-          <div class="overflow-hidden rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(135deg,rgba(255,139,80,0.12),rgba(103,187,255,0.07)_55%,rgba(138,228,163,0.08))] p-8 shadow-[0_30px_60px_rgba(0,0,0,0.28)]">
-            <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <section class={style25}>
+          <div class={style26}>
+            <div class={style27}>
               <div>
-                <p class="section-label">Bring more focus, energy, and visibility</p>
-                <h2 class="font-display text-3xl font-semibold text-white md:text-4xl">
+                <p class={style28}>Bring more focus, energy, and visibility</p>
+                <h2 class={style29}>
                   Bring more focus, energy, and visibility to your team's work.
                 </h2>
-                <p class="mt-3 max-w-2xl text-base text-[var(--text-soft)] md:text-lg">
+                <p class={style30}>
                   Start on Free, add collaboration when it matters, or talk to us about a broader rollout.
                 </p>
               </div>
 
-              <div class="flex flex-wrap gap-3">
+              <div class={style31}>
                 <a
                   href={primaryCtaHref()}
-                  class="inline-flex rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
+                  class={style32}
                 >
                   {publicConfig().openBeta ? "Start Free" : "Join waitlist"}
                 </a>
                 <a
                   href={secondaryCtaHref()}
-                  class="inline-flex rounded-full border border-[var(--border-strong)] bg-[rgba(255,255,255,0.05)] px-5 py-3 text-sm font-semibold text-[var(--text-main)] transition hover:border-[#4a6c8b] hover:bg-[rgba(255,255,255,0.08)]"
+                  class={style33}
                 >
                   {publicConfig().openBeta ? "Start Pro Trial" : "Join Pro waitlist"}
                 </a>
@@ -227,36 +228,36 @@ export default function MarketingLayout(props: ParentProps) {
           </div>
         </section>
 
-        <footer class="border-t border-[var(--border-strong)] bg-[rgba(4,8,12,0.82)]">
-          <div class="mx-auto grid max-w-6xl gap-8 px-6 py-10 text-sm md:grid-cols-4 md:px-10">
+        <footer class={style34}>
+          <div class={style35}>
             <div>
-              <p class="font-display text-lg font-semibold text-white">Donegeon</p>
-              <p class="mt-3 max-w-xs text-[var(--text-muted)]">
+              <p class={style36}>Donegeon</p>
+              <p class={style37}>
                 Task management for teams that want clarity, momentum, and a little more fun.
               </p>
             </div>
 
             <div>
-              <p class="font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Product</p>
-              <div class="mt-3 flex flex-col gap-2 text-[var(--text-muted)]">
-                <A href="/features">Features</A>
-                <A href="/pricing">Pricing</A>
+              <p class={style38}>Product</p>
+              <div class={style39}>
+                <a href="/features">Features</a>
+                <a href="/pricing">Pricing</a>
                 <a href={APP_URL}>Open app</a>
               </div>
             </div>
 
             <div>
-              <p class="font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Resources</p>
-              <div class="mt-3 flex flex-col gap-2 text-[var(--text-muted)]">
-                <A href="/docs">Documentation</A>
-                <A href="/blog">Blog</A>
+              <p class={style38}>Resources</p>
+              <div class={style39}>
+                <a href="/docs">Documentation</a>
+                <a href="/blog">Blog</a>
                 <a href={PLAN_LINKS.enterprise}>Enterprise contact</a>
               </div>
             </div>
 
             <div>
-              <p class="font-semibold uppercase tracking-[0.12em] text-[#9db8d3]">Support</p>
-              <div class="mt-3 flex flex-col gap-2 text-[var(--text-muted)]">
+              <p class={style38}>Support</p>
+              <div class={style39}>
                 <a href="mailto:hello@donegeon.com">hello@donegeon.com</a>
                 <a href="mailto:sales@donegeon.com">sales@donegeon.com</a>
                 <span>Support for teams, trials, and enterprise rollout.</span>
@@ -269,3 +270,488 @@ export default function MarketingLayout(props: ParentProps) {
     </div>
   );
 }
+
+
+const style1 = css`
+min-height: 100vh;
+background: #05040c;
+color: var(--text-main);
+`;
+
+const style2 = css`
+min-height: 100vh;
+`;
+
+const style3 = css`
+border-bottom: 1px solid rgba(255,32,114,.24);
+background: #070812;
+`;
+
+const style4 = css`
+margin-inline: auto;
+display: flex;
+max-width: var(--container-6xl);
+flex-direction: column;
+gap: calc(var(--spacing) * 2);
+padding-inline: calc(var(--spacing) * 6);
+padding-block: calc(var(--spacing) * 3);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: #f2d6a0;
+font-family: "Bebas Neue", sans-serif;
+letter-spacing: .12em;
+text-transform: uppercase;
+@media (width >= 48rem) {
+    flex-direction: row;
+  }
+@media (width >= 48rem) {
+    align-items: center;
+  }
+@media (width >= 48rem) {
+    justify-content: space-between;
+  }
+@media (width >= 48rem) {
+    padding-inline: calc(var(--spacing) * 10);
+  }
+`;
+
+const style5 = css`
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      color: #ffe0c8;
+    }
+  }
+`;
+
+const style6 = css`
+position: sticky;
+top: calc(var(--spacing) * 0);
+z-index: 40;
+border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+border-color: var(--border-strong);
+background-color: rgba(5,6,13,.94);
+box-shadow: 0 12px 36px rgba(0,0,0,.46);
+--tw-backdrop-blur: blur(var(--blur-xl));
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+`;
+
+const style7 = css`
+margin-inline: auto;
+display: flex;
+max-width: var(--container-6xl);
+align-items: center;
+justify-content: space-between;
+gap: calc(var(--spacing) * 4);
+padding-inline: calc(var(--spacing) * 6);
+padding-block: calc(var(--spacing) * 4);
+@media (width >= 48rem) {
+    padding-inline: calc(var(--spacing) * 10);
+  }
+`;
+
+const style8 = css`
+display: flex;
+align-items: center;
+gap: calc(var(--spacing) * 4);
+`;
+
+const style9 = css`
+display: flex;
+align-items: center;
+gap: calc(var(--spacing) * 3);
+`;
+
+const style10 = css`
+display: flex;
+height: calc(var(--spacing) * 10);
+width: calc(var(--spacing) * 10);
+align-items: center;
+justify-content: center;
+border-radius: 50%;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border: 2px solid #ff2072;
+background: #090713;
+font-family: "Bebas Neue", sans-serif;
+font-size: 1.5rem;
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: #f2f1ed;
+box-shadow: 0 0 18px rgba(196,69,255,.48);
+--tw-shadow: 0 12px 24px var(--tw-shadow-color, rgba(0,0,0,0.28));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+`;
+
+const style11 = css`
+font-size: 2rem;
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+letter-spacing: .01em;
+color: var(--color-white);
+font-family: "Permanent Marker", "Space Grotesk", sans-serif;
+text-transform: uppercase;
+transform: rotate(-2deg);
+text-shadow: 0 0 16px rgba(255,32,114,.38);
+`;
+
+const style12 = css`
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-tracking: 0.18em;
+  letter-spacing: 0.18em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style13 = css`
+display: none;
+align-items: center;
+gap: calc(var(--spacing) * 2);
+@media (width >= 48rem) {
+    display: flex;
+  }
+`;
+
+const style14 = css`
+border-radius: 4px;
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+font-family: "Bebas Neue", sans-serif;
+font-size: 1.05rem;
+letter-spacing: .07em;
+text-transform: uppercase;
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+`;
+
+const style15 = css`
+background: linear-gradient(135deg, rgba(255,138,0,.22), rgba(255,32,114,.12));
+color: #ffb15c;
+box-shadow: inset 0 -2px #ff5a20, 0 0 18px rgba(255,90,32,.16);
+`;
+
+const style16 = css`
+color: var(--text-muted);
+&:hover {
+    @media (hover: hover) {
+      background-color: rgba(255,255,255,0.04);
+    }
+  }
+&:hover {
+    @media (hover: hover) {
+      color: var(--color-white);
+    }
+  }
+`;
+
+const style17 = css`
+display: none;
+border-radius: calc(infinity * 1px);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: rgba(255,255,255,0.03);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-main);
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      border-color: #466684;
+    }
+  }
+&:hover {
+    @media (hover: hover) {
+      background-color: rgba(255,255,255,0.06);
+    }
+  }
+@media (width >= 48rem) {
+    display: inline-flex;
+  }
+`;
+
+const style18 = css`
+display: inline-flex;
+border-radius: calc(infinity * 1px);
+background-color: var(--accent);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: #1d1108;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      background-color: #ff9f6d;
+    }
+  }
+`;
+
+const style19 = css`
+display: inline-flex;
+height: calc(var(--spacing) * 10);
+width: calc(var(--spacing) * 10);
+align-items: center;
+justify-content: center;
+border-radius: calc(infinity * 1px);
+background-color: #ff8b50;
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-bold);
+color: #180d05;
+--tw-shadow: 0 12px 24px var(--tw-shadow-color, rgba(255,139,80,0.2));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      background-color: #ffa16f;
+    }
+  }
+`;
+
+const style20 = css`
+border-color: rgba(255,255,255,0.04);
+@media (width >= 48rem) {
+    display: none;
+  }
+`;
+
+const style21 = css`
+margin-inline: auto;
+display: flex;
+max-width: var(--container-6xl);
+gap: calc(var(--spacing) * 1);
+overflow-x: auto;
+padding-inline: calc(var(--spacing) * 6);
+padding-block: calc(var(--spacing) * 3);
+@media (width >= 48rem) {
+    padding-inline: calc(var(--spacing) * 10);
+  }
+`;
+
+const style22 = css`
+border-radius: calc(infinity * 1px);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 1.5);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+white-space: nowrap;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+`;
+
+const style23 = css`
+color: var(--text-muted);
+`;
+
+const style24 = css`
+margin-inline: auto;
+max-width: var(--container-6xl);
+padding-inline: calc(var(--spacing) * 6);
+padding-block: calc(var(--spacing) * 10);
+@media (width >= 48rem) {
+    padding-inline: calc(var(--spacing) * 10);
+  }
+@media (width >= 48rem) {
+    padding-block: calc(var(--spacing) * 14);
+  }
+`;
+
+const style25 = css`
+margin-inline: auto;
+max-width: var(--container-6xl);
+padding-inline: calc(var(--spacing) * 6);
+padding-bottom: calc(var(--spacing) * 8);
+@media (width >= 48rem) {
+    padding-inline: calc(var(--spacing) * 10);
+  }
+@media (width >= 48rem) {
+    padding-bottom: calc(var(--spacing) * 12);
+  }
+`;
+
+const style26 = css`
+overflow: hidden;
+border-radius: 2rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-image: linear-gradient(135deg,rgba(255,139,80,0.12),rgba(103,187,255,0.07) 55%,rgba(138,228,163,0.08));
+padding: calc(var(--spacing) * 8);
+--tw-shadow: 0 30px 60px var(--tw-shadow-color, rgba(0,0,0,0.28));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+`;
+
+const style27 = css`
+display: grid;
+gap: calc(var(--spacing) * 6);
+@media (width >= 48rem) {
+    grid-template-columns: minmax(0,1fr) auto;
+  }
+@media (width >= 48rem) {
+    align-items: flex-end;
+  }
+`;
+
+const style28 = css`
+color: #9fe8b4; font-size: .75rem; font-weight: 700; letter-spacing: .18em; margin: 0 0 .6rem; text-transform: uppercase;
+`;
+
+const style29 = css`
+font-size: var(--text-3xl);
+  line-height: var(--tw-leading, var(--text-3xl--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+@media (width >= 48rem) {
+    font-size: var(--text-4xl);
+    line-height: var(--tw-leading, var(--text-4xl--line-height));
+  }
+font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+`;
+
+const style30 = css`
+margin-top: calc(var(--spacing) * 3);
+max-width: var(--container-2xl);
+font-size: var(--text-base);
+  line-height: var(--tw-leading, var(--text-base--line-height));
+color: var(--text-soft);
+@media (width >= 48rem) {
+    font-size: var(--text-lg);
+    line-height: var(--tw-leading, var(--text-lg--line-height));
+  }
+`;
+
+const style31 = css`
+display: flex;
+flex-wrap: wrap;
+gap: calc(var(--spacing) * 3);
+`;
+
+const style32 = css`
+display: inline-flex;
+border-radius: calc(infinity * 1px);
+background-color: var(--accent);
+padding-inline: calc(var(--spacing) * 5);
+padding-block: calc(var(--spacing) * 3);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: #1d1108;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      background-color: #ff9f6d;
+    }
+  }
+`;
+
+const style33 = css`
+display: inline-flex;
+border-radius: calc(infinity * 1px);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: rgba(255,255,255,0.05);
+padding-inline: calc(var(--spacing) * 5);
+padding-block: calc(var(--spacing) * 3);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      border-color: #4a6c8b;
+    }
+  }
+&:hover {
+    @media (hover: hover) {
+      background-color: rgba(255,255,255,0.08);
+    }
+  }
+`;
+
+const style34 = css`
+border-color: var(--border-strong);
+background-color: rgba(4,8,12,0.82);
+`;
+
+const style35 = css`
+margin-inline: auto;
+display: grid;
+max-width: var(--container-6xl);
+gap: calc(var(--spacing) * 8);
+padding-inline: calc(var(--spacing) * 6);
+padding-block: calc(var(--spacing) * 10);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+@media (width >= 48rem) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+@media (width >= 48rem) {
+    padding-inline: calc(var(--spacing) * 10);
+  }
+`;
+
+const style36 = css`
+font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+`;
+
+const style37 = css`
+margin-top: calc(var(--spacing) * 3);
+max-width: var(--container-xs);
+color: var(--text-muted);
+`;
+
+const style38 = css`
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: #9db8d3;
+text-transform: uppercase;
+`;
+
+const style39 = css`
+margin-top: calc(var(--spacing) * 3);
+display: flex;
+flex-direction: column;
+gap: calc(var(--spacing) * 2);
+color: var(--text-muted);
+`;

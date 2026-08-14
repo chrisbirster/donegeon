@@ -8,12 +8,13 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "check:buttons": "node ../scripts/check-buttons.mjs",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test:e2e": "turbo run test:e2e --filter=@donegeon/client",
     "test:e2e:ui": "turbo run test:e2e:ui --filter=@donegeon/client"
   },
   "devDependencies": {
-    "turbo": "^2.3.3"
+    "turbo": "^2.10.8"
   }
 }

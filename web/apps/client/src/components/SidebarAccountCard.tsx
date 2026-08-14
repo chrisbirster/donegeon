@@ -1,4 +1,5 @@
-import { A } from "@solidjs/router";
+import Button from "./Button";
+import { css } from "@linaria/core";
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
 import { Show, createMemo, createSignal } from "solid-js";
 
@@ -52,32 +53,32 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
   return (
     <Show when={session()}>
       <div class={props.class}>
-        <button
+        <Button
           type="button"
-          class="app-panel flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition hover:border-[var(--border-hover)]"
+          class={style1}
           onClick={() => setAccountMenuOpen((open) => !open)}
           data-testid="appshell-account-toggle"
         >
-          <span class="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(119,155,187,0.32)] bg-[rgba(255,139,80,0.14)] text-xs font-semibold text-[var(--accent-text)]">
+          <span class={style2}>
             {accountInitials()}
           </span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-semibold text-[var(--text-main)]">{accountName()}</span>
-            <span class="mt-0.5 inline-flex rounded border border-[rgba(255,139,80,0.24)] bg-[var(--accent-wash)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--accent-text)]">
+          <span class={style3}>
+            <span class={style4}>{accountName()}</span>
+            <span class={style5}>
               {accountPlan()}
             </span>
           </span>
-          <span class="text-xs text-[var(--text-muted)]">{accountMenuOpen() ? "▲" : "▼"}</span>
-        </button>
+          <span class={style6}>{accountMenuOpen() ? "▲" : "▼"}</span>
+        </Button>
 
         <Show when={accountMenuOpen()}>
           <div
-            class="app-panel mt-2 overflow-hidden rounded-xl"
+            class={style7}
             data-testid="appshell-account-menu"
           >
-            <A
+            <a
               href="/settings"
-              class="block border-b border-[var(--border-strong)] px-3 py-2 text-sm text-[var(--text-main)] transition hover:bg-[rgba(255,255,255,0.04)]"
+              class={style8}
               onClick={() => {
                 setAccountMenuOpen(false);
                 props.onNavigate?.();
@@ -85,10 +86,10 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
               data-testid="appshell-account-settings"
             >
               Settings
-            </A>
-            <A
+            </a>
+            <a
               href="/profile"
-              class="block border-b border-[var(--border-strong)] px-3 py-2 text-sm text-[var(--text-main)] transition hover:bg-[rgba(255,255,255,0.04)]"
+              class={style8}
               onClick={() => {
                 setAccountMenuOpen(false);
                 props.onNavigate?.();
@@ -96,18 +97,143 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
               data-testid="appshell-account-quest-log"
             >
               Quest Log
-            </A>
-            <button
+            </a>
+            <Button
               type="button"
-              class="block w-full px-3 py-2 text-left text-sm text-[var(--danger)] transition hover:bg-[var(--danger-bg)]"
+              class={style9}
               onClick={() => logout.mutate()}
               data-testid="appshell-account-signout"
             >
               Sign out
-            </button>
+            </Button>
           </div>
         </Show>
       </div>
     </Show>
   );
 }
+
+
+const style1 = css`
+display: flex;
+width: 100%;
+align-items: center;
+gap: calc(var(--spacing) * 2);
+border-radius: var(--radius-xl);
+padding-inline: calc(var(--spacing) * 2.5);
+padding-block: calc(var(--spacing) * 2);
+text-align: left;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      border-color: var(--border-hover);
+    }
+  }
+background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+`;
+
+const style2 = css`
+display: flex;
+height: calc(var(--spacing) * 8);
+width: calc(var(--spacing) * 8);
+align-items: center;
+justify-content: center;
+border-radius: calc(infinity * 1px);
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: rgba(119,155,187,0.32);
+background-color: rgba(255,139,80,0.14);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--accent-text);
+`;
+
+const style3 = css`
+min-width: calc(var(--spacing) * 0);
+flex: 1;
+`;
+
+const style4 = css`
+display: block;
+overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+`;
+
+const style5 = css`
+margin-top: calc(var(--spacing) * 0.5);
+display: inline-flex;
+border-radius: 0.25rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: rgba(255,139,80,0.24);
+background-color: var(--accent-wash);
+padding-inline: calc(var(--spacing) * 1.5);
+padding-block: calc(var(--spacing) * 0.5);
+font-size: 10px;
+--tw-tracking: 0.08em;
+  letter-spacing: 0.08em;
+color: var(--accent-text);
+text-transform: uppercase;
+`;
+
+const style6 = css`
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-muted);
+`;
+
+const style7 = css`
+margin-top: calc(var(--spacing) * 2);
+overflow: hidden;
+border-radius: var(--radius-xl);
+background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+`;
+
+const style8 = css`
+display: block;
+border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+border-color: var(--border-strong);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-main);
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      background-color: rgba(255,255,255,0.04);
+    }
+  }
+`;
+
+const style9 = css`
+display: block;
+width: 100%;
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+text-align: left;
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--danger);
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      background-color: var(--danger-bg);
+    }
+  }
+`;

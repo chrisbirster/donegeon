@@ -1,9 +1,9 @@
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
-import tailwindcss from "@tailwindcss/vite";
+import wyw from "@wyw-in-js/vite";
 
 export default defineConfig({
-  plugins: [solid(), tailwindcss()],
+  plugins: [wyw(), solid()],
   server: {
     port: 5174,
   },

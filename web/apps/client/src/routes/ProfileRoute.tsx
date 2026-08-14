@@ -1,5 +1,7 @@
+import Button from "../components/Button";
+import { css } from "@linaria/core";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, createTrackedEffect, onSettled } from "solid-js";
 
 import AppShell from "../components/AppShell";
 import { useApi } from "../context/ApiContext";
@@ -13,6 +15,7 @@ import {
   type CalendarProvider,
   type Project,
 } from "../server/api";
+import { style1, style2, style3, style4, style5, style6, style7, style8, style9, style10, style11, style12, style13, style14, style15, style16, style17, style18, style19, style20, style21, style22, style23, style24, style25, style26, style27, style28, style29, style30, style31, style32, style33, style34, style35, style36, style37, style38, style39, style40, style41, style42, style43, style44, style45, style46, style47, style48, style49, style50, style51, style52, style53, style54, style55, style56, style57, style58, style59, style60, style61, style62 } from "./styles/ProfileRoute.styles";
 
 const DEFAULT_BOARD = "default";
 const BOARD_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
@@ -139,18 +142,24 @@ function questTypeLabel(value: string): string {
   }
 }
 
+const questBoss = css`border-color: #6d3f3f; background: #2c1718; color: #ffb7b2;`;
+const questStory = css`border-color: #52558d; background: #1d2250; color: #d8dbff;`;
+const questSeasonal = css`border-color: #49636e; background: #17333a; color: #c4f1ff;`;
+const questDaily = css`border-color: #4c6a4d; background: #17321d; color: #c4f2cf;`;
+const questDefault = css`border-color: #425678; background: #1a263f; color: #d3e2ff;`;
+
 function questTypeBadgeClass(value: string): string {
   switch (value.trim().toLowerCase()) {
     case "boss":
-      return "border-[#6d3f3f] bg-[#2c1718] text-[#ffb7b2]";
+      return questBoss;
     case "story":
-      return "border-[#52558d] bg-[#1d2250] text-[#d8dbff]";
+      return questStory;
     case "seasonal":
-      return "border-[#49636e] bg-[#17333a] text-[#c4f1ff]";
+      return questSeasonal;
     case "daily":
-      return "border-[#4c6a4d] bg-[#17321d] text-[#c4f2cf]";
+      return questDaily;
     default:
-      return "border-[#425678] bg-[#1a263f] text-[#d3e2ff]";
+      return questDefault;
   }
 }
 
@@ -405,14 +414,15 @@ export default function ProfileRoute() {
     navigate(profileHref(normalized));
   }
 
-  onMount(() => {
+  onSettled(() => {
+    let navigationTimer: number | undefined;
     const params = new URLSearchParams(location.search);
     const calendarStatus = (params.get("calendar") || "").trim().toLowerCase();
     const calendarProvider = (params.get("provider") || "").trim().toLowerCase();
     const calendarMessage = (params.get("message") || "").trim();
     const cleanProfileRoute = profileHref(boardIDFromSearch(location.search));
     if (calendarStatus || calendarProvider || calendarMessage) {
-      navigate(cleanProfileRoute, { replace: true });
+      navigationTimer = window.setTimeout(() => navigate(cleanProfileRoute, { replace: true }), 0);
     }
     if (calendarStatus === "connected") {
       const label = calendarProvider ? calendarProviderLabel(calendarProvider) : "Calendar";
@@ -421,14 +431,19 @@ export default function ProfileRoute() {
         await loadBase();
         await syncCalendar();
       })();
-      return;
+      return () => {
+        if (navigationTimer !== undefined) window.clearTimeout(navigationTimer);
+      };
     } else if (calendarStatus === "error") {
       setCalendarError(calendarMessage || "Calendar connection failed. Try again.");
     }
     void loadBase();
+    return () => {
+      if (navigationTimer !== undefined) window.clearTimeout(navigationTimer);
+    };
   });
 
-  createEffect(() => {
+  createTrackedEffect(() => {
     const boardID = activeBoardID();
     void loadBoard(boardID);
   });
@@ -437,11 +452,11 @@ export default function ProfileRoute() {
     <AppShell
       activeView="profile"
       headerRight={
-        <div class="hidden items-center gap-2 md:flex">
+        <div class={style1}>
           <select
             value={activeBoardID()}
             onInput={(event) => switchBoard(event.currentTarget.value)}
-            class="rounded-md border border-[#394b66] bg-[#131b2b] px-2 py-1 text-xs text-[#dbe7ff] outline-none focus:border-[var(--accent)]"
+            class={style2}
             data-testid="profile-board-selector-desktop"
           >
             <For each={boardChoices()}>
@@ -454,54 +469,54 @@ export default function ProfileRoute() {
             </For>
           </select>
           <Show when={activeBoardChoice()?.isTeamBoard}>
-            <span class="rounded-md border border-[#4b5ea8] bg-[#1f2554] px-2 py-0.5 text-[11px] text-[#d5dcff]">
+            <span class={style3}>
               Team board
             </span>
           </Show>
         </div>
       }
       mobileSidebar={
-        <div class="space-y-3 text-sm text-[#c5d2ea]">
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Profile</p>
-            <p class="mt-1 text-sm text-[#e3edff]">{session()?.user.name || "User"}</p>
-            <p class="text-xs text-[#9bb0d3]">{session()?.user.email || ""}</p>
+        <div class={style4}>
+          <section class={style5}>
+            <p class={style6}>Profile</p>
+            <p class={style7}>{session()?.user.name || "User"}</p>
+            <p class={style8}>{session()?.user.email || ""}</p>
           </section>
 
-          <section class="rounded-lg border border-[#2d3e5a] bg-[#0f1728] px-3 py-2.5">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Quest Progress</p>
-            <p class="mt-2 text-sm text-[#e3edff]">In progress: {inProgressQuests().length}</p>
-            <p class="text-sm text-[#e3edff]">Completed: {completedQuests().length}</p>
+          <section class={style5}>
+            <p class={style6}>Quest Progress</p>
+            <p class={style9}>In progress: {inProgressQuests().length}</p>
+            <p class={style10}>Completed: {completedQuests().length}</p>
           </section>
         </div>
       }
     >
-      <section class="h-full overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-        <div class="mx-auto flex w-full max-w-5xl flex-col gap-4">
-          <header class="rounded-2xl border border-[#2a3750] bg-[#0f1728] px-5 py-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">User Profile</p>
-            <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#edf3ff]">
+      <section class={style11}>
+        <div class={style12}>
+          <header class={style13}>
+            <p class={style6}>User Profile</p>
+            <h1 class={style14}>
               {session()?.user.name || "Profile"}
             </h1>
-            <p class="mt-1 text-sm text-[#9fb0cc]">Track quest progress across your board.</p>
+            <p class={style15}>Track quest progress across your board.</p>
           </header>
 
           <Show when={loading()}>
-            <p class="rounded-xl border border-[#2d3c57] bg-[#0f1728] px-4 py-3 text-sm text-[#b8c8e4]">Loading profile...</p>
+            <p class={style16}>Loading profile...</p>
           </Show>
 
           <Show when={error()}>
-            <p class="rounded-xl border border-[#643434] bg-[#2b1618] px-4 py-3 text-sm text-[#ffc0bd]">{error()}</p>
+            <p class={style17}>{error()}</p>
           </Show>
 
           <Show when={!loading()}>
             <>
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5 md:hidden">
-                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Board</p>
+              <section class={style18}>
+                <p class={style6}>Board</p>
                 <select
                   value={activeBoardID()}
                   onInput={(event) => switchBoard(event.currentTarget.value)}
-                  class="mt-2 w-full rounded-md border border-[#3a4d6f] bg-[#0c1524] px-2 py-1.5 text-sm text-[#e7f0ff] outline-none focus:border-[var(--accent)]"
+                  class={style19}
                   data-testid="profile-board-selector-mobile"
                 >
                   <For each={boardChoices()}>
@@ -515,94 +530,94 @@ export default function ProfileRoute() {
                 </select>
               </section>
 
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5" data-testid="profile-calendar-connections">
-                <div class="flex flex-wrap items-center justify-between gap-3">
+              <section class={style20} data-testid="profile-calendar-connections">
+                <div class={style21}>
                   <div>
-                    <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Connected Calendars</h2>
-                    <p class="mt-1 text-xs text-[#9eb4d8]">
+                    <h2 class={style22}>Connected Calendars</h2>
+                    <p class={style23}>
                       Connect Google Calendar and sync upcoming events.
                     </p>
                   </div>
-                  <button
+                  <Button
                     type="button"
-                    class="rounded-lg border border-[#3b4f73] bg-[#1a2b46] px-3 py-1.5 text-xs font-semibold text-[#d8e7ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                    class={style24}
                     onClick={() => void syncCalendar()}
                     disabled={calendarSyncBusyID() !== null || calendarConnections().length === 0}
                   >
                     <Show when={calendarSyncBusyID() === "__all__"} fallback="Sync all">
                       Syncing...
                     </Show>
-                  </button>
+                  </Button>
                 </div>
 
-                <div class="mt-3 flex flex-wrap gap-2">
-                  <button
+                <div class={style25}>
+                  <Button
                     type="button"
-                    class="rounded-lg border border-[#4a6286] bg-[#1b2f4f] px-3 py-1.5 text-xs font-semibold text-[#e0ebff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                    class={style26}
                     onClick={() => void startCalendarConnect("google")}
                     disabled={calendarConnectBusy() !== null}
                   >
                     <Show when={calendarConnectBusy() === "google"} fallback="Connect Google">
                       Connecting...
                     </Show>
-                  </button>
+                  </Button>
                 </div>
 
                 <Show when={calendarLoading()}>
-                  <p class="mt-2 text-xs text-[#9db3d7]">Refreshing calendar connections...</p>
+                  <p class={style27}>Refreshing calendar connections...</p>
                 </Show>
 
                 <Show when={calendarNotice()}>
-                  <p class="mt-3 rounded-md border border-[#3b6547] bg-[#162b1d] px-3 py-2 text-xs text-[#bcf0c9]">{calendarNotice()}</p>
+                  <p class={style28}>{calendarNotice()}</p>
                 </Show>
                 <Show when={calendarError()}>
-                  <p class="mt-3 rounded-md border border-[#6f3f42] bg-[#2b1718] px-3 py-2 text-xs text-[#ffb7b4]">{calendarError()}</p>
+                  <p class={style29}>{calendarError()}</p>
                 </Show>
 
                 <Show
                   when={calendarConnections().length > 0}
                   fallback={
-                    <p class="mt-3 rounded-md border border-[#304767] bg-[#101f35] px-3 py-2 text-sm text-[#9cb2d6]">
+                    <p class={style30}>
                       No calendar connections yet.
                     </p>
                   }
                 >
-                  <div class="mt-3 space-y-2">
+                  <div class={style31}>
                     <For each={calendarConnections()}>
                       {(connection) => (
-                        <article class="rounded-lg border border-[#304767] bg-[#101f35] px-3 py-3">
-                          <div class="flex flex-wrap items-start justify-between gap-2">
+                        <article class={style32}>
+                          <div class={style33}>
                             <div>
-                              <p class="text-sm font-semibold text-[#e0ebff]">{calendarProviderLabel(connection.provider)}</p>
-                              <p class="text-xs text-[#a9bedf]">{connection.email || "Connected account"}</p>
+                              <p class={style34}>{calendarProviderLabel(connection.provider)}</p>
+                              <p class={style35}>{connection.email || "Connected account"}</p>
                             </div>
-                            <div class="flex flex-wrap items-center gap-2">
-                              <button
+                            <div class={style36}>
+                              <Button
                                 type="button"
-                                class="rounded-md border border-[#3e5f8a] bg-[#1a2c4a] px-2 py-1 text-[11px] font-semibold text-[#d8e7ff] transition hover:border-[var(--accent)] disabled:opacity-60"
+                                class={style37}
                                 onClick={() => void syncCalendar(connection.id)}
                                 disabled={calendarSyncBusyID() !== null || calendarDisconnectBusyID() !== null}
                               >
                                 <Show when={calendarSyncBusyID() === connection.id} fallback="Sync">
                                   Syncing...
                                 </Show>
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
-                                class="rounded-md border border-[#75464a] bg-[#2a1819] px-2 py-1 text-[11px] font-semibold text-[#ffc7c4] transition hover:border-[#ff7d66] disabled:opacity-60"
+                                class={style38}
                                 onClick={() => void disconnectCalendar(connection.id)}
                                 disabled={calendarDisconnectBusyID() !== null || calendarSyncBusyID() !== null}
                               >
                                 <Show when={calendarDisconnectBusyID() === connection.id} fallback="Disconnect">
                                   Removing...
                                 </Show>
-                              </button>
+                              </Button>
                             </div>
                           </div>
 
-                          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                            <span class="rounded border border-[#3f6a4d] bg-[#17301f] px-2 py-0.5 text-[#bff5cb]">Connected</span>
-                            <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
+                          <div class={style39}>
+                            <span class={style40}>Connected</span>
+                            <span class={style41}>
                               {connection.lastSyncAt ? `Last sync ${formatOptionalDate(connection.lastSyncAt)}` : "Ready to sync upcoming events."}
                             </span>
                           </div>
@@ -613,56 +628,56 @@ export default function ProfileRoute() {
                 </Show>
               </section>
 
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
-                <div class="flex items-center justify-between gap-3">
-                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Quest Summary</h2>
+              <section class={style20}>
+                <div class={style42}>
+                  <h2 class={style22}>Quest Summary</h2>
                   <Show when={boardLoading()}>
-                    <span class="text-xs text-[#9ab0d4]">Refreshing...</span>
+                    <span class={style43}>Refreshing...</span>
                   </Show>
                 </div>
-                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div class="rounded-xl border border-[#304767] bg-[#101f35] px-3 py-3">
-                    <p class="text-xs uppercase tracking-[0.1em] text-[#96add1]">In Progress</p>
-                    <p class="mt-1 text-2xl font-semibold text-[#e6f0ff]">{inProgressQuests().length}</p>
+                <div class={style44}>
+                  <div class={style45}>
+                    <p class={style46}>In Progress</p>
+                    <p class={style47}>{inProgressQuests().length}</p>
                   </div>
-                  <div class="rounded-xl border border-[#304767] bg-[#101f35] px-3 py-3">
-                    <p class="text-xs uppercase tracking-[0.1em] text-[#96add1]">Completed</p>
-                    <p class="mt-1 text-2xl font-semibold text-[#e6f0ff]">{completedQuests().length}</p>
+                  <div class={style45}>
+                    <p class={style46}>Completed</p>
+                    <p class={style47}>{completedQuests().length}</p>
                   </div>
-                  <div class="rounded-xl border border-[#304767] bg-[#101f35] px-3 py-3">
-                    <p class="text-xs uppercase tracking-[0.1em] text-[#96add1]">Board</p>
-                    <p class="mt-1 truncate text-sm font-semibold text-[#e6f0ff]">{activeBoardChoice()?.name || "Board"}</p>
+                  <div class={style45}>
+                    <p class={style46}>Board</p>
+                    <p class={style48}>{activeBoardChoice()?.name || "Board"}</p>
                   </div>
                 </div>
               </section>
 
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
-                <div class="flex items-center justify-between gap-3">
-                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">In Progress</h2>
-                  <span class="text-xs text-[#9cb3d8]">{inProgressQuests().length}</span>
+              <section class={style20}>
+                <div class={style42}>
+                  <h2 class={style22}>In Progress</h2>
+                  <span class={style49}>{inProgressQuests().length}</span>
                 </div>
 
                 <Show
                   when={inProgressQuests().length > 0}
-                  fallback={<p class="mt-3 rounded-md border border-[#304767] bg-[#101f35] px-3 py-2 text-sm text-[#9cb2d6]">No quests in progress.</p>}
+                  fallback={<p class={style30}>No quests in progress.</p>}
                 >
-                  <div class="mt-3 space-y-2">
+                  <div class={style31}>
                     <For each={inProgressQuests()}>
                       {(quest) => (
-                        <article class="rounded-lg border border-[#304767] bg-[#101f35] px-3 py-3">
-                          <div class="flex items-start justify-between gap-2">
-                            <p class="text-sm font-semibold text-[#e0ebff]">{quest.title}</p>
-                            <span class={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] ${questTypeBadgeClass(quest.type)}`}>
+                        <article class={style32}>
+                          <div class={style50}>
+                            <p class={style34}>{quest.title}</p>
+                            <span class={` ${style51} ${questTypeBadgeClass(quest.type)}`}>
                               {questTypeLabel(quest.type)}
                             </span>
                           </div>
 
-                          <div class="mt-2 space-y-1">
+                          <div class={style52}>
                             <For each={quest.objectives ?? []}>
                               {(objective) => (
-                                <div class="flex items-center justify-between gap-2 text-xs">
-                                  <span class={objective.complete ? "text-[#8be39f]" : "text-[#cdd9ef]"}>{questObjectiveLabel(objective)}</span>
-                                  <span class={objective.complete ? "text-[#7ddf98]" : "text-[#8ca4cf]"}>
+                                <div class={style53}>
+                                  <span class={objective.complete ? style54 : style55}>{questObjectiveLabel(objective)}</span>
+                                  <span class={objective.complete ? style56 : style57}>
                                     {objective.complete ? "Done" : questObjectiveProgressLabel(objective)}
                                   </span>
                                 </div>
@@ -676,42 +691,42 @@ export default function ProfileRoute() {
                 </Show>
               </section>
 
-              <section class="rounded-2xl border border-[#2a3750] bg-[#0f1728] p-5">
-                <div class="flex items-center justify-between gap-3">
-                  <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-[#93a3bf]">Completed</h2>
-                  <span class="text-xs text-[#9cb3d8]">{completedQuests().length}</span>
+              <section class={style20}>
+                <div class={style42}>
+                  <h2 class={style22}>Completed</h2>
+                  <span class={style49}>{completedQuests().length}</span>
                 </div>
 
                 <Show
                   when={completedQuests().length > 0}
-                  fallback={<p class="mt-3 rounded-md border border-[#304767] bg-[#101f35] px-3 py-2 text-sm text-[#9cb2d6]">No completed quests yet.</p>}
+                  fallback={<p class={style30}>No completed quests yet.</p>}
                 >
-                  <div class="mt-3 space-y-2">
+                  <div class={style31}>
                     <For each={completedQuests()}>
                       {(quest) => (
-                        <article class="rounded-lg border border-[#304767] bg-[#101f35] px-3 py-3">
-                          <div class="flex items-start justify-between gap-2">
-                            <p class="text-sm font-semibold text-[#e0ebff]">{quest.title}</p>
-                            <span class={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] ${questTypeBadgeClass(quest.type)}`}>
+                        <article class={style32}>
+                          <div class={style50}>
+                            <p class={style34}>{quest.title}</p>
+                            <span class={` ${style51} ${questTypeBadgeClass(quest.type)}`}>
                               {questTypeLabel(quest.type)}
                             </span>
                           </div>
 
-                          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                            <span class={`rounded border px-2 py-0.5 ${quest.failed ? "border-[#7f4247] bg-[#2c1718] text-[#ffb7b2]" : "border-[#3f6a4d] bg-[#17301f] text-[#bff5cb]"}`}>
+                          <div class={style39}>
+                            <span class={` ${style58} ${quest.failed ? style59 : style60}`}>
                               {quest.failed ? "Failed" : "Completed"}
                             </span>
                             <Show when={quest.claimed}>
-                              <span class="rounded border border-[#49636e] bg-[#17333a] px-2 py-0.5 text-[#c4f1ff]">Claimed</span>
+                              <span class={style61}>Claimed</span>
                             </Show>
                             <Show when={quest.claimable}>
-                              <span class="rounded border border-[#6f6241] bg-[#2e2717] px-2 py-0.5 text-[#f3e1a6]">Claim reward on board</span>
+                              <span class={style62}>Claim reward on board</span>
                             </Show>
-                            <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">
+                            <span class={style41}>
                               {quest.source === "history" ? "History" : "Active"}
                             </span>
                             <Show when={quest.completedDay !== undefined}>
-                              <span class="rounded border border-[#405570] bg-[#18253d] px-2 py-0.5 text-[#c5d7f5]">Day {quest.completedDay}</span>
+                              <span class={style41}>Day {quest.completedDay}</span>
                             </Show>
                           </div>
                         </article>

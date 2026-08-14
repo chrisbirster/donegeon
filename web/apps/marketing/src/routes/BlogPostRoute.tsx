@@ -1,4 +1,5 @@
-import { A, useParams } from "@solidjs/router";
+import { css } from "@linaria/core";
+import { useParams } from "@solidjs/router";
 import { Show, createMemo } from "solid-js";
 
 import MarkdownContent from "../components/MarkdownContent";
@@ -17,27 +18,27 @@ export default function BlogPostRoute() {
       <Show
         when={post()}
         fallback={
-          <section class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-8 text-center shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-            <p class="section-label">Blog</p>
-            <h1 class="font-display text-4xl font-semibold text-white">Post not found</h1>
-            <p class="mt-4 text-base leading-7 text-[var(--text-soft)]">That article is not available right now.</p>
-            <A
+          <section class={style1}>
+            <p class={style2}>Blog</p>
+            <h1 class={style3}>Post not found</h1>
+            <p class={style4}>That article is not available right now.</p>
+            <a
               href="/blog"
-              class="mt-6 inline-flex rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#1d1108] transition hover:bg-[#ff9f6d]"
+              class={style5}
             >
               Back to blog
-            </A>
+            </a>
           </section>
         }
       >
         {(entry) => (
-          <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
-            <article class="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-7 shadow-[0_24px_50px_rgba(0,0,0,0.24)]">
-              <A href="/blog" class="text-sm font-semibold text-[#ffd3b2] transition hover:text-white">
+          <div class={style6}>
+            <article class={style7}>
+              <a href="/blog" class={style8}>
                 ← Back to blog
-              </A>
+              </a>
 
-              <div class="mt-5 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">
+              <div class={style9}>
                 <span>{entry().category}</span>
                 <span>•</span>
                 <span>{formatPublishDate(entry().publishedAt)}</span>
@@ -45,20 +46,20 @@ export default function BlogPostRoute() {
                 <span>{entry().readingMinutes} min read</span>
               </div>
 
-              <h1 class="mt-4 font-display text-4xl font-semibold text-white md:text-5xl">{entry().title}</h1>
-              <p class="mt-4 max-w-3xl text-lg leading-8 text-[var(--text-soft)]">{entry().description || entry().excerpt}</p>
+              <h1 class={style10}>{entry().title}</h1>
+              <p class={style11}>{entry().description || entry().excerpt}</p>
 
               <Show when={video()}>
                 {(asset) => (
-                  <section class="mt-8 overflow-hidden rounded-[1.7rem] border border-[var(--border-strong)] bg-[#08111a]">
-                    <div class="border-b border-[rgba(255,255,255,0.08)] px-5 py-4 text-sm font-semibold text-white">
+                  <section class={style12}>
+                    <div class={style13}>
                       {entry().videoLabel || "Post video"}
                     </div>
                     {asset().kind === "iframe" ? (
                       <iframe
                         src={asset().src}
                         title={entry().videoLabel || `${entry().title} video`}
-                        class="aspect-video w-full border-0"
+                        class={style14}
                         loading="lazy"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowfullscreen
@@ -69,45 +70,45 @@ export default function BlogPostRoute() {
                         poster={entry().videoPoster}
                         controls
                         preload="metadata"
-                        class="aspect-video w-full bg-black object-cover"
+                        class={style15}
                       />
                     )}
                   </section>
                 )}
               </Show>
 
-              <div class="mt-10">
+              <div class={style16}>
                 <MarkdownContent html={entry().html} />
               </div>
             </article>
 
-            <aside class="space-y-5">
-              <div class="rounded-[1.7rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-                <p class="section-label">Article details</p>
-                <div class="mt-4 space-y-3 text-sm leading-7 text-[var(--text-soft)]">
+            <aside class={style17}>
+              <div class={style18}>
+                <p class={style2}>Article details</p>
+                <div class={style19}>
                   <p>
-                    <span class="font-semibold text-white">Published:</span> {formatPublishDate(entry().publishedAt)}
+                    <span class={style20}>Published:</span> {formatPublishDate(entry().publishedAt)}
                   </p>
                   <p>
-                    <span class="font-semibold text-white">Author:</span> {entry().author || "Donegeon team"}
+                    <span class={style20}>Author:</span> {entry().author || "Donegeon team"}
                   </p>
                   <p>
-                    <span class="font-semibold text-white">Reading time:</span> {entry().readingMinutes} min
+                    <span class={style20}>Reading time:</span> {entry().readingMinutes} min
                   </p>
                 </div>
               </div>
 
-              <div class="rounded-[1.7rem] border border-[var(--border-strong)] bg-[rgba(11,20,30,0.84)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-                <p class="section-label">More from the blog</p>
-                <div class="mt-4 space-y-3">
+              <div class={style18}>
+                <p class={style2}>More from the blog</p>
+                <div class={style21}>
                   {relatedPosts().map((item) => (
-                    <A
+                    <a
                       href={`/blog/${item.slug}`}
-                      class="block rounded-[1.1rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-4 text-sm transition hover:border-[#466684] hover:bg-[rgba(255,255,255,0.06)]"
+                      class={style22}
                     >
-                      <span class="block font-semibold text-white">{item.title}</span>
-                      <span class="mt-1 block text-[var(--text-muted)]">{formatPublishDate(item.publishedAt)}</span>
-                    </A>
+                      <span class={style23}>{item.title}</span>
+                      <span class={style24}>{formatPublishDate(item.publishedAt)}</span>
+                    </a>
                   ))}
                 </div>
               </div>
@@ -118,3 +119,264 @@ export default function BlogPostRoute() {
     </MarketingLayout>
   );
 }
+
+
+const style1 = css`
+border-radius: 2rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: rgba(11,20,30,0.84);
+padding: calc(var(--spacing) * 8);
+text-align: center;
+--tw-shadow: 0 20px 40px var(--tw-shadow-color, rgba(0,0,0,0.22));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+`;
+
+const style2 = css`
+color: #9fe8b4; font-size: .75rem; font-weight: 700; letter-spacing: .18em; margin: 0 0 .6rem; text-transform: uppercase;
+`;
+
+const style3 = css`
+font-size: var(--text-4xl);
+  line-height: var(--tw-leading, var(--text-4xl--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+`;
+
+const style4 = css`
+margin-top: calc(var(--spacing) * 4);
+font-size: var(--text-base);
+  line-height: var(--tw-leading, var(--text-base--line-height));
+--tw-leading: calc(var(--spacing) * 7);
+  line-height: calc(var(--spacing) * 7);
+color: var(--text-soft);
+`;
+
+const style5 = css`
+margin-top: calc(var(--spacing) * 6);
+display: inline-flex;
+border-radius: calc(infinity * 1px);
+background-color: var(--accent);
+padding-inline: calc(var(--spacing) * 5);
+padding-block: calc(var(--spacing) * 3);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: #1d1108;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      background-color: #ff9f6d;
+    }
+  }
+`;
+
+const style6 = css`
+display: grid;
+gap: calc(var(--spacing) * 8);
+@media (width >= 64rem) {
+    grid-template-columns: minmax(0,1fr) 280px;
+  }
+@media (width >= 64rem) {
+    align-items: flex-start;
+  }
+`;
+
+const style7 = css`
+border-radius: 2rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: rgba(11,20,30,0.84);
+padding: calc(var(--spacing) * 7);
+--tw-shadow: 0 24px 50px var(--tw-shadow-color, rgba(0,0,0,0.24));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+`;
+
+const style8 = css`
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: #ffd3b2;
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      color: var(--color-white);
+    }
+  }
+`;
+
+const style9 = css`
+margin-top: calc(var(--spacing) * 5);
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-tracking: 0.14em;
+  letter-spacing: 0.14em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style10 = css`
+margin-top: calc(var(--spacing) * 4);
+font-size: var(--text-4xl);
+  line-height: var(--tw-leading, var(--text-4xl--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+@media (width >= 48rem) {
+    font-size: var(--text-5xl);
+    line-height: var(--tw-leading, var(--text-5xl--line-height));
+  }
+font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+`;
+
+const style11 = css`
+margin-top: calc(var(--spacing) * 4);
+max-width: var(--container-3xl);
+font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+--tw-leading: calc(var(--spacing) * 8);
+  line-height: calc(var(--spacing) * 8);
+color: var(--text-soft);
+`;
+
+const style12 = css`
+margin-top: calc(var(--spacing) * 8);
+overflow: hidden;
+border-radius: 1.7rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: #08111a;
+`;
+
+const style13 = css`
+border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+border-color: rgba(255,255,255,0.08);
+padding-inline: calc(var(--spacing) * 5);
+padding-block: calc(var(--spacing) * 4);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+`;
+
+const style14 = css`
+aspect-ratio: var(--aspect-video);
+width: 100%;
+border-style: var(--tw-border-style);
+  border-width: 0px;
+`;
+
+const style15 = css`
+aspect-ratio: var(--aspect-video);
+width: 100%;
+background-color: var(--color-black);
+object-fit: cover;
+`;
+
+const style16 = css`
+margin-top: calc(var(--spacing) * 10);
+`;
+
+const style17 = css`
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 5) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 5) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style18 = css`
+border-radius: 1.7rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: var(--border-strong);
+background-color: rgba(11,20,30,0.84);
+padding: calc(var(--spacing) * 6);
+--tw-shadow: 0 20px 40px var(--tw-shadow-color, rgba(0,0,0,0.22));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+`;
+
+const style19 = css`
+margin-top: calc(var(--spacing) * 4);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
+  }
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+--tw-leading: calc(var(--spacing) * 7);
+  line-height: calc(var(--spacing) * 7);
+color: var(--text-soft);
+`;
+
+const style20 = css`
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+`;
+
+const style21 = css`
+margin-top: calc(var(--spacing) * 4);
+:where(& > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
+  }
+`;
+
+const style22 = css`
+display: block;
+border-radius: 1.1rem;
+border-style: var(--tw-border-style);
+  border-width: 1px;
+border-color: rgba(255,255,255,0.08);
+background-color: rgba(255,255,255,0.03);
+padding-inline: calc(var(--spacing) * 4);
+padding-block: calc(var(--spacing) * 4);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+&:hover {
+    @media (hover: hover) {
+      border-color: #466684;
+    }
+  }
+&:hover {
+    @media (hover: hover) {
+      background-color: rgba(255,255,255,0.06);
+    }
+  }
+`;
+
+const style23 = css`
+display: block;
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--color-white);
+`;
+
+const style24 = css`
+margin-top: calc(var(--spacing) * 1);
+display: block;
+color: var(--text-muted);
+`;

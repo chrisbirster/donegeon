@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import { createMemo, createSignal, onMount } from "solid-js";
+import { createMemo, createSignal, onSettled } from "solid-js";
 
 import LocalBetaToggle from "../components/auth/LocalBetaToggle";
 import WaitlistCard from "../components/auth/WaitlistCard";
@@ -53,7 +53,7 @@ export default function WaitlistRoute() {
     }
   }
 
-  onMount(async () => {
+  onSettled(() => void (async () => {
     const configResponse = await withTimeout(api.public.config(), 1500, { config: defaultPublicConfig() });
     const publicConfig = applyLocalOpenBetaOverride(configResponse.config, location.search);
     const currentSession = await withTimeout(api.auth.me(), 1500, null);
@@ -73,7 +73,7 @@ export default function WaitlistRoute() {
       navigate(`/login${location.search}`, { replace: true });
       return;
     }
-  });
+  })());
 
   return (
     <>

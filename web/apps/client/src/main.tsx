@@ -1,8 +1,7 @@
-import { render } from "solid-js/web";
-import { Router } from "@solidjs/router";
+import { render } from "@solidjs/web";
 
 import "./index.css";
-import App from "./app";
+import { AppRouter } from "./app";
 import AppProviders from "./context/AppProviders";
 import { initializeTheme } from "./lib/theme";
 import { registerAppServiceWorker } from "./lib/pwa";
@@ -12,9 +11,7 @@ initializeTheme();
 render(
   () => (
     <AppProviders>
-      <Router>
-        <App />
-      </Router>
+      <AppRouter />
     </AppProviders>
   ),
   document.getElementById("root") as HTMLElement,

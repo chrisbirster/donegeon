@@ -9,7 +9,7 @@ type ApiProviderProps = ParentProps<{
 }>;
 
 export function ApiProvider(props: ApiProviderProps) {
-  return <ApiContext.Provider value={props.client ?? apiClient}>{props.children}</ApiContext.Provider>;
+  return <ApiContext value={props.client ?? apiClient}>{props.children}</ApiContext>;
 }
 
 export function useApi() {

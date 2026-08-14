@@ -1,8 +1,10 @@
+import { css } from "@linaria/core";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { Show, createMemo, createSignal, onMount } from "solid-js";
+import { Show, createMemo, createSignal, onSettled } from "solid-js";
 
 import LocalBetaToggle from "../components/auth/LocalBetaToggle";
 import WaitlistCard from "../components/auth/WaitlistCard";
+import Button from "../components/Button";
 import { useApi } from "../context/ApiContext";
 import { applyLocalOpenBetaOverride, withTimeout, writeLocalOpenBetaOverride } from "../lib/openBeta";
 import { type PublicConfig } from "../server/api";
@@ -59,7 +61,7 @@ export default function LoginRoute() {
     }));
   }
 
-  onMount(async () => {
+  onSettled(() => void (async () => {
     try {
       const configResponse = await withTimeout(api.public.config(), 1500, { config: defaultPublicConfig() });
       const config = applyLocalOpenBetaOverride(configResponse.config, location.search);
@@ -110,7 +112,7 @@ export default function LoginRoute() {
     } catch {
       // Not logged in yet.
     }
-  });
+  })());
 
   async function submitRequest(event: SubmitEvent) {
     event.preventDefault();
@@ -121,7 +123,14 @@ export default function LoginRoute() {
         email: email().trim(),
       });
       setChallengeId(res.challengeId);
-      setDebugCode((res.debugCode || "").trim());
+      const developmentCode = (res.debugCode || "").trim();
+      setDebugCode(developmentCode);
+      // The API only returns debugCode when the backend explicitly enables the
+      // local-development auth helper. Pre-fill it so a nearly invisible code
+      // cannot leave local users stuck on the verification step.
+      if (developmentCode) {
+        setCode(developmentCode);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -168,93 +177,104 @@ export default function LoginRoute() {
           />
         }
       >
-        <main class="flex h-screen items-center justify-center px-4 text-[var(--text-main)]">
-          <div class="app-panel w-full max-w-md rounded-2xl p-6">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">Donegeon</p>
+        <main class={style1}>
+          <div class={style2}>
+            <p class={style3}>Donegeon</p>
 
             {!challengeId() ? (
               <form onSubmit={(event) => void submitRequest(event)}>
-                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Sign in</h1>
-                <p class="mt-1 text-sm text-[var(--text-soft)]">Log in with your email to start onboarding your team.</p>
+                <h1 class={style4}>Sign in</h1>
+                <p class={style5}>Log in with your email to start onboarding your team.</p>
                 {inviteCode() ? (
-                  <p class="mt-2 text-xs text-[var(--text-muted)]">
+                  <p class={style6}>
                     {resolvingInvite()
                       ? "Loading invitation..."
                       : `You were invited${inviteTeamName() ? ` to ${inviteTeamName()}` : " to a team"}. Complete login to accept it.`}
                   </p>
                 ) : null}
 
-                <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Email</label>
+                <label class={style7}>Email</label>
                 <input
                   type="email"
                   required
                   value={email()}
-                  readOnly={inviteEmailLocked()}
+                  readonly={inviteEmailLocked()}
                   onInput={(event) => {
                     if (!inviteEmailLocked()) {
                       setEmail(event.currentTarget.value);
                     }
                   }}
-                  class="app-input-surface mt-2 w-full rounded-lg px-3 py-2"
+                  class={style8}
                   placeholder="you@company.com"
                 />
                 {inviteEmailLocked() ? (
-                  <p class="mt-2 text-xs text-[var(--text-muted)]">Email is locked to your invitation address.</p>
+                  <p class={style6}>Email is locked to your invitation address.</p>
                 ) : null}
 
-                <button
+                <Button
                   type="submit"
                   disabled={saving() || resolvingInvite() || !email().trim()}
-                  class="app-button-primary mt-5 w-full rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                  variant="primary"
+                  size="lg"
+                  block
+                  class={style9}
                 >
                   {saving() ? "Sending code..." : "Continue"}
-                </button>
+                </Button>
               </form>
             ) : (
               <form onSubmit={(event) => void submitVerify(event)}>
-                <h1 class="font-display mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">Check your email</h1>
-                <p class="mt-1 text-sm text-[var(--text-soft)]">
-                  We sent a code to <span class="text-white">{email()}</span>.
+                <h1 class={style4}>Check your email</h1>
+                <p class={style5}>
+                  We sent a code to <span class={style10}>{email()}</span>.
                 </p>
 
-                <label class="mt-5 block text-xs uppercase tracking-[0.12em] text-[var(--text-muted)]">Verification Code</label>
+                <label class={style7}>Verification Code</label>
                 <input
                   type="text"
                   required
                   autofocus
                   value={code()}
                   onInput={(event) => setCode(event.currentTarget.value)}
-                  class="app-input-surface mt-2 w-full rounded-lg px-3 py-2 text-center text-2xl tracking-[0.25em]"
+                  class={style11}
                   placeholder="000000"
                   maxlength="6"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
                 />
                 {debugCode() ? (
-                  <p class="mt-2 rounded-md border border-[var(--border-strong)] bg-[rgba(255,255,255,0.04)] px-2 py-1 text-xs text-[#cfe3ff]">
-                    Dev OTP: <span class="font-semibold text-white">{debugCode()}</span>
+                  <p class={style12}>
+                    Dev OTP (filled automatically): <span class={style13}>{debugCode()}</span>
                   </p>
                 ) : null}
 
-                <button
+                <Button
                   type="submit"
                   disabled={saving()}
-                  class="app-button-primary mt-5 w-full rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                  variant="primary"
+                  size="lg"
+                  block
+                  class={style9}
                 >
                   {saving() ? "Verifying..." : "Verify"}
-                </button>
+                </Button>
 
                 {!inviteEmailLocked() ? (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setChallengeId(null)}
-                    class="mt-3 w-full text-xs text-[var(--text-muted)] transition hover:text-white"
+                    variant="ghost"
+                    size="lg"
+                    block
+                    class={style14}
                   >
                     Use a different email
-                  </button>
+                  </Button>
                 ) : null}
               </form>
             )}
 
-            {error() ? <p class="mt-3 text-sm text-[var(--danger)]">{error()}</p> : null}
+            {error() ? <p class={style15}>{error()}</p> : null}
           </div>
         </main>
       </Show>
@@ -262,3 +282,130 @@ export default function LoginRoute() {
     </>
   );
 }
+
+
+const style1 = css`
+display: flex;
+height: 100vh;
+align-items: center;
+justify-content: center;
+padding-inline: calc(var(--spacing) * 4);
+color: var(--text-main);
+`;
+
+const style2 = css`
+width: 100%;
+max-width: var(--container-md);
+border-radius: var(--radius-2xl);
+padding: calc(var(--spacing) * 6);
+background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+`;
+
+const style3 = css`
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style4 = css`
+margin-top: calc(var(--spacing) * 2);
+font-size: var(--text-2xl);
+  line-height: var(--tw-leading, var(--text-2xl--line-height));
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+--tw-tracking: -0.03em;
+  letter-spacing: -0.03em;
+color: var(--text-main);
+font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+`;
+
+const style5 = css`
+margin-top: calc(var(--spacing) * 1);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--text-soft);
+`;
+
+const style6 = css`
+margin-top: calc(var(--spacing) * 2);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-muted);
+`;
+
+const style7 = css`
+margin-top: calc(var(--spacing) * 5);
+display: block;
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+--tw-tracking: 0.12em;
+  letter-spacing: 0.12em;
+color: var(--text-muted);
+text-transform: uppercase;
+`;
+
+const style8 = css`
+margin-top: calc(var(--spacing) * 2);
+width: 100%;
+border-radius: var(--radius-lg);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+background: var(--panel-soft); border: 1px solid var(--border-strong); color: var(--text-main); &:focus { border-color: var(--accent); outline: none; }
+`;
+
+const style9 = css`
+margin-top: calc(var(--spacing) * 5);
+`;
+
+const style10 = css`
+--tw-font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-medium);
+color: var(--text-main);
+`;
+
+const style11 = css`
+margin-top: calc(var(--spacing) * 2);
+width: 100%;
+border-radius: var(--radius-lg);
+padding-inline: calc(var(--spacing) * 3);
+padding-block: calc(var(--spacing) * 2);
+text-align: center;
+font-size: var(--text-2xl);
+  line-height: var(--tw-leading, var(--text-2xl--line-height));
+--tw-tracking: 0.25em;
+  letter-spacing: 0.25em;
+background: var(--panel-soft); border: 1px solid var(--border-strong); color: var(--text-main); &:focus { border-color: var(--accent); outline: none; }
+`;
+
+const style12 = css`
+margin-top: calc(var(--spacing) * 2);
+border-radius: var(--radius-md);
+padding-inline: calc(var(--spacing) * 2);
+padding-block: calc(var(--spacing) * 1);
+font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+color: var(--text-soft);
+background: var(--panel-soft); border: 1px solid var(--border-soft); backdrop-filter: blur(12px);
+`;
+
+const style13 = css`
+--tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+color: var(--text-main);
+`;
+
+const style14 = css`
+margin-top: calc(var(--spacing) * 3);
+`;
+
+const style15 = css`
+margin-top: calc(var(--spacing) * 3);
+font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+color: var(--danger);
+`;
