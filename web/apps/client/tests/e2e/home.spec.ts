@@ -79,7 +79,7 @@ test.describe("Home task flows", () => {
     await expect(taskRowByContent(page, "Today inbox task")).toBeVisible();
     await expect(taskRowByContent(page, "Later inbox task")).toHaveCount(0);
 
-    await page.getByRole("button", { name: /Upcomming/ }).click();
+    await page.getByRole("button", { name: /(Upcomming|Upcoming)/ }).click();
     await expect(taskRowByContent(page, "Later inbox task")).toBeVisible();
     await expect(taskRowByContent(page, "Today inbox task")).toHaveCount(0);
 
