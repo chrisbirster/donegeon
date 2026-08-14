@@ -6,6 +6,7 @@ import { For, Show } from "solid-js";
 import AppShell from "../components/AppShell";
 import { useApi } from "../context/ApiContext";
 import { useTheme } from "../context/ThemeContext";
+import { queryClient } from "../lib/queryClient";
 import { type AuthSession } from "../server/api";
 
 const THEME_OPTIONS = [
@@ -44,7 +45,7 @@ export default function SettingsRoute() {
       const response = await api.auth.me();
       return response.session as AuthSession;
     },
-  }));
+  }), () => queryClient);
 
   const session = () => sessionQuery.data ?? null;
 

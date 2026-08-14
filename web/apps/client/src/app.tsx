@@ -14,6 +14,7 @@ import SettingsRoute from "./routes/SettingsRoute";
 import TeamSettingsRoute from "./routes/TeamSettingsRoute";
 import WaitlistRoute from "./routes/WaitlistRoute";
 import { useApi } from "./context/ApiContext";
+import { queryClient } from "./lib/queryClient";
 
 function Redirect(props: { href: string }) {
   const navigate = useNavigate();
@@ -29,7 +30,7 @@ function ProtectedRoute(props: { component: Component }) {
   const session = createQuery(() => ({
     queryKey: ["auth", "me"],
     queryFn: async () => (await api.auth.me()).session,
-  }));
+  }), () => queryClient);
 
   return (
     <Switch>

@@ -17,6 +17,7 @@ import {
 } from "../server/api";
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
+import { queryClient } from "../lib/queryClient";
 import { mergeNormalizedLabels } from "../lib/quickAddLabels";
 import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
 import AppShell from "../components/AppShell";
@@ -150,11 +151,11 @@ import {
   const tasksQuery = createQuery(() => ({
     queryKey: ["tasks", "list"],
     queryFn: () => api.tasks.list(),
-  }));
+  }), () => queryClient);
   const projectsQuery = createQuery(() => ({
     queryKey: ["projects", "list"],
     queryFn: () => api.projects.list(),
-  }));
+  }), () => queryClient);
 
   const inputTokens = createMemo(() => tokenizeQuickAdd(content()));
   const currentView = createMemo(() => parseTaskView(location.pathname));
