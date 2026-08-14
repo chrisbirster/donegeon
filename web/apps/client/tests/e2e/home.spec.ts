@@ -99,7 +99,7 @@ test.describe("Home task flows", () => {
     await page.getByTestId("search-input").fill("Alpha project task");
     await page.getByRole("button", { name: /Alpha project task/ }).click();
     await expect(page.getByTestId("task-detail-modal")).toBeVisible();
-    await page.getByRole("button", { name: "Close" }).click();
+    await page.getByTestId("task-detail-modal").getByRole("button", { name: "Close" }).click();
   });
 
   test("deletes a task from the list actions", async ({ page }) => {
