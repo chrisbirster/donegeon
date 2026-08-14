@@ -1044,9 +1044,6 @@ import {
       window.clearTimeout(parseTimer);
     }
     parseController?.abort();
-    if (globalKeyHandler) {
-      window.removeEventListener("keydown", globalKeyHandler);
-    }
   });
 
   onSettled(() => {
@@ -1063,6 +1060,7 @@ import {
       }
     };
     window.addEventListener("keydown", globalKeyHandler);
+    return () => window.removeEventListener("keydown", globalKeyHandler!);
   });
   return {
     api,

@@ -2891,7 +2891,7 @@ import {
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerCancel);
 
-    onCleanup(() => {
+    return () => {
       window.clearInterval(miningTickTimer);
       if (syncTimer) window.clearInterval(syncTimer);
       window.removeEventListener("pointermove", onPointerMove);
@@ -2907,7 +2907,7 @@ import {
       }
       composerParseController?.abort();
       detailParseController?.abort();
-    });
+    };
   });
 
   // Periodic background sync — reconcile with server every 2 minutes.

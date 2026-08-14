@@ -1,4 +1,4 @@
-import { type ParentProps, createContext, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, useContext } from "solid-js";
+import { type ParentProps, createContext, createMemo, createSignal, createTrackedEffect, onSettled, useContext } from "solid-js";
 
 import {
   applyResolvedTheme,
@@ -36,12 +36,11 @@ export function ThemeProvider(props: ParentProps) {
 
     if (typeof mediaQuery.addEventListener === "function") {
       mediaQuery.addEventListener("change", handleChange);
-      onCleanup(() => mediaQuery.removeEventListener("change", handleChange));
-      return;
+      return () => mediaQuery.removeEventListener("change", handleChange);
     }
 
     mediaQuery.addListener(handleChange);
-    onCleanup(() => mediaQuery.removeListener(handleChange));
+    return () => mediaQuery.removeListener(handleChange);
   });
 
   function setPreference(next: ThemePreference) {
