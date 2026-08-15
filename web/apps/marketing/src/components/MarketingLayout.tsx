@@ -3,6 +3,7 @@ import { useLocation } from "@solidjs/router";
 import { type ParentProps, Show, createSignal, onSettled } from "solid-js";
 
 import LocalBetaToggle from "./LocalBetaToggle";
+import DonegeonLogo from "../../../client/src/components/brand/DonegeonLogo";
 import { PublicConfigProvider } from "../context/PublicConfigContext";
 import { applyLocalOpenBetaOverride, writeLocalOpenBetaOverride } from "../lib/openBeta";
 import { APP_URL, PLAN_LINKS, defaultPublicConfig, loginHref, planHref, waitlistHref } from "../lib/site";
@@ -116,11 +117,7 @@ export default function MarketingLayout(props: ParentProps) {
           <div class={style7}>
             <div class={style8}>
               <a href="/" class={style9}>
-                <img
-                  class={style10}
-                  src="/images/marketing/donegeon-logo.png"
-                  alt="Donegeon"
-                />
+                <DonegeonLogo class={style10} />
               </a>
             </div>
 
@@ -384,12 +381,8 @@ gap: calc(var(--spacing) * 3);
 `;
 
 const style10 = css`
-display: block;
-width: clamp(9rem, 18vw, 13rem);
-height: 3.5rem;
-object-fit: contain;
-object-position: left center;
-mix-blend-mode: screen;
+display: inline-block;
+white-space: nowrap;
 `;
 
 const style11 = css`
