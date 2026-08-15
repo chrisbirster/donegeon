@@ -116,13 +116,11 @@ export default function MarketingLayout(props: ParentProps) {
           <div class={style7}>
             <div class={style8}>
               <a href="/" class={style9}>
-                <span class={style10}>
-                  D
-                </span>
-                <div>
-                  <p class={style11}>Donegeon</p>
-                  <p class={style12}>Task management for teams</p>
-                </div>
+                <img
+                  class={style10}
+                  src="/images/marketing/donegeon-logo.png"
+                  alt="Donegeon"
+                />
               </a>
             </div>
 
@@ -386,25 +384,12 @@ gap: calc(var(--spacing) * 3);
 `;
 
 const style10 = css`
-display: flex;
-height: calc(var(--spacing) * 10);
-width: calc(var(--spacing) * 10);
-align-items: center;
-justify-content: center;
-border-radius: 50%;
-border-style: var(--tw-border-style);
-  border-width: 1px;
-border: 2px solid #ff2072;
-background: #090713;
-font-family: "Bebas Neue", sans-serif;
-font-size: 1.5rem;
-  line-height: var(--tw-leading, var(--text-sm--line-height));
---tw-font-weight: var(--font-weight-semibold);
-  font-weight: var(--font-weight-semibold);
-color: #f2f1ed;
-box-shadow: 0 0 18px rgba(196,69,255,.48);
---tw-shadow: 0 12px 24px var(--tw-shadow-color, rgba(0,0,0,0.28));
-  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+display: block;
+width: clamp(9rem, 18vw, 13rem);
+height: 3.5rem;
+object-fit: contain;
+object-position: left center;
+mix-blend-mode: screen;
 `;
 
 const style11 = css`
