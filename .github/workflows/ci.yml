@@ -86,7 +86,6 @@ jobs:
         run: npm run build
 
       - name: Audit production web dependencies
-        continue-on-error: true
         working-directory: web
         run: npm audit --omit=dev --audit-level=high
 
@@ -117,6 +116,5 @@ jobs:
         run: npm run check
 
       - name: Audit production infra dependencies
-        continue-on-error: true
         working-directory: infra
         run: npm audit --omit=dev --audit-level=high
