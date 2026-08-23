@@ -6,8 +6,10 @@ on:
     branches:
       - main
 
+# TEMPORARY: contents:write is used only to generate the first npm lockfile on
+# DGN-0004-open-source-readiness. This is removed before the repository is public.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -34,21 +36,42 @@ jobs:
     name: Web typecheck and build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install web dependencies
+      - name: Install web dependencies and generate lockfile
         working-directory: web
         run: npm install --no-audit --no-fund
+
+      - name: Commit generated web lockfile
+        if: github.event_name == 'pull_request' && github.head_ref == 'DGN-0004-open-source-readiness'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain -- web/package-lock.json)" ]; then
+            echo "web/package-lock.json is already committed and current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/package-lock.json
+          git commit -m "chore: generate npm lockfile"
+          git push origin "HEAD:${{ github.head_ref }}"
 
       - name: Typecheck
         working-directory: web
         run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: web
+        run: npm --workspace @donegeon/client run test:unit
 
       - name: Build
         working-directory: web
