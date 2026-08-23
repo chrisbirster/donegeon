@@ -2,7 +2,8 @@ import { onCleanup, onSettled } from "solid-js";
 
 import { type Project, type QuickAddParsed, type Task } from "../server/api";
 import { mergeNormalizedLabels } from "../lib/quickAddLabels";
-import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
+import { shouldPreviewQuickAdd } from "../lib/quickAddPreview";
+import { parseQuickAddLocally } from "../lib/localQuickAddParser";
 import {
   formatLabelsInput,
   parseLabelsInput,
@@ -189,7 +190,7 @@ export function createHomeController() {
     return view.kind === "project" && view.projectId === projectID;
   }
 
-  async function parseMainInput(text: string) {
+  function parseMainInput(text: string) {
     const trimmed = text.trim();
     if (!trimmed || !shouldPreviewQuickAdd(trimmed)) {
       setParsedInput(null);
@@ -204,24 +205,9 @@ export function createHomeController() {
       return;
     }
     lastParsedText = trimmed;
-    parseRequestSeq += 1;
-    const requestSeq = parseRequestSeq;
     parseController?.abort();
-    const controller = new AbortController();
-    parseController = controller;
-
-    try {
-      const parsed = await api.parse.quickAdd(trimmed, { signal: controller.signal });
-      if (requestSeq !== parseRequestSeq) return;
-      setParsedInput(parsed.parsed);
-    } catch (err) {
-      if (isAbortError(err) || requestSeq !== parseRequestSeq) return;
-      setParsedInput(null);
-    } finally {
-      if (requestSeq === parseRequestSeq) {
-        parseController = undefined;
-      }
-    }
+    parseController = undefined;
+    setParsedInput(parseQuickAddLocally(trimmed));
   }
 
   function onMainInput(value: string) {
@@ -241,9 +227,7 @@ export function createHomeController() {
       return;
     }
 
-    parseTimer = window.setTimeout(() => {
-      void parseMainInput(value);
-    }, 350);
+    parseMainInput(value);
   }
 
   async function parseTaskTitleInput(value: string): Promise<QuickAddParsed | null> {

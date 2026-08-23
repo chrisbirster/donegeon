@@ -139,7 +139,7 @@ test.describe("Home task action coverage", () => {
     await expect(page.getByText(/Recurrence:/)).toBeVisible();
   });
 
-  test("quick-add input handles parser API failures without showing chips", async ({ page }) => {
+  test("quick-add input previews locally without calling the parser API", async ({ page }) => {
     let parseCalls = 0;
     await page.route("**/api/quick-add/parse", async (route) => {
       parseCalls += 1;
@@ -151,8 +151,8 @@ test.describe("Home task action coverage", () => {
     });
 
     await page.getByTestId("add-task-input").fill("input error every Thursday at 7pm");
-    await expect.poll(() => parseCalls, { timeout: 3000 }).toBeGreaterThan(0);
-    await expect(page.getByText(/Recurrence:/)).toHaveCount(0);
+    await expect(page.getByText(/Recurrence:/)).toBeVisible();
+    await expect.poll(() => parseCalls).toBe(0);
     await expect(page.getByTestId("add-task-input")).toHaveValue("input error every Thursday at 7pm");
   });
 

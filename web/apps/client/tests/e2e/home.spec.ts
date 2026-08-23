@@ -112,8 +112,10 @@ test.describe("Home task flows", () => {
     await expect(taskRowByContent(page, "Today inbox task")).toBeVisible();
     await expect(taskRowByContent(page, "Later inbox task")).toBeVisible();
 
-    const alphaProjectRow = page.locator("div.group").filter({ hasText: /alpha/i }).first();
-    await alphaProjectRow.getByRole("button", { name: /alpha/i }).click();
+    const alphaProjectButton = page.getByRole("button", { name: /^alpha(?:\s|#)/i }).first();
+    await expect(alphaProjectButton).toBeVisible();
+    const alphaProjectRow = alphaProjectButton.locator("..");
+    await alphaProjectButton.click();
     await expect(page.getByRole("heading", { level: 2 })).toContainText(/alpha/i);
     await expect(taskRowByContent(page, "Alpha project task")).toBeVisible();
 
