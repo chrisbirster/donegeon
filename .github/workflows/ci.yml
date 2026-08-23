@@ -6,25 +6,48 @@ on:
     branches:
       - main
 
-# TEMPORARY: contents:write is used only to generate the first npm lockfile on
-# DGN-0004-open-source-readiness. This is removed before the repository is public.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  secrets:
+    name: Full-history secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all branches and tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --prune --tags origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Scan all Git history with Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/repo" \
+            -w /repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git --redact --verbose --log-opts="--all" .
+
   go:
     name: Go tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -33,37 +56,22 @@ jobs:
         run: go test ./...
 
   web:
-    name: Web typecheck and build
+    name: Web typecheck, test, and build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Checkout
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
-      - name: Install web dependencies and generate lockfile
+      - name: Install web dependencies
         working-directory: web
-        run: npm install --no-audit --no-fund
-
-      - name: Commit generated web lockfile
-        if: github.event_name == 'pull_request' && github.head_ref == 'DGN-0004-open-source-readiness'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "$(git status --porcelain -- web/package-lock.json)" ]; then
-            echo "web/package-lock.json is already committed and current"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/package-lock.json
-          git commit -m "chore: generate npm lockfile"
-          git push origin "HEAD:${{ github.head_ref }}"
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         working-directory: web
@@ -77,15 +85,20 @@ jobs:
         working-directory: web
         run: npm run build
 
+      - name: Audit production web dependencies
+        continue-on-error: true
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
+
   infra:
     name: Infra typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -93,7 +106,7 @@ jobs:
 
       - name: Install infra dependencies
         working-directory: infra
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Generate SST platform types
         working-directory: infra
@@ -102,3 +115,8 @@ jobs:
       - name: Typecheck
         working-directory: infra
         run: npm run check
+
+      - name: Audit production infra dependencies
+        continue-on-error: true
+        working-directory: infra
+        run: npm audit --omit=dev --audit-level=high
