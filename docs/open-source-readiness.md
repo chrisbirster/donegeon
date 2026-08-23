@@ -1,40 +1,45 @@
 # Open-source readiness checklist
 
-This checklist separates repository changes that can be verified in code review from publication steps that require repository-owner actions or a history-aware external scan.
+This checklist distinguishes checks enforced by the repository from the final account-level review that only the repository owner can perform before changing visibility.
 
-## Completed in the open-source readiness change set
+## Completed and enforced in the repository
 
-- [x] Declare `AGPL-3.0-only` for Donegeon-authored source, documentation, scripts, configuration, and project assets.
-- [x] Standardize supported JavaScript/TypeScript tooling on Node.js + npm.
-- [x] Remove Bun lockfiles and Bun-based dev/test/deploy commands.
-- [x] Remove the stale web npm lockfile rather than ship a dependency graph that no longer matches the workspace manifests.
-- [x] Rewrite the README for the current Go + SolidJS 2 + Vite architecture.
-- [x] Remove stale absolute developer-machine paths from maintained documentation.
+- [x] License Donegeon-authored source, documentation, scripts, configuration, and project-specific artwork as `AGPL-3.0-only`.
+- [x] Include the full GNU Affero General Public License v3.0 text in `LICENSE`.
+- [x] Document project artwork and branch-resident WIP artwork in `ASSETS.md`.
+- [x] Expose a public `/open-source` application route with copyright, AGPL, source-code, and no-warranty notices.
+- [x] Link the open-source notice, source repository, and AGPL license from the signed-in application menu.
+- [x] Standardize supported JavaScript/TypeScript tooling on Node.js 22+ and npm 10+.
+- [x] Remove Bun lockfiles and Bun-based maintained dev/test/deploy commands.
+- [x] Generate and commit a fresh `web/package-lock.json` on a clean Node/npm CI runner.
+- [x] Use deterministic `npm ci` installs in CI and deployment workflows.
+- [x] Pin the compatible Vite/Solid prerelease dependency resolution needed by the current SolidJS 2 stack.
+- [x] Reconcile the `dev` product fixes into the open-source readiness branch through PR #5.
+- [x] Run Go tests, web typechecking, Node unit tests, web builds, and infrastructure typechecking in CI.
+- [x] Require production-only npm audits to fail CI on high/critical runtime dependency advisories.
+- [x] Scan all fetched Git branches/tags and complete Git history with Gitleaks on every CI run.
+- [x] Verify the two historical Gitleaks findings were intentional development placeholders (`TOKEN_VALID` and the documented example cookie key) and suppress only their exact fingerprints in `.gitleaksignore`.
+- [x] Keep GitHub Actions read-only by default and use current Node-24-based action majors.
+- [x] Gate automatic `main` deployments on a successful CI workflow.
+- [x] Configure Dependabot updates for Go modules, both npm workspaces, and GitHub Actions.
 - [x] Align the Docker build with Go 1.26.
 - [x] Reject known development/placeholder credentials when `DONEGEON_ENV=production`.
 - [x] Add production-configuration regression tests.
-- [x] Add pull-request/main CI for Go, web typechecking/builds, and infrastructure typechecking.
-- [x] Gate automatic `main` deployments on a successful CI workflow.
+- [x] Rewrite the README for the current Go + SolidJS 2 + Vite architecture and npm workflow.
+- [x] Remove stale absolute developer-machine paths from maintained documentation.
 - [x] Add `CONTRIBUTING.md` and `SECURITY.md`.
-- [x] Remove a committed Playwright run artifact and ignore root test artifacts.
+- [x] Remove committed test-run artifacts and ignore generated test/report output.
 
-## Required before changing repository visibility to public
+## Final owner review before changing visibility to public
 
-- [ ] **Run a complete Git-history secret scan.** Use a history-aware scanner such as Gitleaks or TruffleHog against all refs/history, not only the current working tree. If a real credential is found, rotate/revoke it before rewriting history.
-- [ ] **Generate and commit a fresh `web/package-lock.json`.** From the finalized branch, run `npm install` in `web/`, review the generated lockfile, commit it, and then change web CI/deploy installs from `npm install` to `npm ci`.
-- [ ] **Reconcile `dev` and `main`.** They currently contain divergent work. Decide which post-refactor fixes belong in the public canonical branch and merge them through a reviewed pull request rather than exposing two competing sources of truth.
-- [ ] **Review committed assets for provenance.** The project intends to license Donegeon-authored assets under AGPL-3.0-only. Confirm that each committed image/font/media asset is original or otherwise legally relicensable. Any third-party material must keep its upstream license/notice instead of being silently relicensed.
-- [ ] **Review repository secrets and environments.** Verify that production secrets live in GitHub/Fly/SST/AWS/Cloudflare secret stores and are not present in repository variables, workflow logs, artifacts, or documentation.
-- [ ] **Enable GitHub security features appropriate for a public repository.** At minimum review Dependabot alerts/updates, secret scanning and push protection, code scanning, and private vulnerability reporting.
-- [ ] **Protect `main`.** Require the `CI` checks and pull-request review policy you want before merging production changes.
+These checks involve account settings or external secret stores whose secret values are intentionally not exposed to repository code or this automation.
 
-## Recommended shortly after publication
-
-- [ ] Add a visible **Source** / **License** entry in the hosted application and marketing site that links back to the public repository and license information.
-- [ ] Add dependency-license reporting to CI and periodically review the Go/npm transitive dependency set.
-- [ ] Promote a small trustworthy Playwright smoke suite to required CI once the current browser/context issues and `dev` fixes have been reconciled.
-- [ ] Maintain a feature-audit ledger that marks behavior as `VERIFIED`, `PARTIAL`, `BROKEN`, `UNIMPLEMENTED`, or `UNKNOWN` based on semantic evidence rather than raw test count.
+- [ ] **Review deployment/repository secrets and variables.** In GitHub Actions, Fly.io, SST/AWS, Cloudflare, Turso, Stripe, and Google OAuth, confirm every currently configured production credential is intentional, still active, and stored as a secret rather than committed source or a public variable. The repository history scan is clean apart from the two documented placeholder fingerprints.
+- [ ] **Review remaining branches.** `dev` and `DGN-0002-project-navigation-test-fix` are superseded by the readiness line. `DGN-0001-quick-add-local-preview` no longer contains a materially different E2E file from the readiness branch. `DGN-0003-marketing-homepage-refresh` still contains an unmerged marketing redesign/WIP asset; decide whether you want that WIP branch visible publicly or delete/archive it first.
+- [ ] **Configure public-repository security settings.** When available for the repository/plan, enable secret scanning and push protection, private vulnerability reporting, and code scanning. Dependabot configuration is already committed.
+- [ ] **Protect `main`.** Require the `CI` checks and the pull-request/review policy you want for future production changes.
+- [ ] **Final human diff/readme/branding review.** Confirm the public description, screenshots/artwork, product wording, and contact addresses are what you want associated with the project.
 
 ## Publication rule
 
-Do not treat this checklist as a claim that the application is feature-complete. Donegeon can be published as alpha software while the task and game models continue to evolve. The publication gate is about licensing, secrets, contributor safety, reproducibility, and an honest description of project maturity.
+Donegeon does not need to be feature-complete to be public. It is appropriate to publish it as alpha software once the final owner review above is complete. The repository-level publication gates are about licensing, secrets, contributor safety, reproducibility, deterministic builds, and an accurate description of project maturity.
