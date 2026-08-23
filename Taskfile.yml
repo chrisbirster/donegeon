@@ -111,11 +111,11 @@ tasks:
         air -c .air.toml
 
   dev:frontend:
-    desc: Run web dev server (bun + turbo + vite). Waits for API health.
+    desc: Run the Solid client dev server with npm + Turbo + Vite. Waits for API health.
     dir: web
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v npm >/dev/null 2>&1
+        msg: npm is required. Install Node.js 22 or newer.
       - sh: command -v curl >/dev/null 2>&1
         msg: curl is required to wait for backend readiness.
     cmds:
@@ -124,16 +124,16 @@ tasks:
         until curl -sf http://localhost:42069/api/health >/dev/null; do
           sleep 0.2
         done
-        bun run dev
+        npm run dev:client
 
   dev:marketing:
     desc: Run marketing app only (Vite SPA)
-    dir: web/apps/marketing
+    dir: web
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v npm >/dev/null 2>&1
+        msg: npm is required. Install Node.js 22 or newer.
     cmds:
-      - bun run dev
+      - npm run dev:marketing
 
   install:
     desc: Install all local development dependencies
@@ -147,10 +147,10 @@ tasks:
       - go install github.com/air-verse/air@latest
 
   install:web:
-    desc: Install web dependencies
+    desc: Install web dependencies with npm
     dir: web
     cmds:
-      - bun install
+      - npm install
 
   test:
     desc: Run all Go tests
@@ -176,19 +176,19 @@ tasks:
       - go build ./...
 
   build:web:
-    desc: Build frontend assets into web/dist
+    desc: Build client assets into web/dist
     dir: web
     cmds:
-      - bun run build
+      - npm run build:client
 
   build:marketing:
     desc: Build only marketing SPA (web/apps/marketing/dist)
     dir: web
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v npm >/dev/null 2>&1
+        msg: npm is required. Install Node.js 22 or newer.
     cmds:
-      - bun run build --filter=@donegeon/marketing
+      - npm run build:marketing
 
   deploy:app:
     desc: Deploy app.donegeon.com backend to Fly
@@ -201,18 +201,18 @@ tasks:
   deploy:env:
     desc: Generate/refresh root .env for production deploy (Turso + SST outputs + generated secrets)
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v node >/dev/null 2>&1
+        msg: Node.js 22 or newer is required.
       - sh: command -v turso >/dev/null 2>&1
         msg: turso CLI is required. Install Turso CLI and run `turso auth login`.
     cmds:
-      - bun scripts/deploy-env.mjs
+      - node scripts/deploy-env.mjs
 
   deploy:db:reset:
     desc: Hard reset Turso DB (optional backup), refresh .env DB URL/token, and bounce Fly app
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v node >/dev/null 2>&1
+        msg: Node.js 22 or newer is required.
       - sh: command -v turso >/dev/null 2>&1
         msg: turso CLI is required. Install Turso CLI and run `turso auth login`.
       - sh: command -v flyctl >/dev/null 2>&1
@@ -263,7 +263,7 @@ tasks:
         DEPLOY_ENV_TURSO_DB_NAME="$DB_NAME" \
         DEPLOY_ENV_REFRESH_DB_URL=1 \
         DEPLOY_ENV_ROTATE_DB_TOKEN=1 \
-        bun scripts/deploy-env.mjs
+        node scripts/deploy-env.mjs
 
         if [ "$SCALE_DOWN" = "1" ]; then
           flyctl scale count 1 --app "$APP" -y
@@ -299,8 +299,8 @@ tasks:
     preconditions:
       - sh: command -v flyctl >/dev/null 2>&1
         msg: flyctl is required. Install Fly CLI first.
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v node >/dev/null 2>&1
+        msg: Node.js 22 or newer is required.
       - sh: test -f infra/.sst/outputs.json
         msg: infra/.sst/outputs.json not found. Run `task deploy:infra` first.
     cmds:
@@ -309,13 +309,13 @@ tasks:
         set -a
         [ -f .env ] && . ./.env
         set +a
-        EMAIL_API_BASE_URL="$(bun -e 'const fs=require(\"fs\");const o=JSON.parse(fs.readFileSync(\"infra/.sst/outputs.json\",\"utf8\"));const base=String(o.emailApiBaseUrl||\"\").trim();if(!base){process.exit(2)}process.stdout.write(base);' || true)"
+        EMAIL_API_BASE_URL="$(node -e 'const fs=require("fs");const o=JSON.parse(fs.readFileSync("infra/.sst/outputs.json","utf8"));const base=String(o.emailApiBaseUrl||"").trim();if(!base){process.exit(2)}process.stdout.write(base);' || true)"
         if [ -z "$EMAIL_API_BASE_URL" ]; then
           echo "failed: emailApiBaseUrl missing from infra/.sst/outputs.json"
           exit 1
         fi
         EMAIL_SEND_URL="${EMAIL_API_BASE_URL%/}/send"
-        AUTH_HEADER="$(bun -e 'const fs=require(\"fs\");const o=JSON.parse(fs.readFileSync(\"infra/.sst/outputs.json\",\"utf8\"));process.stdout.write(String(o.authHeaderName||\"Authorization\"));')"
+        AUTH_HEADER="$(node -e 'const fs=require("fs");const o=JSON.parse(fs.readFileSync("infra/.sst/outputs.json","utf8"));process.stdout.write(String(o.authHeaderName||"Authorization"));')"
         if [ -n "${DONEGEON_EMAIL_SEND_AUTH_VALUE:-}" ]; then
           flyctl secrets set \
             DONEGEON_OTP_MAIL_PROVIDER=sst \
@@ -339,13 +339,13 @@ tasks:
     dotenv:
       - .env
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v npm >/dev/null 2>&1
+        msg: npm is required. Install Node.js 22 or newer.
       - sh: test -f .env
         msg: infra/.env not found. Copy from .env.example and fill in values.
     cmds:
-      - bun install
-      - bun ../scripts/sst-deploy-with-retry.mjs --stage production
+      - npm ci
+      - node ../scripts/sst-deploy-with-retry.mjs --stage production
 
   deploy:infra:dev:
     desc: Deploy SST infra to dev stage (email API + marketing site)
@@ -353,13 +353,13 @@ tasks:
     dotenv:
       - .env
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v npm >/dev/null 2>&1
+        msg: npm is required. Install Node.js 22 or newer.
       - sh: test -f .env
         msg: infra/.env not found. Copy from .env.example and fill in values.
     cmds:
-      - bun install
-      - bun ../scripts/sst-deploy-with-retry.mjs --stage dev
+      - npm ci
+      - node ../scripts/sst-deploy-with-retry.mjs --stage dev
 
   deploy:infra:remove:
     desc: Remove SST infra stack
@@ -367,10 +367,11 @@ tasks:
     dotenv:
       - .env
     preconditions:
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v npm >/dev/null 2>&1
+        msg: npm is required. Install Node.js 22 or newer.
     cmds:
-      - bunx sst remove --stage production
+      - npm ci
+      - npx --no-install sst remove --stage production
 
   deploy:marketing:
     desc: Deploy marketing site via SST (production)
@@ -399,8 +400,8 @@ tasks:
     preconditions:
       - sh: command -v flyctl >/dev/null 2>&1
         msg: flyctl is required. Install Fly CLI first.
-      - sh: command -v bun >/dev/null 2>&1
-        msg: bun is required. Install bun first.
+      - sh: command -v npm >/dev/null 2>&1
+        msg: npm is required. Install Node.js 22 or newer.
     cmds:
       - task: build:all
       - task: deploy:infra
