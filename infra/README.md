@@ -1,16 +1,18 @@
-# Donegeon Infra (SST)
+# Donegeon Infra (SST 4)
 
 This directory provisions two things with [SST](https://sst.dev/docs/):
 
 1. AWS SES-backed email API used by the Go backend.
-2. Cloudflare-hosted marketing static site (`donegeon.com`) from `web/apps/marketing`.
+2. Cloudflare Workers static-assets hosting for the marketing SPA (`donegeon.com`) from `web/apps/marketing`.
+
+The project pins SST `4.17.1` in `package.json` and commits `package-lock.json` so CI and deployment use the same infrastructure toolchain.
 
 ## What gets created
 
 - `sst.aws.Email` identity (`DonegeonEmail`)
 - `sst.Secret` auth key (`EmailApiKey`)
-- `sst.aws.Function` URL (`EmailApi`) that sends via SES
-- `sst.cloudflare.StaticSite` (`DonegeonMarketingSite`) for the marketing SPA
+- `sst.aws.Function` URL (`EmailApi`) running on Node.js 24 and sending via SES
+- `sst.cloudflare.StaticSiteV2` (`MktSite`) for the marketing SPA
 
 ## Prerequisites
 
@@ -59,6 +61,18 @@ EMAIL_API_KEY="$(openssl rand -hex 32)"
 npx --no-install sst secret set EmailApiKey "$EMAIL_API_KEY" --stage production
 ```
 
+## Validate
+
+Before deployment, the same checks used by CI can be run locally:
+
+```bash
+cd infra
+npm ci
+npx --no-install sst install
+npm run check
+npm audit --omit=dev --audit-level=high
+```
+
 ## Deploy
 
 ```bash
@@ -67,7 +81,7 @@ npm ci
 npx --no-install sst deploy --stage production
 ```
 
-If Cloudflare throttles KV asset uploads during the marketing deploy, use the repo wrapper instead of raw `sst deploy`:
+The repository wrapper retries a complete SST deploy when Cloudflare returns a rate-limit response; it does not patch SST internals:
 
 ```bash
 cd infra
