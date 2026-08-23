@@ -40,7 +40,7 @@ jobs:
             git --redact --verbose --log-opts="--all" .
 
   go:
-    name: Go tests
+    name: Go checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,8 +52,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Vet
+        run: go vet ./...
+
       - name: Test
         run: go test ./...
+
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   web:
     name: Web typecheck, test, and build
