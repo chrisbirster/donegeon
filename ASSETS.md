@@ -13,6 +13,9 @@ The following project-specific artwork is distributed under `AGPL-3.0-only` by t
 - `web/apps/client/public/images/cards/task.png`
 - `web/apps/client/public/images/cards/villager.png`
 - `web/apps/marketing/public/images/donegeon-hero-city.png`
+- `DGN-0003-marketing-homepage-refresh:web/apps/marketing/public/images/marketing/board-action.png` (work-in-progress branch artwork)
+
+The same licensing declaration applies to earlier revisions of those project-specific assets that remain reachable in Git history or project branches.
 
 Third-party packages and their own bundled assets retain their upstream licenses and are not relicensed by Donegeon.
 
