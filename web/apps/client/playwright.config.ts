@@ -60,7 +60,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `sh -c "DONEGEON_API_URL='http://127.0.0.1:${apiPort}' VITE_E2E_BYPASS_AUTH=true bun run dev --host 127.0.0.1 --port ${webPort}"`,
+      command: `sh -c "DONEGEON_API_URL='http://127.0.0.1:${apiPort}' VITE_E2E_BYPASS_AUTH=true npm run dev -- --host 127.0.0.1 --port ${webPort}"`,
       cwd: __dirname,
       port: webPort,
       timeout: 120_000,
