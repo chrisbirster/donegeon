@@ -8,6 +8,9 @@ import { useApi } from "../context/ApiContext";
 import { queryClient } from "../lib/queryClient";
 import { type AuthSession } from "../server/api";
 
+const SOURCE_URL = "https://github.com/chrisbirster/donegeon";
+const LICENSE_URL = `${SOURCE_URL}/blob/main/LICENSE`;
+
 type SidebarAccountCardProps = {
   class?: string;
   onNavigate?: () => void;
@@ -97,6 +100,22 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
               data-testid="appshell-account-quest-log"
             >
               Quest Log
+            </a>
+            <a
+              href={SOURCE_URL}
+              class={style8}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Source code
+            </a>
+            <a
+              href={LICENSE_URL}
+              class={style8}
+              target="_blank"
+              rel="noreferrer"
+            >
+              AGPL-3.0 license
             </a>
             <Button
               type="button"
