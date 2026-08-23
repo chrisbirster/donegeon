@@ -14,12 +14,19 @@ This directory provisions two things with [SST](https://sst.dev/docs/):
 
 ## Prerequisites
 
-1. AWS credentials configured locally.
-2. SES sender identity verified in your AWS region.
-3. Cloudflare API token and account ID:
+1. Node.js 22+ and npm 10+.
+2. AWS credentials configured locally.
+3. SES sender identity verified in your AWS region.
+4. Cloudflare API token and account ID:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_DEFAULT_ACCOUNT_ID`
-4. `bun` installed (used to build the marketing app during deploy).
+
+## Install
+
+```bash
+cd infra
+npm ci
+```
 
 ## Environment
 
@@ -46,24 +53,25 @@ export DONEGEON_MARKETING_DOMAIN=donegeon.com
 
 ```bash
 cd infra
-npm install
-npx sst install
+npm ci
+npx --no-install sst install
 EMAIL_API_KEY="$(openssl rand -hex 32)"
-npx sst secret set EmailApiKey "$EMAIL_API_KEY" --stage production
+npx --no-install sst secret set EmailApiKey "$EMAIL_API_KEY" --stage production
 ```
 
 ## Deploy
 
 ```bash
 cd infra
-npx sst deploy --stage production
+npm ci
+npx --no-install sst deploy --stage production
 ```
 
 If Cloudflare throttles KV asset uploads during the marketing deploy, use the repo wrapper instead of raw `sst deploy`:
 
 ```bash
 cd infra
-bun ../scripts/sst-deploy-with-retry.mjs --stage production
+node ../scripts/sst-deploy-with-retry.mjs --stage production
 ```
 
 Capture outputs:
@@ -112,5 +120,10 @@ fly deploy
 
 ```bash
 cd infra
-npx sst remove --stage production
+npm ci
+npx --no-install sst remove --stage production
 ```
+
+## License
+
+The Donegeon-authored source and documentation in this directory are licensed under the GNU Affero General Public License v3.0. Third-party dependencies retain their upstream licenses.
