@@ -15,7 +15,8 @@ This checklist distinguishes checks enforced by the repository from the final ac
 - [x] Use deterministic `npm ci` installs in CI and deployment workflows.
 - [x] Pin the compatible Vite/Solid prerelease dependency resolution needed by the current SolidJS 2 stack.
 - [x] Reconcile the `dev` product fixes into the open-source readiness branch through PR #5.
-- [x] Run Go tests, web typechecking, Node unit tests, web builds, and infrastructure typechecking in CI.
+- [x] Run `go vet`, Go tests, and `govulncheck` in CI.
+- [x] Run web typechecking, Node unit tests, web builds, and infrastructure typechecking in CI.
 - [x] Require production-only npm audits to fail CI on high/critical runtime dependency advisories.
 - [x] Scan all fetched Git branches/tags and complete Git history with Gitleaks on every CI run.
 - [x] Verify the two historical Gitleaks findings were intentional development placeholders (`TOKEN_VALID` and the documented example cookie key) and suppress only their exact fingerprints in `.gitleaksignore`.
