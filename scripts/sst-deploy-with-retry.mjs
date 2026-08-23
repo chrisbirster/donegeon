@@ -1,9 +1,9 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const sstArgs = ["sst", "deploy", ...process.argv.slice(2)];
+const sstArgs = ["--no-install", "sst", "deploy", ...process.argv.slice(2)];
 const maxAttempts = parseNumber(process.env.DEPLOY_SST_RETRY_ATTEMPTS, 5);
 const initialDelayMs = parseNumber(process.env.DEPLOY_SST_RETRY_DELAY_MS, 30000);
 const maxDelayMs = parseNumber(process.env.DEPLOY_SST_RETRY_MAX_DELAY_MS, 300000);
@@ -126,10 +126,10 @@ function isCloudflareRateLimit(output) {
 }
 
 async function runAttempt(attempt) {
-  console.log(`[sst-deploy] attempt ${attempt}/${maxAttempts}: bunx ${sstArgs.join(" ")}`);
+  console.log(`[sst-deploy] attempt ${attempt}/${maxAttempts}: npx ${sstArgs.join(" ")}`);
 
   return await new Promise((resolve) => {
-    const child = spawn("bunx", sstArgs, {
+    const child = spawn("npx", sstArgs, {
       cwd: process.cwd(),
       env: process.env,
       stdio: ["inherit", "pipe", "pipe"],
