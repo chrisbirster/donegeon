@@ -72,6 +72,10 @@ jobs:
         working-directory: infra
         run: npm ci
 
+      - name: Generate SST platform types
+        working-directory: infra
+        run: npx --no-install sst install
+
       - name: Typecheck
         working-directory: infra
         run: npm run check
