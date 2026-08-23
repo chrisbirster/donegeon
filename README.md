@@ -1,216 +1,303 @@
-# donegeon
+# Donegeon
 
-Donegeon is a Go-first task-manager backend with an embedded SolidJS SPA frontend.
+Donegeon is an experimental productivity application that combines a Todoist-style task manager with a Stacklands-inspired card and stacking game.
 
-## Stack
+Tasks are real productivity objects. The board is another way to interact with them: tasks can become cards, villagers can be assigned to work, stacks can be combined, quests can advance, and completed work can drive game progression.
 
-- Backend: Go `net/http` + `log/slog`
-- DB: SQLite via `sqlx` + `modernc.org/sqlite`
-- Migrations: `go-migrate` using embedded SQL migrations
-- Query templates: embedded from `internal/database/queries/*.sql`
-- Frontend: Bun + Turborepo + Vite + TypeScript + SolidJS + Solid Router + TailwindCSS v4
-- Frontend assets are built to `web/dist` and embedded via `web/dist/embed.go`
+> **Project status: alpha.** Donegeon is under active development and audit. The task model, game model, APIs, and UX may change before the first stable release. The repository intentionally favors explicit tests and documented behavior over backwards compatibility while those models are being finalized.
 
-## Run backend
+## What is in the repository
+
+Donegeon is a monorepo with a Go application server and two SolidJS applications.
+
+```text
+donegeon/
+├── cmd/                     Go application entry points
+├── internal/                Go domain, persistence, integrations, and HTTP API
+│   ├── task/                canonical task behavior
+│   ├── project/             projects and organization
+│   ├── board/               board/game command engine
+│   ├── quickadd/            server-authoritative quick-add parsing
+│   ├── account/             users, sessions, teams, invitations, billing state
+│   ├── calendar/            calendar integrations
+│   └── httpapi/             HTTP transport and middleware
+├── migrations/              database migrations
+├── docs/                    architecture, specs, quests, and audit material
+├── web/
+│   ├── apps/client/         authenticated SolidJS application
+│   ├── apps/marketing/      public SolidJS marketing/docs site
+│   └── dist/                client build embedded by Go
+├── infra/                   SST infrastructure for email and marketing hosting
+├── scripts/                 repository and deployment tooling
+├── Taskfile.yml             common development/deployment commands
+└── Dockerfile               production application image
+```
+
+## Architecture
+
+The intended boundary is deliberately simple:
+
+```text
+SolidJS client
+    │
+    │ HTTP API / board commands
+    ▼
+Go application
+    │
+    ├── task domain
+    ├── project/workspace domain
+    ├── board/game command engine
+    ├── authentication and integrations
+    └── repositories
+          │
+          ▼
+     SQLite / Turso
+```
+
+### Go is authoritative for durable state
+
+The Go application owns persisted business rules and state transitions, including:
+
+- task creation, updates, completion, recurrence, projects, labels, and scheduling;
+- authentication, workspace permissions, billing boundaries, and integrations;
+- board state, command validation, stack legality, task/game synchronization, quests, inventory, and progression;
+- persistence, migrations, concurrency/version checks, and API contracts.
+
+A browser preview may duplicate a small deterministic rule for responsiveness, but saving or executing an operation goes through the server-authoritative implementation.
+
+### SolidJS owns interaction and presentation
+
+The client owns browser concerns such as:
+
+- routes and application composition;
+- drag/drop and board interaction state;
+- dialogs, menus, forms, notifications, and responsive behavior;
+- optimistic presentation and local caching;
+- PWA/browser integration.
+
+The UI should not become an independent source of truth for durable task or game state.
+
+## Technology
+
+### Server
+
+- Go 1.26
+- `net/http`
+- SQLite for local/self-hosted use
+- Turso/libSQL for the hosted deployment
+- SQL migrations in `migrations/`
+
+### Web
+
+- SolidJS 2 release-candidate packages
+- Solid Router 2 prerelease
+- Vite 7
+- TanStack Solid Query
+- Linaria / WyW-in-JS
+- Playwright
+- npm workspaces + Turborepo
+
+### Infrastructure
+
+- Fly.io for the Go application
+- SST for infrastructure orchestration
+- AWS SES for application email
+- Cloudflare for the marketing site
+
+The infrastructure directory is optional for local development. You do not need AWS, Fly, Cloudflare, Stripe, Google Calendar, or Turso to run Donegeon locally with SQLite.
+
+## Requirements
+
+For local application development:
+
+- Go 1.26+
+- Node.js 22+
+- npm 10+
+
+Optional but recommended:
+
+- [Task](https://taskfile.dev/) for repository commands
+- [Air](https://github.com/air-verse/air) for Go hot reload
+- Chrome/Chromium for Playwright browser tests
+
+Donegeon uses **npm only**. Bun, pnpm, and Yarn are not part of the supported repository workflow.
+
+## Getting started
+
+Clone the repository and create a local environment file:
 
 ```bash
+git clone https://github.com/chrisbirster/donegeon.git
+cd donegeon
+cp .env.example .env
+```
+
+Install the web dependencies:
+
+```bash
+cd web
+npm install
+cd ..
+```
+
+### Recommended: Task + SQLite
+
+Install Air once:
+
+```bash
+go install github.com/air-verse/air@latest
+```
+
+Then run:
+
+```bash
+task dev:sqlite
+```
+
+This starts the Go API and Solid client using a local SQLite database. Local development intentionally permits debug authentication settings that are rejected when `DONEGEON_ENV=production`.
+
+### Without Task
+
+Run the backend in one terminal:
+
+```bash
+cp .env.example .env
+set -a
+. ./.env
+set +a
 go run .
 ```
 
-Server defaults to `http://localhost:42069`.
-
-## Run both (recommended)
-
-```bash
-task dev
-```
-
-`task dev` starts:
-
-- backend with hot reload via `air` + `.air.toml`
-- frontend via `bun run dev` in `/web`
-- loads root `.env` for backend env vars
-- defaults `DONEGEON_OPEN_BETA=true` in local dev so auth stays available while you build
-- defaults `DONEGEON_AUTH_DEBUG_CODE=true` in local dev so OTP is visible in Login UI
-
-If needed:
-
-```bash
-task install
-```
-
-Environment variables:
-
-- `DONEGEON_HTTP_PORT` (default `42069`)
-- `DONEGEON_DB_PATH` (default `donegeon.db`)
-- `DONEGEON_BOARD_CONFIG_PATH` (optional YAML gameplay tuning file; legacy alias `DONEGEON_CONFIG_PATH`)
-  - if unset, server auto-loads `donegeon_config.yml` (or `donegeon_config.yaml`) when present in cwd
-- `DONEGEON_REQUIRE_AUTH` (default `true`)
-- `DONEGEON_OPEN_BETA` (default `false`; local dev tasks export `true`)
-- `DONEGEON_API_TOKEN` (default `TOKEN_VALID`)
-- `DONEGEON_READONLY_API_TOKEN` (default `TOKEN_READONLY`)
-- Production template: `.env.production.example` (includes Turso + Google Calendar OAuth settings)
-
-Example gameplay config:
-
-- [`docs/board-gameplay-config.example.yml`](/Users/gm/dev/personal/newtasks/docs/board-gameplay-config.example.yml)
-
-## Run frontend (dev)
+Run the client in another terminal:
 
 ```bash
 cd web
-bun install
-bun run dev
+npm run dev:client
 ```
 
-Vite runs on `http://localhost:5173` and proxies `/api` to `http://localhost:42069`.
+The client Vite server proxies `/api` to the Go API at `http://localhost:42069` by default.
 
-## Build frontend into embedded dist
+## Common commands
+
+From the repository root:
 
 ```bash
-cd web
-bun run build
+task test          # Go test suite
+task build         # client + Go server
+task build:all     # client + marketing + Go server
+task dev:sqlite    # local SQLite development
 ```
 
-## Taskfile quick commands
+From `web/`:
 
 ```bash
-# Full local dev (API + app)
-task dev
-
-# Full local dev forced to SQLite (uses .env.local.sqlite overrides)
-task dev:sqlite
-
-# Marketing site only
-task dev:marketing
-
-# Build marketing app
-task build:marketing
-
-# Deploy app backend (Fly)
-task deploy:app
-
-# Generate/refresh root .env from Turso + infra outputs
-task deploy:env
-
-# Deploy SST infra (email API + marketing on Cloudflare)
-task deploy:infra
-task deploy:infra:dev
-
-# Marketing deploy aliases
-task deploy:marketing
-task deploy:marketing:dev
-
-# Full deploy flow (build + infra + env + Fly secrets + app)
-task deploy:all
-
-# Full deploy + wipe Turso first
-task deploy:all:wipe-db
+npm run dev:client
+npm run dev:marketing
+npm run typecheck
+npm run build
+npm --workspace @donegeon/client run test:e2e
 ```
 
-## GitHub Actions Deploys
-
-`main` branch pushes now support selective deploys through [deploy.yml](/Users/gm/dev/personal/newtasks/.github/workflows/deploy.yml):
-
-- App changes deploy only the Fly app.
-  Includes Go backend, embedded client app, Fly config, and gameplay/runtime files.
-- Marketing or infra changes deploy only the SST production stack.
-  That updates the Cloudflare-hosted marketing site and any SST-managed infra changes without redeploying the Fly app.
-- Shared web workspace changes trigger both deploy jobs.
-- SST marketing deploys automatically retry Cloudflare `10429`/`429` asset-upload throttling before failing.
-
-You can also run the workflow manually from GitHub Actions with `target=changed`, `app`, `marketing`, or `all`.
-
-Required GitHub secrets/vars:
-
-- `FLY_API_TOKEN`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_DEFAULT_ACCOUNT_ID`
-- Optional repo variable: `AWS_REGION` (defaults to `us-east-1`)
-- Optional repo variables: `DONEGEON_MARKETING_DOMAIN`, `DONEGEON_EMAIL_SENDER`, `DONEGEON_EMAIL_FROM`, `DONEGEON_EMAIL_API_AUTH_HEADER`
-
-SST still requires the production `EmailApiKey` secret to already exist for the `production` stage, for example:
+From `infra/`:
 
 ```bash
-cd infra
-bun install
-bunx sst secret set EmailApiKey "<strong-random-token>" --stage production
+npm ci
+npm run check
 ```
 
-The Fly deploy job assumes your production Fly secrets are already configured. This workflow deploys code/config to Fly; it does not rotate or repopulate Fly secrets on each push.
+See `infra/README.md` for deployment-specific infrastructure commands.
 
-## Tests
+## Testing philosophy
 
-```bash
-go test ./internal/... ./cmd/...
+Donegeon is currently auditing its test suite. Test count by itself is not treated as proof that a feature works.
+
+The target verification model is:
+
+1. **Go unit tests** for deterministic domain rules.
+2. **Go integration tests** for persistence and state transitions.
+3. **API tests** for request/response semantics and authorization boundaries.
+4. **Frontend tests** for browser-only presentation and interaction behavior.
+5. **Playwright workflows** for critical user journeys.
+6. **Feature audit documentation** mapping a feature to the tests that actually prove it.
+
+A compatibility or generated test that only proves an endpoint returned `2xx` is not considered sufficient evidence for the underlying feature behavior.
+
+## Tasks and the board
+
+Donegeon has two connected domains.
+
+### Task manager
+
+The task system is intended to support a serious day-to-day workflow: inbox/project organization, priorities, labels, sections, due dates/deadlines, recurrence, quick add, comments, collaboration, and calendar integration.
+
+That model is still being audited and should be treated as evolving until its feature inventory is marked verified.
+
+### Board game
+
+The board uses a server-side command engine. Current command families cover capabilities such as:
+
+- spawning and opening decks;
+- moving, merging, splitting, unstacking, and removing stacks;
+- creating, linking, activating, editing, assigning, and completing task cards;
+- villagers and assignment rules;
+- resources, gathering, food, loot, and inventory;
+- quests and rewards;
+- progression and end-of-day behavior;
+- optimistic board version/conflict handling.
+
+The game layer should reference the canonical task domain rather than create a second independent task model.
+
+## Data
+
+SQLite is the default local database. Turso is supported for the hosted deployment.
+
+Database changes belong in `migrations/`. Existing data should be evolved through forward migrations instead of editing historical migrations in place.
+
+Do not commit local database files. They are ignored by the repository.
+
+## Configuration and secrets
+
+Use `.env.example` for local development and `.env.production.example` as the production template.
+
+Never commit a real `.env` file or production credential.
+
+Production mode intentionally fails closed. When:
+
+```text
+DONEGEON_ENV=production
 ```
 
-Quick-add parser tests are sourced from the split specs under `docs/specs/quickadd/`.
+Donegeon refuses to start with known placeholder API tokens/cookie secrets, insecure cookies, debug authentication codes, disabled authentication, or a Turso deployment without an auth token.
 
-Manifest and coverage index:
+The checked-in example credentials are development placeholders only.
 
-- `docs/test-cases.yaml`
-- `docs/test-index.md`
+## CI and deployment
 
-TaskManager parity archive/spec references are kept in:
+`.github/workflows/ci.yml` verifies pull requests and `main` with:
 
-- `docs/test-cases-taskmanager-parity.yaml`
-- `docs/specs/taskmanager/`
+- `go test ./...`;
+- frontend/marketing TypeScript checks;
+- frontend/marketing production builds;
+- infrastructure TypeScript checks.
 
-Implemented parity actions are exercised by Go tests in:
+The deployment workflow is separate. Automatic deployments from `main` are triggered only after the `CI` workflow succeeds. Manual targeted deployment remains available through `workflow_dispatch`.
 
-- `internal/httpapi/taskmanager_parity_spec_test.go`
+## Contributing
 
-TaskManager compatibility action endpoint:
+Donegeon is open source and contributions are welcome. Because the data model and behavioral contracts are still being audited, changes to task/game semantics should include tests that prove the intended state transition rather than only HTTP status assertions.
 
-- `POST /api/taskmanager/action`
-- Request body: `{ "action": "<methodName>", "payload": { ... } }`
-- Upload actions remain intentionally unimplemented: `uploadFile`, `uploadWorkspaceLogo`, `deleteUpload`
+Read `CONTRIBUTING.md` before opening a pull request.
 
-## Playwright E2E
+## Security
 
-Playwright tests live in:
+Do not open a public issue for a suspected vulnerability or exposed credential. See `SECURITY.md` for the reporting process.
 
-- `web/apps/client/tests/e2e/home.spec.ts`
-- `web/apps/client/tests/e2e/board.spec.ts`
+Before a private checkout is made public, the repository history should also be scanned with a dedicated history-aware secret scanner such as Gitleaks or TruffleHog. Current-tree hygiene does not prove deleted historical commits were secret-free.
 
-Run setup and tests:
+## License
 
-```bash
-cd web
-bun install
-cd apps/client
-bun run test:e2e:install
-bun run test:e2e
-```
+Donegeon is licensed under the **GNU Affero General Public License v3.0 only (`AGPL-3.0-only`)**.
 
-The suite starts both servers automatically:
+Unless a file explicitly identifies third-party material under another license, the Donegeon-authored source code, documentation, scripts, configuration, and project assets in this repository are provided under the AGPLv3. Third-party dependencies retain their respective upstream licenses.
 
-- Go API on `http://localhost:42169` (default for Playwright runs)
-- Vite app on `http://localhost:4173`
-
-Override ports with `PW_API_PORT` and `PW_WEB_PORT` if needed.
-
-To push toward 90% feature coverage, extend the scenarios in the E2E specs for any new user-visible workflow (task flow + board flow).
-
-## RRULE Parsing (RFC 5545)
-
-The backend includes an RFC 5545 RRULE parser (`RECUR` grammar) that supports:
-
-- `FREQ` (`SECONDLY`..`YEARLY`)
-- `UNTIL`, `COUNT`, `INTERVAL`
-- `BYSECOND`, `BYMINUTE`, `BYHOUR`
-- `BYDAY`, `BYMONTHDAY`, `BYYEARDAY`, `BYWEEKNO`, `BYMONTH`, `BYSETPOS`
-- `WKST`
-- Extension rule parts (`X-*` and other IANA token names)
-
-Parse endpoint:
-
-```bash
-curl -X POST http://localhost:42069/api/rrule/parse \
-  -H 'Authorization: Bearer TOKEN_VALID' \
-  -H 'Content-Type: application/json' \
-  -d '{"rrule":"FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR"}'
-```
+See `LICENSE` for the complete license text.
