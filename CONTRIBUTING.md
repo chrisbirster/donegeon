@@ -10,7 +10,7 @@ By contributing to this repository, you agree that your contribution is licensed
 
 ## Development requirements
 
-- Go 1.26+
+- Go 1.26.7+
 - Node.js 22+
 - npm 10+
 
@@ -29,7 +29,7 @@ git clone https://github.com/chrisbirster/donegeon.git
 cd donegeon
 cp .env.example .env
 cd web
-npm install
+npm ci
 cd ..
 ```
 
@@ -53,11 +53,16 @@ A browser-side preview may duplicate a small deterministic rule when it improves
 Before opening a pull request, run the checks relevant to your change.
 
 ```bash
+go vet ./...
 go test ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
 cd web
+npm ci
 npm run typecheck
+npm --workspace @donegeon/client run test:unit
 npm run build
+npm audit --omit=dev --audit-level=high
 ```
 
 For infrastructure changes:
@@ -65,7 +70,9 @@ For infrastructure changes:
 ```bash
 cd infra
 npm ci
+npx --no-install sst install
 npm run check
+npm audit --omit=dev --audit-level=high
 ```
 
 For browser workflow changes:
