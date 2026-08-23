@@ -1,16 +1,16 @@
 # Open-source readiness checklist
 
-This checklist distinguishes checks enforced by the repository from the small set of repository-owner settings that remain before or immediately after changing visibility.
+This checklist distinguishes checks enforced by the repository from the small set of repository-owner steps that remain before or immediately after publication.
 
 ## Completed and enforced in the repository
 
 - [x] License Donegeon-authored source, documentation, scripts, configuration, and project-specific artwork as `AGPL-3.0-only`.
 - [x] Include the full GNU Affero General Public License v3.0 text in `LICENSE`.
 - [x] Document project artwork and branch-resident WIP artwork in `ASSETS.md`.
-- [x] Retain `DGN-0003-marketing-homepage-refresh` as an intentional public WIP branch; its Donegeon-authored artwork is covered by the repository AGPL declaration.
+- [x] Retain `DGN-0003-marketing-homepage-refresh` as an intentional WIP branch; its Donegeon-authored artwork is covered by the repository AGPL declaration.
 - [x] Expose a public `/open-source` application route with copyright, AGPL, source-code, and no-warranty notices.
 - [x] Link the open-source notice, source repository, and AGPL license from the signed-in application menu.
-- [x] Remove external product/comparison references from maintained public project documentation; Donegeon is described on its own terms.
+- [x] Keep the README and maintained public documentation focused on Donegeon's own product behavior and terminology.
 - [x] Standardize supported JavaScript/TypeScript tooling on Node.js 22+ and npm 10+.
 - [x] Remove Bun lockfiles and Bun-based maintained dev/test/deploy commands.
 - [x] Generate and commit a fresh `web/package-lock.json` on a clean Node/npm CI runner.
@@ -41,12 +41,13 @@ Secrets stored in GitHub Actions, Fly.io, AWS/SST, Cloudflare, Turso, Stripe, or
 
 ## Final owner steps
 
-- [x] **Branch decision.** Keep `DGN-0003-marketing-homepage-refresh` as a WIP branch when the repository becomes public.
+- [x] **Branch decision.** Keep `DGN-0003-marketing-homepage-refresh` as a WIP branch in the public project.
 - [x] **Licensing decision.** Donegeon-authored code, documentation, configuration, scripts, and project artwork are AGPL-3.0-only unless a file explicitly identifies third-party material under another license.
 - [ ] **Final human read-through.** Confirm the public description, screenshots/artwork, product wording, and contact addresses are what you want associated with Donegeon.
-- [ ] **Enable free public-repository security features.** After the repository is public, enable the GitHub security features available to public repositories without a paid security add-on, including secret scanning/push protection, private vulnerability reporting, and code scanning where available. Dependabot configuration is already committed.
+- [ ] **Publish clean history.** Create the public repository from the approved source snapshots rather than exposing private development/PR history. Preserve the approved `main` source and the current `DGN-0003-marketing-homepage-refresh` WIP source as clean public branch snapshots.
+- [ ] **Enable free public-repository security features.** After the repository is public, enable the GitHub security features available to public repositories without a paid security add-on, including secret scanning/push protection, private vulnerability reporting, and code scanning. Dependabot configuration is already committed.
 - [ ] **Protect `main`.** Once the repository is public, require the `CI` checks and the pull-request/review policy you want for future production changes using the branch-protection features available to public repositories.
 
 ## Publication rule
 
-Donegeon does not need to be feature-complete to be public. It is appropriate to publish it as alpha software once the final human read-through is complete. Repository security settings and `main` protection should be enabled as part of publication so they apply to subsequent public contributions.
+Donegeon does not need to be feature-complete to be public. It is appropriate to publish it as alpha software once the final human read-through is complete and the approved source is copied into a clean public Git history. Repository security settings and `main` protection should then be enabled as part of publication so they apply to subsequent public contributions.
