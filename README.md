@@ -1,6 +1,6 @@
 # Donegeon
 
-Donegeon is an experimental productivity application that combines a Todoist-style task manager with a Stacklands-inspired card and stacking game.
+Donegeon is an experimental productivity application that combines serious task management with an integrated card-and-stacking game layer.
 
 Tasks are real productivity objects. The board is another way to interact with them: tasks can become cards, villagers can be assigned to work, stacks can be combined, quests can advance, and completed work can drive game progression.
 
@@ -81,7 +81,7 @@ The UI should not become an independent source of truth for durable task or game
 
 ### Server
 
-- Go 1.26
+- Go 1.26.7
 - `net/http`
 - SQLite for local/self-hosted use
 - Turso/libSQL for the hosted deployment
@@ -110,7 +110,7 @@ The infrastructure directory is optional for local development. You do not need 
 
 For local application development:
 
-- Go 1.26+
+- Go 1.26.7+
 - Node.js 22+
 - npm 10+
 
@@ -278,7 +278,9 @@ The checked-in example credentials are development placeholders only.
 `.github/workflows/ci.yml` verifies pull requests and `main` with:
 
 - a Gitleaks scan across complete Git history, branches, and tags;
+- `go vet ./...`;
 - `go test ./...`;
+- `govulncheck` against the Go vulnerability database;
 - frontend/marketing TypeScript checks;
 - Node-based frontend unit tests;
 - frontend/marketing production builds;
