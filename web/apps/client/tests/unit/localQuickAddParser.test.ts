@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 
-import { parseQuickAddLocally } from "../../src/lib/localQuickAddParser";
+import { parseQuickAddLocally } from "../../src/lib/localQuickAddParser.ts";
 
 describe("parseQuickAddLocally", () => {
   test("parses project, labels, assignee, priority, deadline, and description", () => {
-    expect(parseQuickAddLocally("Ship release #work @urgent +alex p2 {in 3 days} // verify rollout")).toEqual({
+    assert.deepStrictEqual(parseQuickAddLocally("Ship release #work @urgent +alex p2 {in 3 days} // verify rollout"), {
       content: "Ship release",
       project: "work",
       labels: ["urgent"],
@@ -18,7 +19,7 @@ describe("parseQuickAddLocally", () => {
   });
 
   test("parses the combined composer preview without server resolution", () => {
-    expect(parseQuickAddLocally("another task every Thursday at 7pm due Thursday { in 2 days } p2 @chore #home")).toEqual({
+    assert.deepStrictEqual(parseQuickAddLocally("another task every Thursday at 7pm due Thursday { in 2 days } p2 @chore #home"), {
       content: "another task",
       project: "home",
       labels: ["chore"],
@@ -32,11 +33,13 @@ describe("parseQuickAddLocally", () => {
   });
 
   test("parses common recurrence forms", () => {
-    expect(parseQuickAddLocally("Review every 2 weeks").recurrenceRule).toBe("FREQ=WEEKLY;INTERVAL=2");
-    expect(parseQuickAddLocally("Standup daily at 9am").recurrenceRule).toBe(
+    assert.equal(parseQuickAddLocally("Review every 2 weeks").recurrenceRule, "FREQ=WEEKLY;INTERVAL=2");
+    assert.equal(
+      parseQuickAddLocally("Standup daily at 9am").recurrenceRule,
       "FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0",
     );
-    expect(parseQuickAddLocally("Payroll twice a month").recurrenceRule).toBe(
+    assert.equal(
+      parseQuickAddLocally("Payroll twice a month").recurrenceRule,
       "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1,15",
     );
   });
