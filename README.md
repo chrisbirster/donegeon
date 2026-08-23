@@ -132,11 +132,11 @@ cd donegeon
 cp .env.example .env
 ```
 
-Install the web dependencies:
+Install the exact web dependency graph from the committed lockfile:
 
 ```bash
 cd web
-npm install
+npm ci
 cd ..
 ```
 
@@ -191,9 +191,11 @@ task dev:sqlite    # local SQLite development
 From `web/`:
 
 ```bash
+npm ci
 npm run dev:client
 npm run dev:marketing
 npm run typecheck
+npm --workspace @donegeon/client run test:unit
 npm run build
 npm --workspace @donegeon/client run test:e2e
 ```
@@ -275,12 +277,17 @@ The checked-in example credentials are development placeholders only.
 
 `.github/workflows/ci.yml` verifies pull requests and `main` with:
 
+- a Gitleaks scan across complete Git history, branches, and tags;
 - `go test ./...`;
 - frontend/marketing TypeScript checks;
+- Node-based frontend unit tests;
 - frontend/marketing production builds;
-- infrastructure TypeScript checks.
+- infrastructure TypeScript checks;
+- production-dependency npm audits that fail on high/critical advisories.
 
-The deployment workflow is separate. Automatic deployments from `main` are triggered only after the `CI` workflow succeeds. Manual targeted deployment remains available through `workflow_dispatch`.
+The deployment workflow is separate. Automatic deployments from `main` are triggered only after the `CI` workflow succeeds. Both CI and deployment use lockfile-backed `npm ci` installs. Manual targeted deployment remains available through `workflow_dispatch`.
+
+Dependabot is configured for Go modules, the web and infrastructure npm workspaces, and GitHub Actions.
 
 ## Contributing
 
@@ -292,12 +299,14 @@ Read `CONTRIBUTING.md` before opening a pull request.
 
 Do not open a public issue for a suspected vulnerability or exposed credential. See `SECURITY.md` for the reporting process.
 
-Before a private checkout is made public, the repository history should also be scanned with a dedicated history-aware secret scanner such as Gitleaks or TruffleHog. Current-tree hygiene does not prove deleted historical commits were secret-free.
+CI runs a history-aware Gitleaks scan across fetched branches, tags, and Git history. `.gitleaksignore` contains only two exact historical fingerprints that were manually verified as intentional development placeholders; it does not broadly suppress secret rules or paths.
 
 ## License
 
 Donegeon is licensed under the **GNU Affero General Public License v3.0 only (`AGPL-3.0-only`)**.
 
-Unless a file explicitly identifies third-party material under another license, the Donegeon-authored source code, documentation, scripts, configuration, and project assets in this repository are provided under the AGPLv3. Third-party dependencies retain their respective upstream licenses.
+Unless a file explicitly identifies third-party material under another license, the Donegeon-authored source code, documentation, scripts, configuration, and project-specific artwork in this repository are provided under the AGPLv3. Third-party dependencies retain their respective upstream licenses. See `ASSETS.md` for the project artwork declaration.
+
+The hosted client exposes an `/open-source` notice with the source-code link, license terms, copyright notice, and no-warranty statement for network users.
 
 See `LICENSE` for the complete license text.
