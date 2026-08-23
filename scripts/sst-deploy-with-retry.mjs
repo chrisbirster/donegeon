@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
 
 const sstArgs = ["--no-install", "sst", "deploy", ...process.argv.slice(2)];
 const maxAttempts = parseNumber(process.env.DEPLOY_SST_RETRY_ATTEMPTS, 5);
@@ -16,104 +14,6 @@ function parseNumber(raw, fallback) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function patchSstCloudflareKvUploader() {
-  const providerPath = path.join(
-    process.cwd(),
-    ".sst/platform/src/components/cloudflare/providers/kv-data.ts",
-  );
-
-  if (!fs.existsSync(providerPath)) {
-    return;
-  }
-
-  let source = fs.readFileSync(providerPath, "utf8");
-  if (source.includes("SST_CF_KV_RATE_LIMIT_PATCH")) {
-    return;
-  }
-
-  const importNeedle = 'import { cfFetch } from "../helpers/fetch.js";\n';
-  const importReplacement = `${importNeedle}
-const SST_CF_KV_RATE_LIMIT_PATCH = true;
-const uploadRetryDelaysMs = [30000, 60000, 120000, 240000];
-
-function isRateLimited(error: any) {
-  const text = String(error?.message || error || "");
-  return (
-    error?.errors?.some((item: any) => item?.code === 10429) ||
-    /\\b429\\b/i.test(text) ||
-    /rate limited/i.test(text)
-  );
-}
-
-async function sleep(ms: number) {
-  return await new Promise((resolve) => setTimeout(resolve, ms));
-}
-`;
-
-  const cfFetchNeedle = `      try {
-        await cfFetch(
-          \`/accounts/\${accountId}/storage/kv/namespaces/\${namespaceId}/values/\${entry.key}\`,
-          {
-            method: "PUT",
-            body: formData,
-          },
-        );
-      } catch (error: any) {
-        console.log(error);
-        throw error;
-      }
-`;
-  const cfFetchReplacement = `      for (let attempt = 0; ; attempt += 1) {
-        try {
-          await cfFetch(
-            \`/accounts/\${accountId}/storage/kv/namespaces/\${namespaceId}/values/\${entry.key}\`,
-            {
-              method: "PUT",
-              body: formData,
-            },
-          );
-          return;
-        } catch (error: any) {
-          const delay = uploadRetryDelaysMs[attempt];
-          if (!isRateLimited(error) || delay === undefined) {
-            console.log(error);
-            throw error;
-          }
-          console.warn(
-            \`[sst-cloudflare-kv] rate limited uploading \${entry.key}; retrying in \${Math.round(delay / 1000)}s\`,
-          );
-          await sleep(delay);
-        }
-      }
-`;
-
-  const parallelNeedle = `    await Promise.all(nonHtmlEntries.map(uploadEntry));
-    await Promise.all(htmlEntries.map(uploadEntry));
-`;
-  const parallelReplacement = `    for (const entry of nonHtmlEntries) {
-      await uploadEntry(entry);
-    }
-    for (const entry of htmlEntries) {
-      await uploadEntry(entry);
-    }
-`;
-
-  if (
-    !source.includes(importNeedle) ||
-    !source.includes(cfFetchNeedle) ||
-    !source.includes(parallelNeedle)
-  ) {
-    throw new Error("unable to patch SST Cloudflare KV uploader; source layout changed");
-  }
-
-  source = source.replace(importNeedle, importReplacement);
-  source = source.replace(cfFetchNeedle, cfFetchReplacement);
-  source = source.replace(parallelNeedle, parallelReplacement);
-
-  fs.writeFileSync(providerPath, source);
-  console.log("[sst-deploy] patched SST Cloudflare KV uploader for serialized rate-limit retries");
 }
 
 function isCloudflareRateLimit(output) {
@@ -171,8 +71,6 @@ async function runAttempt(attempt) {
 }
 
 async function main() {
-  patchSstCloudflareKvUploader();
-
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const result = await runAttempt(attempt);
     if (result.code === 0) {
