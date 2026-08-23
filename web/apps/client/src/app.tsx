@@ -9,6 +9,7 @@ import BoardStoreRoute from "./routes/BoardStoreRoute";
 import HomeRoute from "./routes/HomeRoute";
 import LoginRoute from "./routes/LoginRoute";
 import OnboardingRoute from "./routes/OnboardingRoute";
+import OpenSourceRoute from "./routes/OpenSourceRoute";
 import ProfileRoute from "./routes/ProfileRoute";
 import SettingsRoute from "./routes/SettingsRoute";
 import TeamSettingsRoute from "./routes/TeamSettingsRoute";
@@ -61,6 +62,7 @@ export const AppRouter = createRouter({
     { path: "/", component: inboxRedirect },
     { path: "/login", component: LoginRoute },
     { path: "/waitlist", component: WaitlistRoute },
+    { path: "/open-source", component: OpenSourceRoute },
     { path: "/onboarding", component: OnboardingRoute },
     { path: "/task", component: inboxRedirect },
     { path: "/task/*rest", component: protect(HomeRoute) },
