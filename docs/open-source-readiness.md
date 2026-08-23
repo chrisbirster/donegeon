@@ -1,20 +1,23 @@
 # Open-source readiness checklist
 
-This checklist distinguishes checks enforced by the repository from the final account-level review that only the repository owner can perform before changing visibility.
+This checklist distinguishes checks enforced by the repository from the small set of repository-owner settings that remain before or immediately after changing visibility.
 
 ## Completed and enforced in the repository
 
 - [x] License Donegeon-authored source, documentation, scripts, configuration, and project-specific artwork as `AGPL-3.0-only`.
 - [x] Include the full GNU Affero General Public License v3.0 text in `LICENSE`.
 - [x] Document project artwork and branch-resident WIP artwork in `ASSETS.md`.
+- [x] Retain `DGN-0003-marketing-homepage-refresh` as an intentional public WIP branch; its Donegeon-authored artwork is covered by the repository AGPL declaration.
 - [x] Expose a public `/open-source` application route with copyright, AGPL, source-code, and no-warranty notices.
 - [x] Link the open-source notice, source repository, and AGPL license from the signed-in application menu.
+- [x] Remove external product/comparison references from maintained public project documentation; Donegeon is described on its own terms.
 - [x] Standardize supported JavaScript/TypeScript tooling on Node.js 22+ and npm 10+.
 - [x] Remove Bun lockfiles and Bun-based maintained dev/test/deploy commands.
 - [x] Generate and commit a fresh `web/package-lock.json` on a clean Node/npm CI runner.
 - [x] Use deterministic `npm ci` installs in CI and deployment workflows.
 - [x] Pin the compatible Vite/Solid prerelease dependency resolution needed by the current SolidJS 2 stack.
 - [x] Reconcile the `dev` product fixes into the open-source readiness branch through PR #5.
+- [x] Require Go 1.26.7 or newer on the 1.26 line and pin the production build image to `golang:1.26.7-bookworm`.
 - [x] Run `go vet`, Go tests, and `govulncheck` in CI.
 - [x] Run web typechecking, Node unit tests, web builds, and infrastructure typechecking in CI.
 - [x] Require production-only npm audits to fail CI on high/critical runtime dependency advisories.
@@ -23,7 +26,6 @@ This checklist distinguishes checks enforced by the repository from the final ac
 - [x] Keep GitHub Actions read-only by default and use current Node-24-based action majors.
 - [x] Gate automatic `main` deployments on a successful CI workflow.
 - [x] Configure Dependabot updates for Go modules, both npm workspaces, and GitHub Actions.
-- [x] Align the Docker build with Go 1.26.
 - [x] Reject known development/placeholder credentials when `DONEGEON_ENV=production`.
 - [x] Add production-configuration regression tests.
 - [x] Rewrite the README for the current Go + SolidJS 2 + Vite architecture and npm workflow.
@@ -31,16 +33,20 @@ This checklist distinguishes checks enforced by the repository from the final ac
 - [x] Add `CONTRIBUTING.md` and `SECURITY.md`.
 - [x] Remove committed test-run artifacts and ignore generated test/report output.
 
-## Final owner review before changing visibility to public
+## Secrets status
 
-These checks involve account settings or external secret stores whose secret values are intentionally not exposed to repository code or this automation.
+Local `.env` files, database files, and generated credentials are ignored and are not intended to be committed. More importantly, CI performs a history-aware Gitleaks scan over fetched branches, tags, and complete Git history. That scan is green apart from the two exact development-placeholder fingerprints documented above.
 
-- [ ] **Review deployment/repository secrets and variables.** In GitHub Actions, Fly.io, SST/AWS, Cloudflare, Turso, Stripe, and Google OAuth, confirm every currently configured production credential is intentional, still active, and stored as a secret rather than committed source or a public variable. The repository history scan is clean apart from the two documented placeholder fingerprints.
-- [ ] **Review remaining branches.** `dev` and `DGN-0002-project-navigation-test-fix` are superseded by the readiness line. `DGN-0001-quick-add-local-preview` no longer contains a materially different E2E file from the readiness branch. `DGN-0003-marketing-homepage-refresh` still contains an unmerged marketing redesign/WIP asset; decide whether you want that WIP branch visible publicly or delete/archive it first.
-- [ ] **Configure public-repository security settings.** When available for the repository/plan, enable secret scanning and push protection, private vulnerability reporting, and code scanning. Dependabot configuration is already committed.
-- [ ] **Protect `main`.** Require the `CI` checks and the pull-request/review policy you want for future production changes.
-- [ ] **Final human diff/readme/branding review.** Confirm the public description, screenshots/artwork, product wording, and contact addresses are what you want associated with the project.
+Secrets stored in GitHub Actions, Fly.io, AWS/SST, Cloudflare, Turso, Stripe, or Google are account-level values and are not exposed to repository source or to the history scanner. They are not a publication blocker unless the owner knows that a real credential was previously committed, copied into public source, or otherwise exposed. No such exposure is currently known from the repository audit.
+
+## Final owner steps
+
+- [x] **Branch decision.** Keep `DGN-0003-marketing-homepage-refresh` as a WIP branch when the repository becomes public.
+- [x] **Licensing decision.** Donegeon-authored code, documentation, configuration, scripts, and project artwork are AGPL-3.0-only unless a file explicitly identifies third-party material under another license.
+- [ ] **Final human read-through.** Confirm the public description, screenshots/artwork, product wording, and contact addresses are what you want associated with Donegeon.
+- [ ] **Enable free public-repository security features.** After the repository is public, enable the GitHub security features available to public repositories without a paid security add-on, including secret scanning/push protection, private vulnerability reporting, and code scanning where available. Dependabot configuration is already committed.
+- [ ] **Protect `main`.** Once the repository is public, require the `CI` checks and the pull-request/review policy you want for future production changes using the branch-protection features available to public repositories.
 
 ## Publication rule
 
-Donegeon does not need to be feature-complete to be public. It is appropriate to publish it as alpha software once the final owner review above is complete. The repository-level publication gates are about licensing, secrets, contributor safety, reproducibility, deterministic builds, and an accurate description of project maturity.
+Donegeon does not need to be feature-complete to be public. It is appropriate to publish it as alpha software once the final human read-through is complete. Repository security settings and `main` protection should be enabled as part of publication so they apply to subsequent public contributions.
