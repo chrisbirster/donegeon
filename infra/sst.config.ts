@@ -47,7 +47,7 @@ export default $config({
     const marketingSite = new sst.cloudflare.StaticSite("MktSite", {
       path: "../web",
       build: {
-        command: "bun run build --filter=@donegeon/marketing",
+        command: "npm run build:marketing",
         output: "apps/marketing/dist",
       },
       domain: marketingDomain,
