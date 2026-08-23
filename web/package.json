@@ -1,18 +1,24 @@
 {
   "name": "donegeon-web",
   "private": true,
-  "packageManager": "bun@1.2.5",
+  "license": "AGPL-3.0-only",
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
   "workspaces": [
     "apps/*"
   ],
   "scripts": {
     "dev": "turbo dev",
+    "dev:client": "turbo dev --filter=@donegeon/client",
+    "dev:marketing": "turbo dev --filter=@donegeon/marketing",
     "build": "turbo build",
-    "check:buttons": "node ../scripts/check-buttons.mjs",
-    "lint": "turbo lint",
+    "build:client": "turbo build --filter=@donegeon/client",
+    "build:marketing": "turbo build --filter=@donegeon/marketing",
     "typecheck": "turbo typecheck",
-    "test:e2e": "turbo run test:e2e --filter=@donegeon/client",
-    "test:e2e:ui": "turbo run test:e2e:ui --filter=@donegeon/client"
+    "lint": "turbo lint"
   },
   "devDependencies": {
     "turbo": "^2.10.8"
