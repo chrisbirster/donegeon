@@ -101,6 +101,9 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
             >
               Quest Log
             </a>
+            <a href="/open-source" class={style8}>
+              Open source notice
+            </a>
             <a
               href={SOURCE_URL}
               class={style8}
