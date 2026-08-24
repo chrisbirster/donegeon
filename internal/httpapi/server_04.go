@@ -108,18 +108,20 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 
 	ctx := task.WithTimezone(r.Context(), strings.TrimSpace(r.Header.Get("X-Timezone")))
 	input := task.UpdateInput{
-		Content:          cleanPtr(req.Content),
-		Description:      cleanPtr(req.Description),
-		ProjectID:        cleanPtr(req.ProjectID),
-		SectionID:        cleanPtr(req.SectionID),
-		SortOrder:        req.SortOrder,
-		Recurrence:       cleanPtr(req.Recurrence),
-		Priority:         req.Priority,
-		DueText:          cleanPtr(req.DueText),
-		ClearDueText:     req.DueText != nil && strings.TrimSpace(*req.DueText) == "",
-		DueDeadline:      cleanPtr(req.DueDeadline),
-		ClearDueDeadline: req.DueDeadline != nil && strings.TrimSpace(*req.DueDeadline) == "",
-		ScheduleInput:    cleanPtr(req.ScheduleInput),
+		Content:            cleanPtr(req.Content),
+		Description:        cleanPtr(req.Description),
+		ProjectID:          cleanPtr(req.ProjectID),
+		SectionID:          cleanPtr(req.SectionID),
+		SortOrder:          req.SortOrder,
+		Recurrence:         cleanPtr(req.Recurrence),
+		ClearRecurrence:    req.Recurrence != nil && strings.TrimSpace(*req.Recurrence) == "",
+		Priority:           req.Priority,
+		DueText:            cleanPtr(req.DueText),
+		ClearDueText:       req.DueText != nil && strings.TrimSpace(*req.DueText) == "",
+		DueDeadline:        cleanPtr(req.DueDeadline),
+		ClearDueDeadline:   req.DueDeadline != nil && strings.TrimSpace(*req.DueDeadline) == "",
+		ScheduleInput:      cleanPtr(req.ScheduleInput),
+		ClearScheduleInput: req.ScheduleInput != nil && strings.TrimSpace(*req.ScheduleInput) == "",
 	}
 	if req.Labels != nil {
 		labels := cleanStringSlice(req.Labels)
