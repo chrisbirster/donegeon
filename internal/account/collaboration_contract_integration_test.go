@@ -11,10 +11,10 @@ func TestCollaborationRolesAndInvitationsContract(t *testing.T) {
 
 	ctx := context.Background()
 	svc, _, _ := newAccountTestService(t)
-	seedAccountUser(t, ctx, svc, "U_OWNER", "owner@example.com", "Owner")
-	seedAccountUser(t, ctx, svc, "U_EDITOR", "editor@example.com", "Editor")
-	seedAccountUser(t, ctx, svc, "U_READER", "reader@example.com", "Reader")
-	seedAccountUser(t, ctx, svc, "U_PENDING", "pending@example.com", "Pending")
+	seedAccountUser(t, ctx, svc, "U_OWNER", "collab-owner@example.com", "Owner")
+	seedAccountUser(t, ctx, svc, "U_EDITOR", "collab-editor@example.com", "Editor")
+	seedAccountUser(t, ctx, svc, "U_READER", "collab-reader@example.com", "Reader")
+	seedAccountUser(t, ctx, svc, "U_PENDING", "collab-pending@example.com", "Pending")
 
 	ownerSession, _, err := svc.CompleteOnboarding(ctx, "U_OWNER", "private", "team", "Owner", nil, PlanProTrial)
 	if err != nil {
@@ -22,14 +22,14 @@ func TestCollaborationRolesAndInvitationsContract(t *testing.T) {
 	}
 	workspaceID := ownerSession.Team.ID
 
-	editorInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "EDITOR@example.com", TeamRoleEditor)
+	editorInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "COLLAB-EDITOR@example.com", TeamRoleEditor)
 	if err != nil {
 		t.Fatalf("invite editor: %v", err)
 	}
-	if editorInvite.Email != "editor@example.com" || editorInvite.Role != TeamRoleEditor || editorInvite.Status != "pending" {
+	if editorInvite.Email != "collab-editor@example.com" || editorInvite.Role != TeamRoleEditor || editorInvite.Status != "pending" {
 		t.Fatalf("unexpected editor invite: %+v", editorInvite)
 	}
-	duplicateInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "editor@example.com", TeamRoleEditor)
+	duplicateInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "collab-editor@example.com", TeamRoleEditor)
 	if err != nil {
 		t.Fatalf("repeat editor invite: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestCollaborationRolesAndInvitationsContract(t *testing.T) {
 		t.Fatalf("accept editor invite: %v", err)
 	}
 
-	readerInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "reader@example.com", TeamRoleReader)
+	readerInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "collab-reader@example.com", TeamRoleReader)
 	if err != nil {
 		t.Fatalf("invite reader: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestCollaborationRolesAndInvitationsContract(t *testing.T) {
 	assertWorkspaceWrite(t, svc, workspaceID, "U_READER", false)
 	assertWorkspaceWrite(t, svc, workspaceID, "not-a-member", false)
 
-	if _, err := svc.InviteMember(ctx, "U_READER", workspaceID, "pending@example.com", TeamRoleEditor); err == nil || !strings.Contains(err.Error(), "owners or admins") {
+	if _, err := svc.InviteMember(ctx, "U_READER", workspaceID, "collab-pending@example.com", TeamRoleEditor); err == nil || !strings.Contains(err.Error(), "owners or admins") {
 		t.Fatalf("expected reader invite denial, got %v", err)
 	}
 	if _, err := svc.UpdateMemberRole(ctx, "U_EDITOR", workspaceID, "U_READER", TeamRoleEditor); err == nil || !strings.Contains(err.Error(), "only team owners") {
@@ -78,7 +78,7 @@ func TestCollaborationRolesAndInvitationsContract(t *testing.T) {
 	}
 	assertWorkspaceWrite(t, svc, workspaceID, "U_EDITOR", true)
 
-	pendingInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "pending@example.com", TeamRoleReader)
+	pendingInvite, err := svc.InviteMember(ctx, "U_OWNER", workspaceID, "collab-pending@example.com", TeamRoleReader)
 	if err != nil {
 		t.Fatalf("create pending invite: %v", err)
 	}
