@@ -44,7 +44,7 @@ func TestTaskHTTPLifecycleContract(t *testing.T) {
 	if created.DueText == nil || *created.DueText != "2026-09-03T09:00:00-04:00" {
 		t.Fatalf("create due text: %v", created.DueText)
 	}
-	if len(created.Labels) != 2 || created.Labels[0] != "http" || created.Labels[1] != "contract" {
+	if len(created.Labels) != 2 || created.Labels[0] != "contract" || created.Labels[1] != "http" {
 		t.Fatalf("create labels: %v", created.Labels)
 	}
 
