@@ -189,7 +189,7 @@ func (r *Repository) CloseRecurringAndCreateNext(ctx context.Context, id string,
 		return apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "content is required"), "content")
 	}
 
-	closeQuery, err := r.query("task_close.sql")
+	closeQuery, err := r.query("task_close_open.sql")
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (r *Repository) CloseRecurringAndCreateNext(ctx context.Context, id string,
 	}
 	rows, _ := closeResult.RowsAffected()
 	if rows == 0 {
-		return apperrors.WithField(apperrors.New(apperrors.CodeNotFound, "task not found"), "taskId")
+		return tx.Commit()
 	}
 
 	if _, err := tx.NamedExecContext(ctx, createQuery, map[string]any{
