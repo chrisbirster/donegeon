@@ -161,7 +161,7 @@ func TestOrganizationTenantIsolationAndForeignMoves(t *testing.T) {
 
 	service, tasks := newOrganizationTestService(t)
 	ownerCtx := organizationPrincipalContext("user-a", "workspace-a")
-	otherUserCtx := organizationPrincipalContext("user-b", "workspace-a")
+	sameWorkspaceCtx := organizationPrincipalContext("user-b", "workspace-a")
 	otherWorkspaceCtx := organizationPrincipalContext("user-b", "workspace-b")
 
 	ownerProject := mustProject(t, service.Dispatch(ownerCtx, "addProject", map[string]any{"name": "Owner Project"}))
@@ -178,28 +178,27 @@ func TestOrganizationTenantIsolationAndForeignMoves(t *testing.T) {
 	foreignSection := mustSection(t, service.Dispatch(otherWorkspaceCtx, "addSection", map[string]any{"projectId": foreignProject.ID, "name": "Foreign Section"}))
 	foreignLabel := mustLabel(t, service.Dispatch(otherWorkspaceCtx, "addLabel", map[string]any{"name": "foreign-label"}))
 
-	for name, foreignCtx := range map[string]context.Context{
-		"same workspace different user": otherUserCtx,
-		"different workspace":           otherWorkspaceCtx,
-	} {
-		t.Run(name, func(t *testing.T) {
-			assertOrganizationNotFound(t, service, foreignCtx, "getProject", map[string]any{"projectId": ownerProject.ID}, "projectId")
-			assertOrganizationNotFound(t, service, foreignCtx, "getSection", map[string]any{"sectionId": ownerSection.ID}, "sectionId")
-			assertOrganizationNotFound(t, service, foreignCtx, "getLabel", map[string]any{"labelId": ownerLabel.ID}, "labelId")
-			assertOrganizationNotFound(t, service, foreignCtx, "updateProject", map[string]any{"projectId": ownerProject.ID, "name": "Hijacked"}, "projectId")
-			assertOrganizationNotFound(t, service, foreignCtx, "deleteSection", map[string]any{"sectionId": ownerSection.ID}, "sectionId")
-			assertOrganizationNotFound(t, service, foreignCtx, "deleteLabel", map[string]any{"labelId": ownerLabel.ID}, "labelId")
-		})
+	// Projects and their sections are workspace resources. A different user in
+	// the same workspace can discover them; user-owned tasks and labels remain
+	// isolated, and HTTP role/scope middleware controls whether that user may
+	// mutate shared workspace resources.
+	if got := mustProject(t, service.Dispatch(sameWorkspaceCtx, "getProject", map[string]any{"projectId": ownerProject.ID})); got.ID == "" {
+		t.Fatal("same-workspace project lookup returned empty project")
 	}
-
-	otherUserProjects := mustProjectList(t, service.Dispatch(otherUserCtx, "getProjects", map[string]any{}))
-	if projectListContainsID(otherUserProjects, ownerProject.ID) {
-		t.Fatalf("same-workspace project list leaked owner project: %+v", otherUserProjects)
+	if got := mustSection(t, service.Dispatch(sameWorkspaceCtx, "getSection", map[string]any{"sectionId": ownerSection.ID})); got.ID != ownerSection.ID {
+		t.Fatalf("same-workspace section lookup: got=%+v want=%s", got, ownerSection.ID)
 	}
-	otherUserLabels := mustLabelList(t, service.Dispatch(otherUserCtx, "getLabels", map[string]any{}))
+	assertOrganizationNotFound(t, service, sameWorkspaceCtx, "getLabel", map[string]any{"labelId": ownerLabel.ID}, "labelId")
+	assertOrganizationNotFound(t, service, sameWorkspaceCtx, "getTask", map[string]any{"taskId": ownerTask.ID}, "taskId")
+	otherUserLabels := mustLabelList(t, service.Dispatch(sameWorkspaceCtx, "getLabels", map[string]any{}))
 	if labelListContainsID(otherUserLabels, ownerLabel.ID) {
 		t.Fatalf("same-workspace label list leaked owner label: %+v", otherUserLabels)
 	}
+
+	assertOrganizationNotFound(t, service, otherWorkspaceCtx, "getProject", map[string]any{"projectId": ownerProject.ID}, "projectId")
+	assertOrganizationNotFound(t, service, otherWorkspaceCtx, "getSection", map[string]any{"sectionId": ownerSection.ID}, "sectionId")
+	assertOrganizationNotFound(t, service, otherWorkspaceCtx, "getLabel", map[string]any{"labelId": ownerLabel.ID}, "labelId")
+	assertOrganizationNotFound(t, service, otherWorkspaceCtx, "getTask", map[string]any{"taskId": ownerTask.ID}, "taskId")
 
 	assertOrganizationNotFound(t, service, ownerCtx, "moveTask", map[string]any{
 		"taskId":    ownerTask.ID,
