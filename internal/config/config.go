@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	Environment              string
 	HTTPPort                 string
 	DBBackend                string
 	DBPath                   string
@@ -63,6 +64,7 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
+		Environment:         strings.ToLower(envOr("DONEGEON_ENV", "development")),
 		HTTPPort:            envOr("DONEGEON_HTTP_PORT", "42069"),
 		DBBackend:           strings.ToLower(envOr("DONEGEON_DB_BACKEND", "sqlite")),
 		DBPath:              envOr("DONEGEON_DB_PATH", "donegeon.db"),
@@ -198,8 +200,72 @@ func Load() (Config, error) {
 	if cfg.CalendarProviderTimeout < time.Second {
 		return Config{}, fmt.Errorf("DONEGEON_CALENDAR_PROVIDER_TIMEOUT must be at least 1s")
 	}
+	if err := validateProductionConfig(cfg); err != nil {
+		return Config{}, err
+	}
 
 	return cfg, nil
+}
+
+func validateProductionConfig(cfg Config) error {
+	if !strings.EqualFold(strings.TrimSpace(cfg.Environment), "production") {
+		return nil
+	}
+	if !cfg.RequireAuth {
+		return fmt.Errorf("DONEGEON_REQUIRE_AUTH must be true in production")
+	}
+	if !cfg.CookieSecure {
+		return fmt.Errorf("DONEGEON_COOKIE_SECURE must be true in production")
+	}
+	if cfg.AuthDebugCode {
+		return fmt.Errorf("DONEGEON_AUTH_DEBUG_CODE must be false in production")
+	}
+	if cfg.DBBackend == "turso" && strings.TrimSpace(cfg.DBAuthToken) == "" {
+		return fmt.Errorf("DONEGEON_DB_AUTH_TOKEN is required in production when DONEGEON_DB_BACKEND=turso")
+	}
+
+	secrets := []struct {
+		name  string
+		value string
+	}{
+		{name: "DONEGEON_API_TOKEN", value: cfg.WriteToken},
+		{name: "DONEGEON_READONLY_API_TOKEN", value: cfg.ReadOnlyToken},
+		{name: "DONEGEON_COOKIE_SIGNING_KEY", value: cfg.CookieSigningKey},
+		{name: "DONEGEON_AUTH_CODE_PEPPER", value: cfg.AuthCodePepper},
+	}
+	for _, secret := range secrets {
+		if isPlaceholderSecret(secret.value) {
+			return fmt.Errorf("%s must be set to a non-placeholder value in production", secret.name)
+		}
+	}
+	return nil
+}
+
+func isPlaceholderSecret(raw string) bool {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return true
+	}
+
+	switch value {
+	case "TOKEN_VALID",
+		"TOKEN_READONLY",
+		"change-me-in-prod",
+		"change-me-in-prod-write-token",
+		"change-me-in-prod-read-token",
+		"secret-key-at-least-32-chars-long",
+		"another-secret-pepper-string",
+		"change-me",
+		"replace-me":
+		return true
+	}
+
+	lower := strings.ToLower(value)
+	return strings.HasPrefix(lower, "change-me") ||
+		strings.HasPrefix(lower, "replace-me") ||
+		strings.HasPrefix(lower, "your-") ||
+		strings.HasPrefix(lower, "placeholder") ||
+		lower == "example"
 }
 
 func envOr(key, fallback string) string {

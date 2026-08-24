@@ -21,7 +21,17 @@ type ToastAPI = {
   clearHistory: () => void;
 };
 
-const ToastContext = createContext<ToastAPI>();
+let activeToastAPI: ToastAPI | undefined;
+const toastBridge: ToastAPI = {
+  show: (message, tone, durationMs) => activeToastAPI?.show(message, tone, durationMs) ?? -1,
+  success: (message, durationMs) => activeToastAPI?.success(message, durationMs) ?? -1,
+  error: (message, durationMs) => activeToastAPI?.error(message, durationMs) ?? -1,
+  info: (message, durationMs) => activeToastAPI?.info(message, durationMs) ?? -1,
+  dismiss: (id) => activeToastAPI?.dismiss(id),
+  history: () => activeToastAPI?.history() ?? [],
+  clearHistory: () => activeToastAPI?.clearHistory(),
+};
+const ToastContext = createContext<ToastAPI>(toastBridge);
 let nextToastID = 1;
 const toastSuccess = css`border-color: #3d6b4e; background: #12281d; color: #baf2cd;`;
 const toastError = css`border-color: #734040; background: #2b1717; color: #ffbaba;`;
@@ -81,6 +91,7 @@ export function ToastProvider(props: ParentProps) {
     history,
     clearHistory: () => setHistory([]),
   };
+  activeToastAPI = api;
 
   return (
     <ToastContext value={api}>

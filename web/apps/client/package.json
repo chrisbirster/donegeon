@@ -1,6 +1,7 @@
 {
   "name": "@donegeon/client",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -8,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint not configured'",
+    "test:unit": "node --test tests/unit/*.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:screenshots": "PW_SCREENSHOT_MODE=on playwright test",
     "test:e2e:headed": "playwright test --headed",

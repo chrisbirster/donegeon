@@ -3,8 +3,8 @@
 This file defines how quests should be written so players can understand exactly how to complete them.
 
 ## Source Of Truth
-- Runtime quest data is loaded from `/Users/gm/dev/personal/newtasks/docs/quests.yaml`.
-- Server boot loads it via `LoadQuestCatalog` in `/Users/gm/dev/personal/newtasks/internal/board/quests_catalog.go`.
+- Runtime quest data is loaded from `docs/quests.yaml` by default.
+- Server boot loads it via `LoadQuestCatalog` in `internal/board/quests_catalog.go`.
 - Config path can be overridden with `DONEGEON_QUEST_CONFIG_PATH` (or `DONEGEON_QUESTS_PATH`).
 - If no YAML path is available, the server falls back to the in-code defaults.
 

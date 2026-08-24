@@ -2,7 +2,12 @@
   "name": "donegeon-infra",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
   "scripts": {
     "check": "tsc --noEmit",
     "deploy": "sst deploy",
@@ -11,7 +16,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.990.0",
-    "sst": "^3.18.1"
+    "sst": "4.17.1"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.152",

@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -118,7 +118,7 @@ function isPlaceholderSecret(key, value) {
 
 function setRandomIfBlankOrPlaceholder(values, key, bytes = 32) {
   if (isBlank(values[key]) || isPlaceholderSecret(key, values[key])) {
-    values[key] = randomHex(bytes);
+    values[key] = randomHex(bytes).toString("hex");
     info.push(`generated secure value for ${key}`);
   }
 }

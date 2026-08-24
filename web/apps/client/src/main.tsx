@@ -10,9 +10,9 @@ initializeTheme();
 
 render(
   () => (
-    <AppProviders>
-      <AppRouter />
-    </AppProviders>
+    <AppRouter>
+      {(props) => <AppProviders>{props.children}</AppProviders>}
+    </AppRouter>
   ),
   document.getElementById("root") as HTMLElement,
 );

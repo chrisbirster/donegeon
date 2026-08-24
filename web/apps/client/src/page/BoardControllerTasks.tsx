@@ -9,7 +9,8 @@ import { useToast } from "../context/ToastContext";
 import { getCachedBoardState, setCachedBoardState } from "../lib/boardCache";
 import { readStoredBoardSelection, writeStoredBoardSelection } from "../lib/boardSelection";
 import { extractQuickAddLabels, mergeNormalizedLabels, parseQuickAddLabels } from "../lib/quickAddLabels";
-import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
+import { shouldPreviewQuickAdd } from "../lib/quickAddPreview";
+import { parseQuickAddLocally } from "../lib/localQuickAddParser";
 import {
   type BoardCard,
   type BoardCommandPayload,
@@ -197,31 +198,12 @@ export function createBoardControllerTasks(context: BoardControllerDataContext) 
       return;
     }
 
-    runtime.composerParseTimer = window.setTimeout(async () => {
-      if (trimmed === runtime.lastComposerParsedText) return;
-      runtime.lastComposerParsedText = trimmed;
-      runtime.composerParseRequestSeq += 1;
-      const requestSeq = runtime.composerParseRequestSeq;
-      runtime.composerParseController?.abort();
-      const controller = new AbortController();
-      runtime.composerParseController = controller;
-      setComposerParsing(true);
-      try {
-        const parsed = await api.parse.quickAdd(ensureBoardProjectToken(trimmed, activeBoardProjectID()), {
-          signal: controller.signal,
-        });
-        if (requestSeq !== runtime.composerParseRequestSeq) return;
-        setComposerParsed(parsed.parsed);
-      } catch (err) {
-        if (isAbortError(err) || requestSeq !== runtime.composerParseRequestSeq) return;
-        setComposerParsed(null);
-      } finally {
-        if (requestSeq === runtime.composerParseRequestSeq) {
-          runtime.composerParseController = undefined;
-          setComposerParsing(false);
-        }
-      }
-    }, 325);
+    runtime.lastComposerParsedText = trimmed;
+    runtime.composerParseRequestSeq += 1;
+    runtime.composerParseController?.abort();
+    runtime.composerParseController = undefined;
+    setComposerParsing(false);
+    setComposerParsed(parseQuickAddLocally(ensureBoardProjectToken(trimmed, activeBoardProjectID())));
   }
 
   function queueDetailParse(value: string) {
@@ -236,29 +218,12 @@ export function createBoardControllerTasks(context: BoardControllerDataContext) 
       return;
     }
 
-    runtime.detailParseTimer = window.setTimeout(async () => {
-      if (trimmed === runtime.lastDetailParsedText) return;
-      runtime.lastDetailParsedText = trimmed;
-      runtime.detailParseRequestSeq += 1;
-      const requestSeq = runtime.detailParseRequestSeq;
-      runtime.detailParseController?.abort();
-      const controller = new AbortController();
-      runtime.detailParseController = controller;
-      setDetailParsing(true);
-      try {
-        const parsed = await api.parse.quickAdd(trimmed, { signal: controller.signal });
-        if (requestSeq !== runtime.detailParseRequestSeq) return;
-        setDetailParsed(parsed.parsed);
-      } catch (err) {
-        if (isAbortError(err) || requestSeq !== runtime.detailParseRequestSeq) return;
-        setDetailParsed(null);
-      } finally {
-        if (requestSeq === runtime.detailParseRequestSeq) {
-          runtime.detailParseController = undefined;
-          setDetailParsing(false);
-        }
-      }
-    }, 325);
+    runtime.lastDetailParsedText = trimmed;
+    runtime.detailParseRequestSeq += 1;
+    runtime.detailParseController?.abort();
+    runtime.detailParseController = undefined;
+    setDetailParsing(false);
+    setDetailParsed(parseQuickAddLocally(trimmed));
   }
 
   function onDetailTitleInput(value: string) {

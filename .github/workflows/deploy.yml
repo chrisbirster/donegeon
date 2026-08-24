@@ -1,25 +1,11 @@
 name: Deploy
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - Dockerfile
-      - fly.toml
-      - main.go
-      - cmd/**
-      - internal/**
-      - go.mod
-      - go.sum
-      - donegeon_config.yml
-      - docs/quests.yaml
-      - web/apps/client/**
-      - web/apps/marketing/**
-      - web/package.json
-      - web/bun.lock
-      - web/turbo.json
-      - infra/**
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       target:
@@ -37,29 +23,31 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: true
 
 jobs:
   detect-changes:
     name: Detect deploy targets
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     outputs:
       deploy_app: ${{ steps.detect.outputs.deploy_app }}
       deploy_marketing: ${{ steps.detect.outputs.deploy_marketing }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
 
       - name: Determine changed components
         id: detect
         shell: bash
         env:
           TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'changed' }}
-          BEFORE_SHA: ${{ github.event.before }}
-          CURRENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
@@ -78,16 +66,13 @@ jobs:
               deploy_marketing=true
               ;;
             changed)
-              before="$BEFORE_SHA"
-              if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
-                if git rev-parse HEAD^ >/dev/null 2>&1; then
-                  before="$(git rev-parse HEAD^)"
-                else
-                  before="$(git hash-object -t tree /dev/null)"
-                fi
+              if git rev-parse HEAD^ >/dev/null 2>&1; then
+                before="$(git rev-parse HEAD^)"
+              else
+                before="$(git hash-object -t tree /dev/null)"
               fi
 
-              mapfile -t changed_files < <(git diff --name-only "$before" "$CURRENT_SHA")
+              mapfile -t changed_files < <(git diff --name-only "$before" HEAD)
 
               echo "Changed files:"
               if [ "${#changed_files[@]}" -eq 0 ]; then
@@ -98,7 +83,7 @@ jobs:
 
               for file in "${changed_files[@]}"; do
                 case "$file" in
-                  web/package.json|web/bun.lock|web/turbo.json)
+                  web/package.json|web/package-lock.json|web/turbo.json)
                     deploy_app=true
                     deploy_marketing=true
                     ;;
@@ -108,7 +93,7 @@ jobs:
                   cmd/*|internal/*|web/apps/client/*)
                     deploy_app=true
                     ;;
-                  infra/*|web/apps/marketing/*)
+                  infra/*|web/apps/marketing/*|scripts/sst-deploy-with-retry.mjs)
                     deploy_marketing=true
                     ;;
                 esac
@@ -130,18 +115,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       - name: Install web dependencies
         working-directory: web
-        run: bun install --frozen-lockfile
+        run: npm ci --no-audit --no-fund
 
       - name: Build embedded client assets
         working-directory: web
-        run: bun run build --filter=@donegeon/client
+        run: npm run build:client
 
       - name: Install flyctl
         shell: bash
@@ -162,13 +153,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            infra/package-lock.json
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -176,11 +175,11 @@ jobs:
 
       - name: Install web dependencies
         working-directory: web
-        run: bun install --frozen-lockfile
+        run: npm ci --no-audit --no-fund
 
       - name: Install infra dependencies
         working-directory: infra
-        run: bun install --frozen-lockfile
+        run: npm ci --no-audit --no-fund
 
       - name: Deploy production SST stack
         working-directory: infra
@@ -191,4 +190,4 @@ jobs:
           DONEGEON_EMAIL_SENDER: ${{ vars.DONEGEON_EMAIL_SENDER }}
           DONEGEON_EMAIL_FROM: ${{ vars.DONEGEON_EMAIL_FROM }}
           DONEGEON_EMAIL_API_AUTH_HEADER: ${{ vars.DONEGEON_EMAIL_API_AUTH_HEADER }}
-        run: bun ../scripts/sst-deploy-with-retry.mjs --stage production
+        run: node ../scripts/sst-deploy-with-retry.mjs --stage production

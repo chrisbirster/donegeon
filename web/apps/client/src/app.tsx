@@ -9,11 +9,13 @@ import BoardStoreRoute from "./routes/BoardStoreRoute";
 import HomeRoute from "./routes/HomeRoute";
 import LoginRoute from "./routes/LoginRoute";
 import OnboardingRoute from "./routes/OnboardingRoute";
+import OpenSourceRoute from "./routes/OpenSourceRoute";
 import ProfileRoute from "./routes/ProfileRoute";
 import SettingsRoute from "./routes/SettingsRoute";
 import TeamSettingsRoute from "./routes/TeamSettingsRoute";
 import WaitlistRoute from "./routes/WaitlistRoute";
 import { useApi } from "./context/ApiContext";
+import { queryClient } from "./lib/queryClient";
 
 function Redirect(props: { href: string }) {
   const navigate = useNavigate();
@@ -29,7 +31,7 @@ function ProtectedRoute(props: { component: Component }) {
   const session = createQuery(() => ({
     queryKey: ["auth", "me"],
     queryFn: async () => (await api.auth.me()).session,
-  }));
+  }), () => queryClient);
 
   return (
     <Switch>
@@ -60,6 +62,7 @@ export const AppRouter = createRouter({
     { path: "/", component: inboxRedirect },
     { path: "/login", component: LoginRoute },
     { path: "/waitlist", component: WaitlistRoute },
+    { path: "/open-source", component: OpenSourceRoute },
     { path: "/onboarding", component: OnboardingRoute },
     { path: "/task", component: inboxRedirect },
     { path: "/task/*rest", component: protect(HomeRoute) },

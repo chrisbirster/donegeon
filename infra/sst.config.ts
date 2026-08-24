@@ -2,7 +2,6 @@
 
 export default $config({
   app(input) {
-    const cloudflareAccountId = (process.env.CLOUDFLARE_DEFAULT_ACCOUNT_ID || "").trim();
     const cloudflareApiToken = (process.env.CLOUDFLARE_API_TOKEN || "").trim();
     return {
       name: "donegeon-infra",
@@ -33,7 +32,7 @@ export default $config({
 
     const emailApi = new sst.aws.Function("EmailApi", {
       handler: "functions/email.handler",
-      runtime: "nodejs20.x",
+      runtime: "nodejs24.x",
       timeout: "15 seconds",
       memory: "256 MB",
       url: true,
@@ -44,14 +43,14 @@ export default $config({
       },
     });
 
-    const marketingSite = new sst.cloudflare.StaticSite("MktSite", {
+    const marketingSite = new sst.cloudflare.StaticSiteV2("MktSite", {
       path: "../web",
       build: {
-        command: "bun run build --filter=@donegeon/marketing",
+        command: "npm run build:marketing",
         output: "apps/marketing/dist",
       },
       domain: marketingDomain,
-      errorPage: "index.html",
+      notFound: "single-page-application",
     });
 
     return {

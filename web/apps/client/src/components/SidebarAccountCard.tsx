@@ -1,11 +1,15 @@
 import Button from "./Button";
 import { css } from "@linaria/core";
-import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
+import { createMutation, createQuery } from "@tanstack/solid-query";
 import { Show, createMemo, createSignal } from "solid-js";
 
 import { workspacePlanLabel } from "../../../../shared/pricing/catalog";
 import { useApi } from "../context/ApiContext";
+import { queryClient } from "../lib/queryClient";
 import { type AuthSession } from "../server/api";
+
+const SOURCE_URL = "https://github.com/chrisbirster/donegeon";
+const LICENSE_URL = `${SOURCE_URL}/blob/main/LICENSE`;
 
 type SidebarAccountCardProps = {
   class?: string;
@@ -14,7 +18,6 @@ type SidebarAccountCardProps = {
 
 export default function SidebarAccountCard(props: SidebarAccountCardProps) {
   const api = useApi();
-  const queryClient = useQueryClient();
   const [accountMenuOpen, setAccountMenuOpen] = createSignal(false);
   const sessionQuery = createQuery(() => ({
     queryKey: ["auth", "me"],
@@ -22,14 +25,14 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
       const response = await api.auth.me();
       return response.session as AuthSession;
     },
-  }));
+  }), () => queryClient);
   const logout = createMutation(() => ({
     mutationFn: () => api.auth.logout(),
     onSettled: () => {
       queryClient.clear();
       window.location.href = "/login";
     },
-  }));
+  }), () => queryClient);
 
   const session = () => sessionQuery.data ?? null;
 
@@ -97,6 +100,25 @@ export default function SidebarAccountCard(props: SidebarAccountCardProps) {
               data-testid="appshell-account-quest-log"
             >
               Quest Log
+            </a>
+            <a href="/open-source" class={style8}>
+              Open source notice
+            </a>
+            <a
+              href={SOURCE_URL}
+              class={style8}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Source code
+            </a>
+            <a
+              href={LICENSE_URL}
+              class={style8}
+              target="_blank"
+              rel="noreferrer"
+            >
+              AGPL-3.0 license
             </a>
             <Button
               type="button"
