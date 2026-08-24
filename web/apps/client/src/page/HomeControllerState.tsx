@@ -107,7 +107,9 @@ import {
   parseTaskDateValue,
   taskDueDate,
   DEFAULT_SIDEBAR_PROJECTS,
-} from "../features/tasks/home-rules";export function createHomeControllerState() {
+} from "../features/tasks/home-rules";
+
+export function createHomeControllerState() {
   const api = useApi();
   const toast = useToast();
   const location = useLocation();
@@ -283,13 +285,8 @@ import {
     return taskList.filter((task) => isInboxTask(task));
   }
 
-  const visibleTasks = createMemo(() => {
-    return filterTasksForCurrentView(openTasks());
-  });
-
-  const visibleCompletedTasks = createMemo(() => {
-    return filterTasksForCurrentView(completedTasks());
-  });
+  const visibleTasks = createMemo(() => filterTasksForCurrentView(openTasks()));
+  const visibleCompletedTasks = createMemo(() => filterTasksForCurrentView(completedTasks()));
 
   const detailTask = createMemo(() => {
     const id = detailTaskId();
@@ -299,20 +296,13 @@ import {
 
   const detailTaskIsBoardProject = createMemo(() => isBoardProject(detailTask()?.projectId));
   const detailDueInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleOriginal(), "due"));
-  const detailDeadlineInputToken = createMemo(() =>
-    scheduleTokenFromInput(detailScheduleOriginal(), "deadline"),
-  );
-  const detailDueStoredValue = createMemo(
-    () => formatScheduleDateTime(detailDueText()) ?? detailDueText().trim(),
-  );
-  const detailDeadlineStoredValue = createMemo(
-    () => formatScheduleDateTime(detailDeadline()) ?? detailDeadline().trim(),
-  );
+  const detailDeadlineInputToken = createMemo(() => scheduleTokenFromInput(detailScheduleOriginal(), "deadline"));
+  const detailDueStoredValue = createMemo(() => formatScheduleDateTime(detailDueText()) ?? detailDueText().trim());
+  const detailDeadlineStoredValue = createMemo(() => formatScheduleDateTime(detailDeadline()) ?? detailDeadline().trim());
   const detailScheduleWarning = createMemo(() => {
     const due = parseScheduleInstant(detailDueText());
     const deadline = parseScheduleInstant(detailDeadline());
-    if (!due || !deadline) return "";
-    if (deadline.getTime() >= due.getTime()) return "";
+    if (!due || !deadline || deadline.getTime() >= due.getTime()) return "";
     const dueLabel = formatScheduleDateTime(detailDueText()) ?? detailDueText().trim();
     const deadlineLabel = formatScheduleDateTime(detailDeadline()) ?? detailDeadline().trim();
     return `Schedule check: deadline resolves before due (${deadlineLabel} < ${dueLabel}).`;
@@ -321,39 +311,25 @@ import {
   const parsedChips = createMemo(() => {
     const parsed = parsedInput();
     if (!parsed) return [] as string[];
-
     const chips: string[] = [];
-
     const project = addChip(parsed.project, "Project");
     if (project) chips.push(project);
-
-    for (const label of parsed.labels) {
-      chips.push(`Label: ${label}`);
-    }
-
+    for (const label of parsed.labels) chips.push(`Label: ${label}`);
     const assignee = addChip(parsed.assignee, "Assignee");
     if (assignee) chips.push(assignee);
-
-    if (parsed.priority) {
-      chips.push(`Priority: p${parsed.priority}`);
-    }
-
+    if (parsed.priority) chips.push(`Priority: p${parsed.priority}`);
     const dueText = addChip(formatScheduleDateTime(parsed.dueText), "Due");
     if (dueText) chips.push(dueText);
-
     const deadline = addChip(formatScheduleDateTime(parsed.deadline), "Deadline");
     if (deadline) chips.push(deadline);
-
     const recurrence = addChip(parsed.recurrenceRule, "Recurrence");
     if (recurrence) chips.push(recurrence);
-
     return chips;
   });
 
   const parsedGuidance = createMemo(() => {
     const parsed = parsedInput();
-    if (!parsed || !parsed.recurrenceRule) return "";
-    if (parsed.dueText || parsed.deadline) return "";
+    if (!parsed || !parsed.recurrenceRule || parsed.dueText || parsed.deadline) return "";
     return "Recurrence sets repeat cadence only. Add due text (for example, tomorrow) and/or {deadline} to fill those fields.";
   });
 
@@ -402,15 +378,18 @@ import {
   }
 
   function sidebarProjectCount(project: Project): number {
-    if (project.id === "inbox") {
-      return inboxCount();
-    }
+    if (project.id === "inbox") return inboxCount();
     return openTaskCountByProjectID().get(project.id) ?? project.openTaskCount ?? 0;
   }
 
   async function refreshData() {
     try {
-      await Promise.all([tasksQuery.refetch(), projectsQuery.refetch()]);
+      const [taskResult, projectResult] = await Promise.all([
+        tasksQuery.refetch(),
+        projectsQuery.refetch(),
+      ]);
+      if (taskResult.data) setTasks(sortTasks(taskResult.data.items));
+      if (projectResult.data) setProjects(projectResult.data.items);
       setError("");
     } catch (err) {
       setError((err as Error).message);
@@ -420,11 +399,7 @@ import {
   async function persistOrder(orderedOpenTasks: Task[]) {
     try {
       await Promise.all(
-        orderedOpenTasks.map((item, index) =>
-          api.tasks.update(item.id, {
-            sortOrder: index + 1,
-          }),
-        ),
+        orderedOpenTasks.map((item, index) => api.tasks.update(item.id, { sortOrder: index + 1 })),
       );
     } catch (err) {
       setError((err as Error).message);
@@ -436,22 +411,13 @@ import {
     setTasks((current) => {
       const open = sortTasks(current.filter((item) => !item.checked && !item.isDeleted));
       const completed = current.filter((item) => item.checked || item.isDeleted);
-
       const sourceIndex = open.findIndex((item) => item.id === sourceId);
       const targetIndex = open.findIndex((item) => item.id === targetId);
-      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
-        return current;
-      }
-
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return current;
       const reordered = [...open];
       const [moved] = reordered.splice(sourceIndex, 1);
       reordered.splice(targetIndex, 0, moved);
-
-      const normalized = reordered.map((item, index) => ({
-        ...item,
-        sortOrder: index + 1,
-      }));
-
+      const normalized = reordered.map((item, index) => ({ ...item, sortOrder: index + 1 }));
       void persistOrder(normalized);
       return [...normalized, ...completed];
     });
