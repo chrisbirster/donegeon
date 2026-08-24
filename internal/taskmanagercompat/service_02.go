@@ -405,14 +405,23 @@ FROM projects p
 LEFT JOIN (
     SELECT project_id, COUNT(*) AS open_task_count
     FROM tasks
-    WHERE is_deleted = 0 AND checked = 0 AND project_id IS NOT NULL AND project_id <> ''
+    WHERE is_deleted = 0
+      AND checked = 0
+      AND user_id = ?
+      AND workspace_id = ?
+      AND project_id IS NOT NULL
+      AND project_id <> ''
     GROUP BY project_id
 ) tc ON tc.project_id = p.id
-WHERE p.id = ? AND p.user_id = ? AND p.workspace_id = ?
+WHERE p.id = ?
+  AND (
+      p.workspace_id = ?
+      OR ((p.workspace_id IS NULL OR p.workspace_id = '') AND p.user_id = ?)
+  )
 LIMIT 1
 `
 	var row project.Project
-	if err := s.db.GetContext(ctx, &row, query, canonicalID, principal.UserID, principal.WorkspaceID); err != nil {
+	if err := s.db.GetContext(ctx, &row, query, principal.UserID, principal.WorkspaceID, canonicalID, principal.WorkspaceID, principal.UserID); err != nil {
 		if err == sql.ErrNoRows {
 			return project.Project{}, notFoundField("project not found", "projectId")
 		}
