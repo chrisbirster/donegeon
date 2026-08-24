@@ -9,6 +9,7 @@ import (
 
 	apperrors "donegeon/internal/errors"
 	"donegeon/internal/project"
+	"donegeon/internal/sessionctx"
 )
 
 func (s *Service) deleteLabel(ctx context.Context, payload map[string]any) (any, error) {
@@ -23,7 +24,8 @@ func (s *Service) deleteLabel(ctx context.Context, payload map[string]any) (any,
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM task_labels WHERE label_id = ?", labelID); err != nil {
 		return nil, err
 	}
-	result, err := s.db.ExecContext(ctx, "DELETE FROM labels WHERE id = ?", labelID)
+	principal := sessionctx.PrincipalFromContext(ctx)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM labels WHERE id = ? AND user_id = ? AND workspace_id = ?", labelID, principal.UserID, principal.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +39,9 @@ func (s *Service) deleteLabel(ctx context.Context, payload map[string]any) (any,
 func (s *Service) searchLabels(ctx context.Context, payload map[string]any) (any, error) {
 	limit, cursor := limitCursor(payload)
 	queryText := strings.ToLower(strings.TrimSpace(getStringOr(payload, "query")))
+	principal := sessionctx.PrincipalFromContext(ctx)
 	rows := []labelRow{}
-	if err := s.db.SelectContext(ctx, &rows, "SELECT id, name, color, created_at, updated_at FROM labels ORDER BY LOWER(name) ASC, created_at ASC"); err != nil {
+	if err := s.db.SelectContext(ctx, &rows, "SELECT id, name, color, created_at, updated_at FROM labels WHERE user_id = ? AND workspace_id = ? ORDER BY LOWER(name) ASC, created_at ASC, id ASC", principal.UserID, principal.WorkspaceID); err != nil {
 		return nil, err
 	}
 	filtered := make([]labelRow, 0, len(rows))
@@ -68,7 +71,8 @@ func (s *Service) renameSharedLabel(ctx context.Context, payload map[string]any)
 		if asAppError(err, &appErr) && appErr.Code == apperrors.CodeNotFound {
 			id := "L_" + strings.ToUpper(strings.ReplaceAll(uuid.NewString()[:8], "-", ""))
 			now := nowRFC3339()
-			if _, insertErr := s.db.ExecContext(ctx, "INSERT INTO labels (id, name, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", id, next, stringOrNil(color), now, now); insertErr != nil {
+			principal := sessionctx.PrincipalFromContext(ctx)
+			if _, insertErr := s.db.ExecContext(ctx, "INSERT INTO labels (id, name, color, created_at, updated_at, user_id, workspace_id) VALUES (?, ?, ?, ?, ?, ?, ?)", id, next, stringOrNil(color), now, now, principal.UserID, principal.WorkspaceID); insertErr != nil {
 				return nil, insertErr
 			}
 			return s.labelByID(ctx, id)
@@ -104,7 +108,8 @@ func (s *Service) removeSharedLabel(ctx context.Context, payload map[string]any)
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM task_labels WHERE label_id = ?", row.ID); err != nil {
 		return nil, err
 	}
-	if _, err := s.db.ExecContext(ctx, "DELETE FROM labels WHERE id = ?", row.ID); err != nil {
+	principal := sessionctx.PrincipalFromContext(ctx)
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM labels WHERE id = ? AND user_id = ? AND workspace_id = ?", row.ID, principal.UserID, principal.WorkspaceID); err != nil {
 		return nil, err
 	}
 	return map[string]any{"removed": true}, nil
@@ -366,12 +371,13 @@ func (s *Service) getUser() (any, error) {
 }
 
 func (s *Service) getProductivityStats(ctx context.Context) (any, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
 	var open int
-	if err := s.db.GetContext(ctx, &open, "SELECT COUNT(*) FROM tasks WHERE is_deleted = 0 AND checked = 0"); err != nil {
+	if err := s.db.GetContext(ctx, &open, "SELECT COUNT(*) FROM tasks WHERE is_deleted = 0 AND checked = 0 AND user_id = ? AND workspace_id = ?", principal.UserID, principal.WorkspaceID); err != nil {
 		return nil, err
 	}
 	var completed int
-	if err := s.db.GetContext(ctx, &completed, "SELECT COUNT(*) FROM tasks WHERE is_deleted = 0 AND checked = 1"); err != nil {
+	if err := s.db.GetContext(ctx, &completed, "SELECT COUNT(*) FROM tasks WHERE is_deleted = 0 AND checked = 1 AND user_id = ? AND workspace_id = ?", principal.UserID, principal.WorkspaceID); err != nil {
 		return nil, err
 	}
 	return map[string]any{
@@ -382,6 +388,8 @@ func (s *Service) getProductivityStats(ctx context.Context) (any, error) {
 }
 
 func (s *Service) projectByID(ctx context.Context, id string) (project.Project, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
+	canonicalID := canonicalProjectIDForContext(ctx, id)
 	query := `
 SELECT
     p.id,
@@ -400,11 +408,11 @@ LEFT JOIN (
     WHERE is_deleted = 0 AND checked = 0 AND project_id IS NOT NULL AND project_id <> ''
     GROUP BY project_id
 ) tc ON tc.project_id = p.id
-WHERE p.id = ?
+WHERE p.id = ? AND p.user_id = ? AND p.workspace_id = ?
 LIMIT 1
 `
 	var row project.Project
-	if err := s.db.GetContext(ctx, &row, query, id); err != nil {
+	if err := s.db.GetContext(ctx, &row, query, canonicalID, principal.UserID, principal.WorkspaceID); err != nil {
 		if err == sql.ErrNoRows {
 			return project.Project{}, notFoundField("project not found", "projectId")
 		}
