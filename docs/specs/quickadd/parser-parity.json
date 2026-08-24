@@ -1,0 +1,114 @@
+[
+  {
+    "name": "all metadata tokens",
+    "input": "Ship release #work @urgent +alex p2 {in 3 days} // verify rollout",
+    "expected": {
+      "content": "Ship release",
+      "project": "work",
+      "labels": ["urgent"],
+      "assignee": "alex",
+      "priority": 2,
+      "deadline": "in 3 days",
+      "description": "verify rollout"
+    }
+  },
+  {
+    "name": "two week recurrence",
+    "input": "Review every 2 weeks",
+    "expected": {
+      "content": "Review",
+      "labels": [],
+      "recurrenceRule": "FREQ=WEEKLY;INTERVAL=2",
+      "description": ""
+    }
+  },
+  {
+    "name": "daily timed recurrence",
+    "input": "Standup daily at 9am",
+    "expected": {
+      "content": "Standup",
+      "labels": [],
+      "recurrenceRule": "FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0",
+      "description": ""
+    }
+  },
+  {
+    "name": "twice monthly recurrence",
+    "input": "Payroll twice a month",
+    "expected": {
+      "content": "Payroll",
+      "labels": [],
+      "recurrenceRule": "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1,15",
+      "description": ""
+    }
+  },
+  {
+    "name": "morning recurrence",
+    "input": "Cleanup every morning",
+    "expected": {
+      "content": "Cleanup",
+      "labels": [],
+      "recurrenceRule": "FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0",
+      "description": ""
+    }
+  },
+  {
+    "name": "ordinal weekday recurrence",
+    "input": "Report first monday of every month",
+    "expected": {
+      "content": "Report",
+      "labels": [],
+      "recurrenceRule": "FREQ=MONTHLY;INTERVAL=1;BYDAY=1MO",
+      "description": ""
+    }
+  },
+  {
+    "name": "next weekday due",
+    "input": "Prepare next thursday at 5pm",
+    "expected": {
+      "content": "Prepare",
+      "labels": [],
+      "dueText": "next thursday at 5pm",
+      "description": ""
+    }
+  },
+  {
+    "name": "due prefix removed",
+    "input": "File taxes due thursday",
+    "expected": {
+      "content": "File taxes",
+      "labels": [],
+      "dueText": "thursday",
+      "description": ""
+    }
+  },
+  {
+    "name": "other week alias",
+    "input": "Backup every other week",
+    "expected": {
+      "content": "Backup",
+      "labels": [],
+      "recurrenceRule": "FREQ=WEEKLY;INTERVAL=2",
+      "description": ""
+    }
+  },
+  {
+    "name": "monthly day recurrence",
+    "input": "Invoice every month on the 23rd",
+    "expected": {
+      "content": "Invoice",
+      "labels": [],
+      "recurrenceRule": "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=23",
+      "description": ""
+    }
+  },
+  {
+    "name": "numeric-only project token stays content",
+    "input": "Investigate #123",
+    "expected": {
+      "content": "Investigate #123",
+      "labels": [],
+      "description": ""
+    }
+  }
+]
