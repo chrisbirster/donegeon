@@ -43,11 +43,12 @@ Secrets stored in GitHub Actions, Fly.io, AWS/SST, Cloudflare, Turso, Stripe, or
 
 - [x] **Branch decision.** Keep `DGN-0003-marketing-homepage-refresh` as a WIP branch in the public project.
 - [x] **Licensing decision.** Donegeon-authored code, documentation, configuration, scripts, and project artwork are AGPL-3.0-only unless a file explicitly identifies third-party material under another license.
-- [ ] **Final human read-through.** Confirm the public description, screenshots/artwork, product wording, and contact addresses are what you want associated with Donegeon.
-- [ ] **Publish clean history.** Create the public repository from the approved source snapshots rather than exposing private development/PR history. Preserve the approved `main` source and the current `DGN-0003-marketing-homepage-refresh` WIP source as clean public branch snapshots.
-- [ ] **Enable free public-repository security features.** After the repository is public, enable the GitHub security features available to public repositories without a paid security add-on, including secret scanning/push protection, private vulnerability reporting, and code scanning. Dependabot configuration is already committed.
-- [ ] **Protect `main`.** Once the repository is public, require the `CI` checks and the pull-request/review policy you want for future production changes using the branch-protection features available to public repositories.
+- [x] **History decision.** Publish the existing Git history. The owner reviewed and accepts the historical external-comparison README sentence and existing commit author metadata.
+- [x] **Final human read-through.** Public wording, artwork licensing, retained WIP branch, and history exposure have been reviewed for publication.
+- [ ] **Make the repository public.** Change `chrisbirster/donegeon` visibility from private to public.
+- [ ] **Enable free public-repository security features.** Enable secret scanning/push protection, private vulnerability reporting, and code scanning. Dependabot configuration is already committed.
+- [ ] **Protect `main`.** Require the `CI` checks and the pull-request/review policy for future production changes using the branch-protection features available to public repositories.
 
 ## Publication rule
 
-Donegeon does not need to be feature-complete to be public. It is appropriate to publish it as alpha software once the final human read-through is complete and the approved source is copied into a clean public Git history. Repository security settings and `main` protection should then be enabled as part of publication so they apply to subsequent public contributions.
+Donegeon does not need to be feature-complete to be public. The repository-level licensing, secret scanning, reproducibility, dependency auditing, CI, and publication-review gates are complete. After visibility is changed to public, enable the public-repository security settings and `main` protection so they apply to subsequent contributions.
