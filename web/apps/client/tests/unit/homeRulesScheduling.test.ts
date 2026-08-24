@@ -6,7 +6,7 @@ import {
   startOfLocalDay,
   taskDueDate,
   taskScheduledDate,
-} from "../../src/features/tasks/home-rules.ts";
+} from "../../src/features/tasks/home-scheduling.ts";
 
 function task(overrides: Partial<Task> = {}): Task {
   return {
@@ -38,12 +38,12 @@ describe("task scheduling view rules", () => {
     const scheduled = taskScheduledDate(task({
       dueText: "2026-08-25",
       dueDeadline: "2026-08-24",
-    }));
+    }), now);
     assert.equal(localYMD(scheduled), "2026-08-25");
   });
 
   test("falls back to deadline when a task has no due text", () => {
-    const scheduled = taskScheduledDate(task({ dueDeadline: "2026-08-24" }));
+    const scheduled = taskScheduledDate(task({ dueDeadline: "2026-08-24" }), now);
     assert.equal(localYMD(scheduled), "2026-08-24");
   });
 
