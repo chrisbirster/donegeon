@@ -410,16 +410,7 @@ import {
 
   async function refreshData() {
     try {
-      const [taskResult, projectResult] = await Promise.all([
-        tasksQuery.refetch(),
-        projectsQuery.refetch(),
-      ]);
-      if (taskResult.data) {
-        setTasks(sortTasks(taskResult.data.items));
-      }
-      if (projectResult.data) {
-        setProjects(projectResult.data.items);
-      }
+      await Promise.all([tasksQuery.refetch(), projectsQuery.refetch()]);
       setError("");
     } catch (err) {
       setError((err as Error).message);
@@ -535,15 +526,6 @@ import {
     setDetailProjectAssigning,
     tasksQuery,
     projectsQuery,
-    mainInputRef,
-    setMainInputRef,
-    parseTimer,
-    parseController,
-    parseRequestSeq,
-    searchInputRef,
-    setSearchInputRef,
-    globalKeyHandler,
-    lastParsedText,
     inputTokens,
     currentView,
     mergedProjects,
@@ -579,3 +561,5 @@ import {
     reorderTasks,
   };
 }
+
+export type HomeControllerState = ReturnType<typeof createHomeControllerState>;
