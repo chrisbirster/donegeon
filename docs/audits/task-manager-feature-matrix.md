@@ -1,6 +1,6 @@
 # Task manager feature / evidence matrix
 
-Status: M2 organization gate candidate; semantic contract awaiting protected CI
+Status: M2 organization gate complete
 
 This document is the working source of truth for the task-manager audit defined in `docs/task-manager-audit-plan.md`. It intentionally distinguishes code that exists from behavior that has been proven.
 
@@ -48,19 +48,18 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 9. Project, section, recurrence, and schedule input can currently be set but do not have explicit clear semantics in `UpdateInput`; those field contracts remain `PARTIAL` until intentionally designed.
 10. The broad compatibility YAML happy-path suite remains transport-level evidence unless its assertions are strengthened.
 
-## M2 candidate findings
+## M2 findings
 
-The following M2 behaviors have dedicated semantic integration assertions on `DGN-0008-organization-contract`. They remain `PARTIAL` in the matrix until the exact final branch head passes protected CI.
-
-1. Compatibility organization lookups no longer trust a globally known resource ID. Project/section access is workspace-bounded, personal projects remain owner-bounded, and labels remain user+workspace bounded.
-2. The current ownership model is explicit: projects and sections are workspace resources; tasks are user+workspace resources; labels are user+workspace resources. Fine-grained collaboration roles remain an M5 concern and are not being inferred inside M2.
-3. Task create/update/move/move-many now validate target projects and sections before mutation. A section-only move derives its project, a project change clears a stale section, an explicit project clear clears both project and section, and a section/project mismatch is rejected.
-4. Cross-workspace project/section IDs cannot be used to move or update a task. Failed foreign-move attempts leave the task's existing placement unchanged.
-5. Project archive/unarchive and favorite state now have exact persisted-state assertions. Inbox and the default board are protected from destructive archive/delete operations.
-6. Project deletion has an explicit orphan policy: the project and its sections are physically removed; surviving tasks have both project and section references cleared; project-linked comment references are cleared.
-7. Section deletion removes the section while preserving the task's project assignment and clearing only the task's section reference.
-8. Label CRUD is tenant-scoped. Renaming a linked label changes the label observed on the task; shared-label removal and label deletion remove task-label links without deleting the task.
-9. Workspace membership/share permission semantics, project-to-workspace/personal policy, collaborators, comments, and invitation authorization remain M5 rather than being overclaimed by M2.
+1. `TestOrganizationCRUDAndOrphanPolicies`, `TestOrganizationTenantIsolationAndForeignMoves`, and `TestOrganizationLabelRenameRemoveAndDeleteAffectTaskLinks` passed on protected CI together with the full Go suite.
+2. Compatibility organization lookups no longer trust a globally known resource ID. Project/section access is workspace-bounded, personal projects remain owner-bounded, and labels remain user+workspace bounded.
+3. The current ownership model is explicit: projects and sections are workspace resources; tasks are user+workspace resources; labels are user+workspace resources. Fine-grained collaboration roles remain an M5 concern and are not being inferred inside M2.
+4. Task create/update/move/move-many validate target projects and sections before mutation. A section-only move derives its project, a project change clears a stale section, an explicit project clear clears both project and section, and a section/project mismatch is rejected.
+5. Cross-workspace project/section IDs cannot be used to move or update a task. Failed foreign-move attempts leave the task's existing placement unchanged.
+6. Project archive/unarchive and favorite state have exact persisted-state assertions. Inbox and the default board are protected from destructive archive/delete operations.
+7. Project deletion has an explicit orphan policy: the project and its sections are physically removed; surviving tasks have both project and section references cleared; project-linked comment references are cleared.
+8. Section deletion removes the section while preserving the task's project assignment and clearing only the task's section reference.
+9. Label CRUD is tenant-scoped. Renaming a linked label changes the label observed on the task; shared-label removal and label deletion remove task-label links without deleting the task.
+10. Workspace membership/share permission semantics, project-to-workspace/personal policy, collaborators, comments, and invitation authorization remain M5 rather than being overclaimed by M2.
 
 ## A. Core task lifecycle
 
@@ -77,7 +76,7 @@ The following M2 behaviors have dedicated semantic integration assertions on `DG
 | Complete recurring task and spawn next occurrence | `VERIFIED` | `task.Service.Close` recurrence path | `TestServiceCloseRecurringTaskSpawnsNextOccurrence` asserts closed original plus open next task with retained recurrence and next due time | Extend in M3 for DST/month-end/edited-rule/failure cases |
 | Reorder tasks | `VERIFIED` | sort order persistence + UI drag/drop | Playwright drag-and-drop test asserts order changes and remains after reload | Add collision/concurrency cases only if product contract requires them |
 | Soft-delete versus hard-delete contract | `PARTIAL` | task model/repository uses deletion state and query exclusion | M1 proves deleted tasks disappear from Get/List and later mutations return not-found | Explicitly define whether physical row retention is part of the public contract and prove storage state |
-| Task ownership/workspace isolation | `VERIFIED` | `UserID`, `WorkspaceID`, repository predicates and auth context | `TestServiceTaskTenantIsolationContract` proves every core mutation cannot cross user/workspace boundaries; HTTP contract proves Get/List isolation | Organization-boundary movement is covered by the M2 candidate contract; collaboration policy remains M5 |
+| Task ownership/workspace isolation | `VERIFIED` | `UserID`, `WorkspaceID`, repository predicates and auth context | M1 service contract covers core mutations; M2 proves foreign-workspace organization IDs cannot be used to reposition a task | Fine-grained shared-workspace write permissions remain M5 |
 
 ## B. Task fields and metadata
 
@@ -86,9 +85,9 @@ The following M2 behaviors have dedicated semantic integration assertions on `DG
 | Content/title | `VERIFIED` | canonical required field | M1 service + HTTP create/update round trips; empty create/update validation asserted | None for core field semantics |
 | Description | `VERIFIED` | canonical field | M1 service + HTTP create/update persistence | None for core field semantics |
 | Priority 1–4 | `VERIFIED` | canonical field and validation | M1 round trip plus create priority `5` and update priority `0` rejection | UI priority acceptance remains M6 |
-| Project assignment | `PARTIAL` | `ProjectID` on task + compatibility placement validator | M1 proves persistence; M2 candidate proves validated moves, foreign-workspace rejection, and explicit clear | Promote backend movement semantics after CI; archived-project/UI policy remains to be audited |
-| Section assignment | `PARTIAL` | `SectionID` on task + compatibility placement validator | M1 proves persistence; M2 candidate proves section ownership, section-only move, mismatch rejection, clear, and deletion policy | Promote backend semantics after CI; UI persistence remains M6 |
-| Labels | `PARTIAL` | task labels repository + compatibility CRUD | M1 proves normalized create/update/reload; M2 candidate proves rename/remove/delete effects on linked tasks | Promote backend CRUD/link semantics after CI; uniqueness/case policy and UI remain |
+| Project assignment | `VERIFIED` | `ProjectID` on task + compatibility placement validator | M1 persistence + M2 validated moves, foreign-workspace rejection, explicit clear, and non-mutation on rejected moves | Archived-project creation policy and browser acceptance remain separate |
+| Section assignment | `VERIFIED` | `SectionID` on task + compatibility placement validator | M1 persistence + M2 section-only move, mismatch rejection, explicit clear, and section-deletion cleanup | Browser acceptance remains M6 |
+| Labels | `VERIFIED` for backend CRUD/link semantics | task labels repository + tenant-scoped compatibility CRUD | M1 normalized round trips + M2 rename/remove/delete effects on linked tasks | Duplicate/case policy and browser acceptance remain |
 | Due date/time | `PARTIAL` | `DueText` plus scheduling normalization | M1 proves direct create/update persistence and explicit clear; existing service tests cover relative values | M3: date-only, timezone, DST, editing, view inclusion |
 | Deadline | `PARTIAL` | `DueDeadline` | M1 proves direct create/update persistence and explicit clear; existing tests cover relative deadline normalization | M3: timezone/DST/edit/view semantics |
 | Recurrence RRULE | `VERIFIED` for parsing/persistence, `PARTIAL` overall | canonical `Recurrence` | parser specs + M1 round trip + recurring-close semantic test | M3: edit/clear, DST/month-end, transaction failure/recovery |
@@ -103,17 +102,17 @@ The following M2 behaviors have dedicated semantic integration assertions on `DG
 
 | Capability | Status | Implementation | Strongest current evidence | Gap / next proof |
 | --- | --- | --- | --- | --- |
-| Create project | `PARTIAL` | canonical project service + compatibility path | M2 candidate asserts returned project and favorite state | Await protected CI; duplicate/name policy remains to define |
-| Read/list projects | `PARTIAL` | canonical project service/repository + compatibility lookup | M2 candidate exercises active/archived lists and workspace-bounded lookup | Await CI; ordering/pagination and collaboration visibility remain separate |
-| Update/rename project | `PARTIAL` | project service update | M2 candidate asserts durable name and favorite update | Await CI + browser reload assertion |
-| Archive project | `PARTIAL` | compatibility archive state | M2 candidate asserts state plus active/archived visibility | Await CI; archived-target task-creation policy remains explicit follow-up |
-| Unarchive project | `PARTIAL` | compatibility surface | M2 candidate asserts persisted return to active state | Await CI + UI workflow |
-| Delete project | `PARTIAL` | transactional compatibility deletion | M2 candidate asserts project/sections removed while tasks survive with project+section cleared | Await CI; UI confirmation/undo policy remains product work |
-| Favorite project | `PARTIAL` | `IsFavorite` via canonical upsert | M2 candidate asserts false→true persistence | Await CI; sidebar ordering/UI remains M6 |
-| Inbox/default project behavior | `PARTIAL` | default-project migration + destructive guards | M2 candidate asserts Inbox delete and default-board archive are rejected | Await CI; uniqueness/default routing still broader |
-| Sections CRUD | `PARTIAL` | compatibility SQL with project-bound lookup | M2 candidate asserts create/read/rename/delete and task-reference cleanup | Await CI; collaboration permissions remain M5 |
-| Labels CRUD | `PARTIAL` | tenant-scoped compatibility SQL | M2 candidate asserts create/read/update/delete and task-link cleanup | Await CI; duplicate/case policy remains to define |
-| Shared labels | `PARTIAL` | compatibility surface | M2 candidate asserts rename changes linked task label and remove deletes link | Await CI; true multi-user sharing semantics remain M5 |
+| Create project | `VERIFIED` for current backend contract | canonical project service + compatibility path | M2 semantic contract asserts returned project and favorite state | Duplicate/name collision policy remains to define |
+| Read/list projects | `PARTIAL` | canonical project service/repository + compatibility lookup | M2 proves active/archived visibility and workspace-bounded get; existing list code supplies pagination wrapper | Explicit ordering/pagination and collaboration visibility need focused evidence |
+| Update/rename project | `VERIFIED` for current backend contract | project service update | M2 semantic contract asserts durable rename + favorite update | Browser reload assertion remains M6 |
+| Archive project | `VERIFIED` for current backend contract | compatibility archive state | M2 asserts persisted archived state and active/archived list visibility | Archived-target task-creation policy remains to define |
+| Unarchive project | `VERIFIED` for current backend contract | compatibility surface | M2 asserts persisted return to active state | Browser workflow remains M6 |
+| Delete project | `VERIFIED` for current backend contract | transactional compatibility deletion | M2 asserts project/sections removed while tasks survive with project+section cleared | UI confirmation/undo policy remains product work |
+| Favorite project | `VERIFIED` for current backend contract | `IsFavorite` via canonical upsert | M2 asserts false→true persistence | Sidebar ordering/UI remains M6 |
+| Inbox/default project behavior | `PARTIAL` | default-project migration + destructive guards | M2 asserts Inbox delete and default-board archive are rejected | Uniqueness/default routing and broader default policy remain |
+| Sections CRUD | `VERIFIED` for current backend contract | compatibility SQL with workspace-bound project lookup | M2 asserts create/read/rename/delete and task-reference cleanup | Fine-grained collaboration permissions remain M5 |
+| Labels CRUD | `VERIFIED` for current backend contract | user+workspace-scoped compatibility SQL | M2 asserts create/read/update/delete and task-link cleanup | Duplicate/case policy remains to define |
+| Shared labels | `PARTIAL` | compatibility surface | M2 asserts rename changes linked task label and remove deletes link | True multi-user/shared-label semantics remain M5 |
 
 ## D. Scheduling, recurrence, and views
 
@@ -148,13 +147,13 @@ The following M2 behaviors have dedicated semantic integration assertions on `DG
 | Capability | Status | Implementation | Strongest current evidence | Gap / next proof |
 | --- | --- | --- | --- | --- |
 | Session read/write roles | `VERIFIED` for tested API scope behavior | HTTP auth/role middleware | explicit reader-readonly/editor-write Go tests | Expand tenant resource tests, but core role write gate is proven |
-| Workspaces | `PARTIAL` | account/compat schema/services | compatibility routes + account tests | M2 documents workspace project visibility; M5 must prove membership/permission semantics |
+| Workspaces | `PARTIAL` | account/compat schema/services | compatibility routes + account tests; M2 documents workspace project visibility | M5 must prove membership and permission semantics |
 | Workspace invitations | `PARTIAL` | schema/compat/account paths | compatibility auth/error coverage | Add semantic accept/reject/idempotency state assertions |
-| Project sharing/collaborators | `PARTIAL` | compatibility layer | workspace project visibility is explicit in M2 candidate | M5: prove membership, mutation permissions, collaborator state, UI acceptance |
+| Project sharing/collaborators | `PARTIAL` | compatibility layer | workspace project/section visibility is explicit in M2 | M5: prove membership, mutation permissions, collaborator state, UI acceptance |
 | Task comments | `PARTIAL` | compatibility comments implementation | routes/cases | Add create/update/delete/list exact-state and tenant tests |
 | Durable task assignment | `UNIMPLEMENTED` | absent from canonical task model | M0 model inspection | Model before UI/API claims |
 | Activity log | `UNIMPLEMENTED` / placeholder | compatibility action currently returns no meaningful activity data | source inspection | Define event model and persistence before advertising |
-| Productivity statistics | `PARTIAL` | compatibility endpoint exists and is now task-tenant scoped | source + transport coverage | Verify formulas and returned values against seeded semantic data |
+| Productivity statistics | `PARTIAL` | compatibility endpoint exists and is task-tenant scoped | M2 scopes the underlying counts; transport coverage exists | Verify formulas and returned values against seeded semantic data |
 | Calendar account connection | `PARTIAL` | `internal/calendar`, connection migration | implementation exists | Audit OAuth lifecycle, token storage, disconnect/reconnect and tenant isolation |
 | Task/calendar synchronization | `PARTIAL` | calendar integration code exists | implementation-level evidence | Add deterministic provider-boundary tests and end-to-end sync semantics |
 
@@ -167,8 +166,8 @@ The following M2 behaviors have dedicated semantic integration assertions on `DG
 | Task API rate limiting where configured | `PARTIAL` | limiter tests exist; audit endpoint coverage and retry semantics |
 | Idempotent compatibility mutations | `PARTIAL` | YAML cases claim idempotency but success harness does not prove repeated state |
 | Pagination correctness | `VERIFIED` for canonical task list | `TestServiceTaskListPaginationContract` asserts total, page size, next cursor, second page, and stable ordering | Compatibility endpoint pagination remains separate evidence work |
-| Cross-tenant task isolation | `VERIFIED` for canonical lifecycle | M1 service contract covers Get/List/Update/Close/Reopen/Delete across user/workspace boundaries; HTTP contract proves Get/List boundaries | M2 candidate extends movement validation across organization boundaries |
-| Organization resource isolation | `PARTIAL` | M2 candidate semantic contract covers workspace project/section boundary plus user-scoped labels and foreign-workspace moves | Promote after protected CI; fine-grained membership/write permissions remain M5 |
+| Cross-tenant task isolation | `VERIFIED` | M1 covers user/workspace lifecycle isolation; M2 proves cross-workspace project/section IDs cannot reposition owned tasks | Fine-grained shared-workspace write permissions remain M5 |
+| Organization resource isolation | `VERIFIED` for M2 boundary | M2 semantic contract proves workspace-bounded project/section access, user+workspace labels/tasks, and rejected foreign-workspace movement | Fine-grained membership/write permissions remain M5 |
 | Database migration from existing installs | `PARTIAL` | migration runner and CI/tests exist | Add upgrade-path fixture from representative historical DB |
 | SQLite/Turso behavioral parity | `PARTIAL` | same repository/migration abstraction intended | Add shared contract suite against both backends where feasible |
 
@@ -187,21 +186,21 @@ Completed evidence:
 5. Cross-user/workspace isolation across all core canonical mutations.
 6. Public HTTP-handler lifecycle contract with semantic response and persisted-state assertions.
 
-Known M1 deferrals are explicitly retained as `PARTIAL` rows rather than hidden: broader list inclusion/filter rules, nullable project/section/recurrence/schedule clearing, labels policy, and scheduling/view edge cases.
+Known M1 deferrals are explicitly retained as `PARTIAL` rows rather than hidden: broader list inclusion/filter rules, nullable recurrence/schedule clearing, and scheduling/view edge cases.
 
-### M2 — organization gate — CANDIDATE
+### M2 — organization gate — COMPLETE
 
-Candidate evidence on `DGN-0008-organization-contract` covers:
+Completed evidence:
 
 1. Project create/read/update, favorite, archive/unarchive, and delete semantics.
 2. Inbox/default-board destructive protections.
 3. Section create/read/update/delete and task-reference cleanup.
 4. Label create/read/update/delete plus rename/remove effects on linked tasks.
-5. Task project/section movement, explicit clearing, section→project consistency, and mismatch rejection.
-6. Cross-workspace organization-resource isolation and failed-move non-mutation.
+5. Task project/section movement, explicit clearing, section→project consistency, mismatch rejection, and rejected-move non-mutation.
+6. Cross-workspace organization-resource isolation and user-scoped task/label isolation.
 7. Explicit workspace-resource versus user-resource ownership boundaries.
 
-Promotion to M2 complete requires the exact final branch head to pass all protected CI checks. Collaboration membership/write policy remains M5.
+Collaboration membership and fine-grained shared-workspace write policy intentionally remain M5.
 
 ### M3 — scheduling gate
 
