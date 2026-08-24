@@ -178,6 +178,91 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Task, error) {
 	return r.Get(ctx, id)
 }
 
+func (r *Repository) CloseRecurringAndCreateNext(ctx context.Context, id string, in CreateInput) error {
+	if in.Priority == 0 {
+		in.Priority = 4
+	}
+	if in.Priority < 1 || in.Priority > 4 {
+		return apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "priority must be 1..4"), "priority")
+	}
+	if in.Content == "" {
+		return apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "content is required"), "content")
+	}
+
+	closeQuery, err := r.query("task_close.sql")
+	if err != nil {
+		return err
+	}
+	createQuery, err := r.query("task_create.sql")
+	if err != nil {
+		return err
+	}
+	linkQuery, err := r.query("task_label_link_insert_ignore.sql")
+	if err != nil {
+		return err
+	}
+
+	principal := sessionctx.PrincipalFromContext(ctx)
+	now := time.Now().UTC().Format(time.RFC3339)
+	nextID := uuid.NewString()
+	sortOrder := in.SortOrder
+	if sortOrder == 0 {
+		sortOrder = time.Now().UTC().UnixMilli()
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	closeResult, err := tx.NamedExecContext(ctx, closeQuery, map[string]any{
+		"id":           id,
+		"user_id":      principal.UserID,
+		"workspace_id": principal.WorkspaceID,
+		"updated_at":   now,
+	})
+	if err != nil {
+		return err
+	}
+	rows, _ := closeResult.RowsAffected()
+	if rows == 0 {
+		return apperrors.WithField(apperrors.New(apperrors.CodeNotFound, "task not found"), "taskId")
+	}
+
+	if _, err := tx.NamedExecContext(ctx, createQuery, map[string]any{
+		"id":              nextID,
+		"content":         in.Content,
+		"description":     in.Description,
+		"project_id":      nullableString(in.ProjectID),
+		"section_id":      nullableString(in.SectionID),
+		"sort_order":      sortOrder,
+		"recurrence_rule": nullableString(in.Recurrence),
+		"priority":        in.Priority,
+		"due_text":        nullableString(in.DueText),
+		"due_deadline":    nullableString(in.DueDeadline),
+		"schedule_input":  nullableString(in.ScheduleInput),
+		"user_id":         principal.UserID,
+		"workspace_id":    principal.WorkspaceID,
+		"created_at":      now,
+		"updated_at":      now,
+	}); err != nil {
+		return err
+	}
+
+	for _, label := range normalizeLabels(in.Labels) {
+		labelID, err := r.findOrCreateLabel(ctx, tx, principal, label, now)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, linkQuery, nextID, labelID, now); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (r *Repository) Update(ctx context.Context, id string, in UpdateInput) (Task, error) {
 	if in.Content != nil && *in.Content == "" {
 		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "content is required"), "content")
@@ -193,22 +278,24 @@ func (r *Repository) Update(ctx context.Context, id string, in UpdateInput) (Tas
 
 	principal := sessionctx.PrincipalFromContext(ctx)
 	args := map[string]any{
-		"id":                 id,
-		"content":            nullableString(in.Content),
-		"description":        nullableString(in.Description),
-		"project_id":         nullableString(in.ProjectID),
-		"section_id":         nullableString(in.SectionID),
-		"sort_order":         nullableInt64(in.SortOrder),
-		"recurrence_rule":    nullableString(in.Recurrence),
-		"priority":           nullableInt(in.Priority),
-		"due_text":           nullableString(in.DueText),
-		"clear_due_text":     boolToInt(in.ClearDueText),
-		"due_deadline":       nullableString(in.DueDeadline),
-		"clear_due_deadline": boolToInt(in.ClearDueDeadline),
-		"schedule_input":     nullableString(in.ScheduleInput),
-		"user_id":            principal.UserID,
-		"workspace_id":       principal.WorkspaceID,
-		"updated_at":         time.Now().UTC().Format(time.RFC3339),
+		"id":                   id,
+		"content":              nullableString(in.Content),
+		"description":          nullableString(in.Description),
+		"project_id":           nullableString(in.ProjectID),
+		"section_id":           nullableString(in.SectionID),
+		"sort_order":           nullableInt64(in.SortOrder),
+		"recurrence_rule":      nullableString(in.Recurrence),
+		"clear_recurrence_rule": boolToInt(in.ClearRecurrence),
+		"priority":             nullableInt(in.Priority),
+		"due_text":             nullableString(in.DueText),
+		"clear_due_text":       boolToInt(in.ClearDueText),
+		"due_deadline":         nullableString(in.DueDeadline),
+		"clear_due_deadline":   boolToInt(in.ClearDueDeadline),
+		"schedule_input":       nullableString(in.ScheduleInput),
+		"clear_schedule_input": boolToInt(in.ClearScheduleInput),
+		"user_id":              principal.UserID,
+		"workspace_id":         principal.WorkspaceID,
+		"updated_at":           time.Now().UTC().Format(time.RFC3339),
 	}
 
 	res, err := r.db.NamedExecContext(ctx, query, args)
