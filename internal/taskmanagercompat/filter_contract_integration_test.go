@@ -75,7 +75,8 @@ func TestTaskFilterSemanticContract(t *testing.T) {
 		t.Fatalf("filter page 1: %v", err)
 	}
 	page1 := mustFilterPayload(t, page1Raw)
-	if page1["total"] != 2 || len(mustFilterItems(t, page1)) != 1 || page1["nextCursor"] == nil {
+	page1Next, ok := page1["nextCursor"].(*int)
+	if page1["total"] != 2 || len(mustFilterItems(t, page1)) != 1 || !ok || page1Next == nil || *page1Next != 1 {
 		t.Fatalf("unexpected page 1: %+v", page1)
 	}
 
@@ -84,7 +85,8 @@ func TestTaskFilterSemanticContract(t *testing.T) {
 		t.Fatalf("filter page 2 through query alias: %v", err)
 	}
 	page2 := mustFilterPayload(t, page2Raw)
-	if page2["total"] != 2 || len(mustFilterItems(t, page2)) != 1 || page2["nextCursor"] != nil {
+	page2Next, ok := page2["nextCursor"].(*int)
+	if page2["total"] != 2 || len(mustFilterItems(t, page2)) != 1 || !ok || page2Next != nil {
 		t.Fatalf("unexpected page 2: %+v", page2)
 	}
 }
