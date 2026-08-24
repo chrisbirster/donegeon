@@ -11,11 +11,21 @@ import (
 	"time"
 
 	apperrors "donegeon/internal/errors"
+	"donegeon/internal/sessionctx"
+	"donegeon/internal/tenant"
 )
 
 func (s *Service) sectionByID(ctx context.Context, id string) (sectionRow, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
 	var row sectionRow
-	if err := s.db.GetContext(ctx, &row, "SELECT id, project_id, name, created_at, updated_at FROM sections WHERE id = ? LIMIT 1", id); err != nil {
+	query := `
+SELECT s.id, s.project_id, s.name, s.created_at, s.updated_at
+FROM sections s
+JOIN projects p ON p.id = s.project_id
+WHERE s.id = ? AND p.user_id = ? AND p.workspace_id = ?
+LIMIT 1
+`
+	if err := s.db.GetContext(ctx, &row, query, id, principal.UserID, principal.WorkspaceID); err != nil {
 		if err == sql.ErrNoRows {
 			return sectionRow{}, notFoundField("section not found", "sectionId")
 		}
@@ -25,8 +35,9 @@ func (s *Service) sectionByID(ctx context.Context, id string) (sectionRow, error
 }
 
 func (s *Service) labelByID(ctx context.Context, id string) (labelRow, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
 	var row labelRow
-	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE id = ? LIMIT 1", id); err != nil {
+	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE id = ? AND user_id = ? AND workspace_id = ? LIMIT 1", id, principal.UserID, principal.WorkspaceID); err != nil {
 		if err == sql.ErrNoRows {
 			return labelRow{}, notFoundField("label not found", "labelId")
 		}
@@ -36,8 +47,9 @@ func (s *Service) labelByID(ctx context.Context, id string) (labelRow, error) {
 }
 
 func (s *Service) labelByName(ctx context.Context, name string) (labelRow, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
 	var row labelRow
-	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE LOWER(name) = LOWER(?) ORDER BY created_at ASC LIMIT 1", name); err != nil {
+	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE LOWER(name) = LOWER(?) AND user_id = ? AND workspace_id = ? ORDER BY created_at ASC, id ASC LIMIT 1", name, principal.UserID, principal.WorkspaceID); err != nil {
 		if err == sql.ErrNoRows {
 			return labelRow{}, notFoundField("label not found", "name")
 		}
@@ -111,6 +123,18 @@ ON CONFLICT(id) DO NOTHING
 	return s.upsertWorkspaceUser(ctx, "W1", defaultUser, "owner@example.com", "Owner", "owner")
 }
 
+func canonicalProjectIDForContext(ctx context.Context, raw string) string {
+	id := strings.TrimSpace(raw)
+	if id == "" {
+		return ""
+	}
+	principal := sessionctx.PrincipalFromContext(ctx)
+	if principal.WorkspaceID == sessionctx.DefaultWorkspaceID && !strings.Contains(id, "::") {
+		return id
+	}
+	return tenant.CanonicalProjectID(principal.WorkspaceID, id)
+}
+
 func validationField(message, field string) error {
 	return apperrors.WithField(apperrors.New(apperrors.CodeValidationError, message), field)
 }
@@ -153,6 +177,36 @@ func optionalString(payload map[string]any, key string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func optionalBool(payload map[string]any, key string) (*bool, bool) {
+	if payload == nil {
+		return nil, false
+	}
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return nil, false
+	}
+	var value bool
+	switch typed := raw.(type) {
+	case bool:
+		value = typed
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(typed))
+		if err != nil {
+			return nil, false
+		}
+		value = parsed
+	case int:
+		value = typed != 0
+	case int64:
+		value = typed != 0
+	case float64:
+		value = typed != 0
+	default:
+		return nil, false
+	}
+	return &value, true
 }
 
 func getIntOr(payload map[string]any, key string, fallback int) int {
