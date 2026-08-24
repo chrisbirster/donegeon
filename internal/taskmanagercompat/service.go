@@ -220,15 +220,21 @@ func (s *Service) addTask(ctx context.Context, payload map[string]any) (any, err
 	if !ok || strings.TrimSpace(content) == "" {
 		return nil, validationField("content is required", "content")
 	}
+	placement, err := s.resolveTaskPlacement(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
 	priority := getIntOr(payload, "priority", 4)
 	description := strings.TrimSpace(getStringOr(payload, "description"))
-	projectID := optionalString(payload, "projectId")
+	labels := getStringSlice(payload, "labels")
 
 	created, err := s.tasks.Create(ctx, task.CreateInput{
 		Content:     strings.TrimSpace(content),
 		Description: description,
-		ProjectID:   projectID,
+		ProjectID:   placement.ProjectID,
+		SectionID:   placement.SectionID,
 		Priority:    priority,
+		Labels:      labels,
 	})
 	if err != nil {
 		return nil, err
@@ -313,31 +319,50 @@ func (s *Service) updateTask(ctx context.Context, payload map[string]any) (any, 
 	if !ok || strings.TrimSpace(taskID) == "" {
 		return nil, validationField("task id is required", "taskId")
 	}
+	taskID = strings.TrimSpace(taskID)
+	if _, err := s.tasks.Get(ctx, taskID); err != nil {
+		return nil, err
+	}
+	placement, err := s.resolveTaskPlacement(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
 
 	input := task.UpdateInput{}
-	if _, ok := payload["content"]; ok {
+	hasFieldUpdate := false
+	if _, exists := payload["content"]; exists {
 		value := strings.TrimSpace(getStringOr(payload, "content"))
 		if value == "" {
 			return nil, validationField("content is required", "content")
 		}
 		input.Content = &value
+		hasFieldUpdate = true
 	}
-	if _, ok := payload["description"]; ok {
+	if _, exists := payload["description"]; exists {
 		value := getStringOr(payload, "description")
 		input.Description = &value
+		hasFieldUpdate = true
 	}
-	if _, ok := payload["projectId"]; ok {
-		input.ProjectID = optionalString(payload, "projectId")
-	}
-	if _, ok := payload["sectionId"]; ok {
-		input.SectionID = optionalString(payload, "sectionId")
-	}
-	if _, ok := payload["priority"]; ok {
+	if _, exists := payload["priority"]; exists {
 		value := getIntOr(payload, "priority", 4)
 		input.Priority = &value
+		hasFieldUpdate = true
+	}
+	if _, exists := payload["labels"]; exists {
+		labels := getStringSlice(payload, "labels")
+		input.Labels = &labels
+		hasFieldUpdate = true
 	}
 
-	return s.tasks.Update(ctx, strings.TrimSpace(taskID), input)
+	if hasFieldUpdate {
+		if _, err := s.tasks.Update(ctx, taskID, input); err != nil {
+			return nil, err
+		}
+	}
+	if placement.ApplyProject || placement.ApplySection {
+		return s.applyTaskPlacement(ctx, taskID, placement)
+	}
+	return s.tasks.Get(ctx, taskID)
 }
 
 func (s *Service) closeTask(ctx context.Context, payload map[string]any) (any, error) {
@@ -378,15 +403,18 @@ func (s *Service) moveTask(ctx context.Context, payload map[string]any) (any, er
 	if !ok || strings.TrimSpace(taskID) == "" {
 		return nil, validationField("task id is required", "taskId")
 	}
-
-	input := task.UpdateInput{}
-	if _, ok := payload["projectId"]; ok {
-		input.ProjectID = optionalString(payload, "projectId")
+	taskID = strings.TrimSpace(taskID)
+	if _, err := s.tasks.Get(ctx, taskID); err != nil {
+		return nil, err
 	}
-	if _, ok := payload["sectionId"]; ok {
-		input.SectionID = optionalString(payload, "sectionId")
+	placement, err := s.resolveTaskPlacement(ctx, payload)
+	if err != nil {
+		return nil, err
 	}
-	return s.tasks.Update(ctx, strings.TrimSpace(taskID), input)
+	if !placement.ApplyProject && !placement.ApplySection {
+		return nil, validationField("projectId or sectionId is required", "projectId")
+	}
+	return s.applyTaskPlacement(ctx, taskID, placement)
 }
 
 func (s *Service) moveTasks(ctx context.Context, payload map[string]any) (any, error) {
@@ -394,26 +422,22 @@ func (s *Service) moveTasks(ctx context.Context, payload map[string]any) (any, e
 	if len(taskIDs) == 0 {
 		return nil, validationField("taskIds is required", "taskIds")
 	}
-
-	projectID := optionalString(payload, "projectId")
-	sectionID := optionalString(payload, "sectionId")
-	if projectID != nil {
-		if _, err := s.projectByID(ctx, *projectID); err != nil {
+	for _, taskID := range taskIDs {
+		if _, err := s.tasks.Get(ctx, taskID); err != nil {
 			return nil, err
 		}
 	}
-	if sectionID != nil {
-		if _, err := s.sectionByID(ctx, *sectionID); err != nil {
-			return nil, err
-		}
+	placement, err := s.resolveTaskPlacement(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+	if !placement.ApplyProject && !placement.ApplySection {
+		return nil, validationField("projectId or sectionId is required", "projectId")
 	}
 
 	updated := make([]task.Task, 0, len(taskIDs))
 	for _, taskID := range taskIDs {
-		item, err := s.tasks.Update(ctx, taskID, task.UpdateInput{
-			ProjectID: projectID,
-			SectionID: sectionID,
-		})
+		item, err := s.applyTaskPlacement(ctx, taskID, placement)
 		if err != nil {
 			return nil, err
 		}

@@ -11,11 +11,33 @@ import (
 	"time"
 
 	apperrors "donegeon/internal/errors"
+	"donegeon/internal/sessionctx"
+	"donegeon/internal/task"
+	"donegeon/internal/tenant"
 )
 
+type taskPlacementChange struct {
+	ApplyProject bool
+	ProjectID    *string
+	ApplySection bool
+	SectionID    *string
+}
+
 func (s *Service) sectionByID(ctx context.Context, id string) (sectionRow, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
 	var row sectionRow
-	if err := s.db.GetContext(ctx, &row, "SELECT id, project_id, name, created_at, updated_at FROM sections WHERE id = ? LIMIT 1", id); err != nil {
+	query := `
+SELECT s.id, s.project_id, s.name, s.created_at, s.updated_at
+FROM sections s
+JOIN projects p ON p.id = s.project_id
+WHERE s.id = ?
+  AND (
+      p.workspace_id = ?
+      OR ((p.workspace_id IS NULL OR p.workspace_id = '') AND p.user_id = ?)
+  )
+LIMIT 1
+`
+	if err := s.db.GetContext(ctx, &row, query, id, principal.WorkspaceID, principal.UserID); err != nil {
 		if err == sql.ErrNoRows {
 			return sectionRow{}, notFoundField("section not found", "sectionId")
 		}
@@ -25,8 +47,9 @@ func (s *Service) sectionByID(ctx context.Context, id string) (sectionRow, error
 }
 
 func (s *Service) labelByID(ctx context.Context, id string) (labelRow, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
 	var row labelRow
-	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE id = ? LIMIT 1", id); err != nil {
+	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE id = ? AND user_id = ? AND workspace_id = ? LIMIT 1", id, principal.UserID, principal.WorkspaceID); err != nil {
 		if err == sql.ErrNoRows {
 			return labelRow{}, notFoundField("label not found", "labelId")
 		}
@@ -36,8 +59,9 @@ func (s *Service) labelByID(ctx context.Context, id string) (labelRow, error) {
 }
 
 func (s *Service) labelByName(ctx context.Context, name string) (labelRow, error) {
+	principal := sessionctx.PrincipalFromContext(ctx)
 	var row labelRow
-	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE LOWER(name) = LOWER(?) ORDER BY created_at ASC LIMIT 1", name); err != nil {
+	if err := s.db.GetContext(ctx, &row, "SELECT id, name, color, created_at, updated_at FROM labels WHERE LOWER(name) = LOWER(?) AND user_id = ? AND workspace_id = ? ORDER BY created_at ASC, id ASC LIMIT 1", name, principal.UserID, principal.WorkspaceID); err != nil {
 		if err == sql.ErrNoRows {
 			return labelRow{}, notFoundField("label not found", "name")
 		}
@@ -111,6 +135,117 @@ ON CONFLICT(id) DO NOTHING
 	return s.upsertWorkspaceUser(ctx, "W1", defaultUser, "owner@example.com", "Owner", "owner")
 }
 
+func canonicalProjectIDForContext(ctx context.Context, raw string) string {
+	id := strings.TrimSpace(raw)
+	if id == "" {
+		return ""
+	}
+	principal := sessionctx.PrincipalFromContext(ctx)
+	if principal.WorkspaceID == sessionctx.DefaultWorkspaceID && !strings.Contains(id, "::") {
+		return id
+	}
+	return tenant.CanonicalProjectID(principal.WorkspaceID, id)
+}
+
+func (s *Service) resolveTaskPlacement(ctx context.Context, payload map[string]any) (taskPlacementChange, error) {
+	var change taskPlacementChange
+	if payload == nil {
+		return change, nil
+	}
+
+	_, projectSpecified := payload["projectId"]
+	_, sectionSpecified := payload["sectionId"]
+	if !projectSpecified && !sectionSpecified {
+		return change, nil
+	}
+
+	projectID := optionalString(payload, "projectId")
+	sectionID := optionalString(payload, "sectionId")
+
+	change.ApplyProject = projectSpecified
+	change.ApplySection = sectionSpecified
+
+	if projectSpecified {
+		if projectID == nil {
+			change.ProjectID = nil
+			if sectionID != nil {
+				return taskPlacementChange{}, validationField("section cannot be set while project is cleared", "sectionId")
+			}
+			// Clearing or changing a project must not leave a stale section.
+			change.ApplySection = true
+			change.SectionID = nil
+		} else {
+			projectItem, err := s.projectByID(ctx, *projectID)
+			if err != nil {
+				return taskPlacementChange{}, err
+			}
+			canonical := projectItem.ID
+			change.ProjectID = &canonical
+			if !sectionSpecified {
+				change.ApplySection = true
+				change.SectionID = nil
+			}
+		}
+	}
+
+	if sectionSpecified {
+		if sectionID == nil {
+			change.SectionID = nil
+			return change, nil
+		}
+		sectionItem, err := s.sectionByID(ctx, *sectionID)
+		if err != nil {
+			return taskPlacementChange{}, err
+		}
+		sectionCanonical := sectionItem.ID
+		change.SectionID = &sectionCanonical
+
+		if projectSpecified {
+			if change.ProjectID == nil {
+				return taskPlacementChange{}, validationField("section cannot be set while project is cleared", "sectionId")
+			}
+			if *change.ProjectID != sectionItem.ProjectID {
+				return taskPlacementChange{}, validationField("section does not belong to project", "sectionId")
+			}
+		} else {
+			projectCanonical := sectionItem.ProjectID
+			change.ApplyProject = true
+			change.ProjectID = &projectCanonical
+		}
+	}
+
+	return change, nil
+}
+
+func (s *Service) applyTaskPlacement(ctx context.Context, taskID string, change taskPlacementChange) (task.Task, error) {
+	if !change.ApplyProject && !change.ApplySection {
+		return s.tasks.Get(ctx, taskID)
+	}
+	principal := sessionctx.PrincipalFromContext(ctx)
+	result, err := s.db.ExecContext(ctx, `
+UPDATE tasks
+SET
+    project_id = CASE WHEN ? = 1 THEN ? ELSE project_id END,
+    section_id = CASE WHEN ? = 1 THEN ? ELSE section_id END,
+    updated_at = ?
+WHERE id = ?
+  AND user_id = ?
+  AND workspace_id = ?
+  AND is_deleted = 0
+`, boolInt(change.ApplyProject), stringOrNil(change.ProjectID), boolInt(change.ApplySection), stringOrNil(change.SectionID), nowRFC3339(), taskID, principal.UserID, principal.WorkspaceID)
+	if err != nil {
+		return task.Task{}, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return task.Task{}, err
+	}
+	if rows == 0 {
+		return task.Task{}, notFoundField("task not found", "taskId")
+	}
+	return s.tasks.Get(ctx, taskID)
+}
+
 func validationField(message, field string) error {
 	return apperrors.WithField(apperrors.New(apperrors.CodeValidationError, message), field)
 }
@@ -153,6 +288,36 @@ func optionalString(payload map[string]any, key string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func optionalBool(payload map[string]any, key string) (*bool, bool) {
+	if payload == nil {
+		return nil, false
+	}
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return nil, false
+	}
+	var value bool
+	switch typed := raw.(type) {
+	case bool:
+		value = typed
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(typed))
+		if err != nil {
+			return nil, false
+		}
+		value = parsed
+	case int:
+		value = typed != 0
+	case int64:
+		value = typed != 0
+	case float64:
+		value = typed != 0
+	default:
+		return nil, false
+	}
+	return &value, true
 }
 
 func getIntOr(payload map[string]any, key string, fallback int) int {
