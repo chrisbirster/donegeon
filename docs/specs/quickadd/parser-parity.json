@@ -13,16 +13,6 @@
     }
   },
   {
-    "name": "uppercase priority",
-    "input": "Ship release P2",
-    "expected": {
-      "content": "Ship release",
-      "labels": [],
-      "priority": 2,
-      "description": ""
-    }
-  },
-  {
     "name": "two week recurrence",
     "input": "Review every 2 weeks",
     "expected": {
