@@ -32,7 +32,7 @@ func TestServiceTaskLifecycleContract(t *testing.T) {
 	if created.ID == "" {
 		t.Fatal("create task: expected id")
 	}
-	assertTaskCore(t, created, "draft launch notes", "first draft", 3, 100, false, false, 0)
+	assertTaskCore(t, created, "draft launch notes", "first draft", 3, 100, false, 0)
 	if !slices.Equal(created.Labels, []string{"work", "writing"}) {
 		t.Fatalf("create task labels: got=%v want=[work writing]", created.Labels)
 	}
@@ -41,14 +41,14 @@ func TestServiceTaskLifecycleContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get created task: %v", err)
 	}
-	assertTaskCore(t, got, "draft launch notes", "first draft", 3, 100, false, false, 0)
+	assertTaskCore(t, got, "draft launch notes", "first draft", 3, 100, false, 0)
 
 	listed, err := service.List(ctx, ListParams{Limit: 50})
 	if err != nil {
 		t.Fatalf("list created task: %v", err)
 	}
 	if listed.Total != 1 || len(listed.Items) != 1 || listed.Items[0].ID != created.ID {
-		t.Fatalf("list created task: total=%d items=%v", listed.Total, taskIDs(listed.Items))
+		t.Fatalf("list created task: total=%d ids=%v", listed.Total, taskIDs(listed.Items))
 	}
 
 	content := "publish launch notes"
@@ -77,7 +77,7 @@ func TestServiceTaskLifecycleContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update task: %v", err)
 	}
-	assertTaskCore(t, updated, content, description, priority, sortOrder, false, false, 0)
+	assertTaskCore(t, updated, content, description, priority, sortOrder, false, 0)
 	assertStringPtr(t, "project", updated.ProjectID, projectID)
 	assertStringPtr(t, "section", updated.SectionID, sectionID)
 	assertStringPtr(t, "due text", updated.DueText, dueText)
@@ -142,7 +142,7 @@ func TestServiceTaskLifecycleContract(t *testing.T) {
 	if err := service.Delete(ctx, created.ID); err != nil {
 		t.Fatalf("delete task: %v", err)
 	}
-	assertNotFound(t, service.Get(ctx, created.ID))
+	assertGetNotFound(t, service, ctx, created.ID)
 
 	afterDelete, err := service.List(ctx, ListParams{Limit: 50})
 	if err != nil {
@@ -203,7 +203,7 @@ func TestServiceTaskFieldRoundTripAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get all-fields task: %v", err)
 	}
-	assertTaskCore(t, got, "exercise supported fields", "field round trip", 2, 321, false, false, 0)
+	assertTaskCore(t, got, "exercise supported fields", "field round trip", 2, 321, false, 0)
 	assertStringPtr(t, "project", got.ProjectID, projectID)
 	assertStringPtr(t, "section", got.SectionID, sectionID)
 	assertStringPtr(t, "recurrence", got.Recurrence, recurrence)
@@ -296,7 +296,7 @@ func TestServiceTaskTenantIsolationContract(t *testing.T) {
 		"other workspace": otherWorkspaceCtx,
 	} {
 		t.Run(name, func(t *testing.T) {
-			assertNotFound(t, service.Get(foreignCtx, created.ID))
+			assertGetNotFound(t, service, foreignCtx, created.ID)
 
 			list, err := service.List(foreignCtx, ListParams{Limit: 50})
 			if err != nil {
@@ -334,7 +334,7 @@ func TestServiceTaskTenantIsolationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get owner task after foreign mutations: %v", err)
 	}
-	assertTaskCore(t, ownerTask, "private task", "owner only", 2, 10, false, false, 0)
+	assertTaskCore(t, ownerTask, "private task", "owner only", 2, 10, false, 0)
 }
 
 func newLifecycleTestService(t *testing.T) *Service {
@@ -358,15 +358,16 @@ func newLifecycleTestService(t *testing.T) *Service {
 }
 
 func principalContext(userID, workspaceID string) context.Context {
-	return sessionctx.WithPrincipal(context.Background(), sessionctx.Principal{
+	ctx := sessionctx.WithPrincipal(context.Background(), sessionctx.Principal{
 		UserID:      userID,
 		WorkspaceID: workspaceID,
 	})
+	return WithTimezone(ctx, "America/New_York")
 }
 
-func assertTaskCore(t *testing.T, item Task, content, description string, priority int, sortOrder int64, checked, deleted bool, processed int) {
+func assertTaskCore(t *testing.T, item Task, content, description string, priority int, sortOrder int64, checked bool, processed int) {
 	t.Helper()
-	if item.Content != content || item.Description != description || item.Priority != priority || item.SortOrder != sortOrder || item.Checked != checked || item.IsDeleted != deleted || item.ProcessedCount != processed {
+	if item.Content != content || item.Description != description || item.Priority != priority || item.SortOrder != sortOrder || item.Checked != checked || item.IsDeleted || item.ProcessedCount != processed {
 		t.Fatalf("task core mismatch: got=%+v", item)
 	}
 }
@@ -378,8 +379,9 @@ func assertStringPtr(t *testing.T, field string, got *string, want string) {
 	}
 }
 
-func assertNotFound(t *testing.T, _ Task, err error) {
+func assertGetNotFound(t *testing.T, service *Service, ctx context.Context, id string) {
 	t.Helper()
+	_, err := service.Get(ctx, id)
 	if err == nil {
 		t.Fatal("expected not found error")
 	}
