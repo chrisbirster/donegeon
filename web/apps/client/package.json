@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@linaria/core": "^8.2.0",
-    "@solidjs/router": "2.0.0-next.16",
+    "@solidjs/router": "2.0.0-next.17",
     "@solidjs/web": "2.0.0-rc.0",
     "@tanstack/solid-query": "6.0.0-rc.0",
     "idb": "^8.0.3",
