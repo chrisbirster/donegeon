@@ -1,6 +1,6 @@
 # Task manager feature / evidence matrix
 
-Status: M0 baseline inventory
+Status: M1 core lifecycle gate complete
 
 This document is the working source of truth for the task-manager audit defined in `docs/task-manager-audit-plan.md`. It intentionally distinguishes code that exists from behavior that has been proven.
 
@@ -35,41 +35,54 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 6. The canonical task model has no parent-task/subtask field and no reminder field.
 7. Two migration filenames that exposed an internal comparison name were renamed during M0 to `000007_workspace_entities.{up,down}.sql` without changing migration version or SQL.
 
+## M1 findings
+
+1. `internal/task` now has a semantic integration contract for create → get/list → update → complete → idempotent complete → reopen → delete.
+2. The contract asserts durable state after each transition instead of treating a successful call as sufficient evidence.
+3. Current task fields round-trip through the canonical service: content, description, project, section, sort order, recurrence, priority, due text, deadline, schedule input, and labels.
+4. Direct create/update validation is proven for empty content and out-of-range priorities.
+5. Pagination metadata and stable sort-order behavior are proven for the canonical list operation.
+6. Cross-user and cross-workspace isolation is proven for canonical Get/List/Update/Close/Reopen/Delete, and the public HTTP task handlers prove Get/List isolation as well.
+7. Public task handlers now have a semantic lifecycle contract covering create, get, list, patch, close, reopen, delete, response bodies/statuses, persisted completion state, and deletion visibility.
+8. No production task-lifecycle code change was required: the stronger contracts passed against the existing implementation.
+9. Project, section, recurrence, and schedule input can currently be set but do not have explicit clear semantics in `UpdateInput`; those field contracts remain `PARTIAL` until intentionally designed.
+10. The broad compatibility YAML happy-path suite remains transport-level evidence unless its assertions are strengthened.
+
 ## A. Core task lifecycle
 
 | Capability | Status | Implementation | Strongest current evidence | Gap / next proof |
 | --- | --- | --- | --- | --- |
-| Create task | `PARTIAL` | `internal/task.Service.Create`, quick-add create path, HTTP/UI paths | Playwright proves quick-add creation and persistence after reload; service integration proves selected quick-add fields persist | Add canonical direct-create + API semantic cases covering all supported fields |
-| Get one task | `PARTIAL` | `task.Service.Get` / repository | Repository/service usage and compatibility route exist | Add not-found, ownership/workspace, deleted-state and exact response assertions |
-| List tasks | `PARTIAL` | `task.Service.List` with cursor/limit/user/workspace filters | Existing integration/browser flows consume lists | Prove pagination, tenant filtering, checked/deleted inclusion rules and stable ordering |
-| Update task content | `PARTIAL` | `task.Service.Update` | Playwright inline edit save/cancel behavior | Add API + reload/state assertion and invalid-empty-content case |
-| Update description | `PARTIAL` | `task.UpdateInput.Description` | Implementation and compatibility surface | Add semantic persistence/browser coverage |
-| Delete task | `PARTIAL` | `task.Service.Delete` | Playwright delete action removes task from UI | Prove persisted deletion semantics, repeat delete behavior, tenant isolation |
-| Complete non-recurring task | `PARTIAL` | `task.Service.Close` | Browser completion removes task from open view | Prove exact durable checked/completion semantics and idempotency |
-| Reopen task | `PARTIAL` | `task.Service.Reopen` | Compatibility route/cases | Add semantic state transition and browser acceptance |
-| Complete recurring task and spawn next occurrence | `VERIFIED` | `task.Service.Close` recurrence path | `TestServiceCloseRecurringTaskSpawnsNextOccurrence` asserts closed original plus open next task with retained recurrence and next due time | Extend later for labels/project/section retention and DST edge cases, but core behavior is proven |
-| Reorder tasks | `VERIFIED` | sort order persistence + UI drag/drop | Playwright drag-and-drop test asserts order changes and remains after reload | Add repository collision/concurrency edge cases later |
-| Soft-delete versus hard-delete contract | `PARTIAL` | Task model has `Deleted`; repository/API behavior exists | Source + compatibility fixtures exercise deleted records | Define public contract and add state-level assertions |
-| Task ownership/workspace isolation | `PARTIAL` | `UserID`, `WorkspaceID`, list params and auth layers exist | Session role tests plus multi-tenant schema | Add cross-user/cross-workspace CRUD denial tests for every mutation |
+| Create task | `VERIFIED` | `internal/task.Service.Create`, HTTP create, quick-add create | `TestServiceTaskLifecycleContract`, `TestServiceTaskFieldRoundTripAndValidation`, `TestTaskHTTPLifecycleContract` assert returned and persisted task state | Field-specific edge cases remain tracked in section B |
+| Get one task | `VERIFIED` | `task.Service.Get`, HTTP get | service + HTTP lifecycle contracts assert exact task state, deletion not-found, and tenant isolation | None for core lifecycle |
+| List tasks | `PARTIAL` | `task.Service.List` with cursor/limit/user/workspace/project filters | M1 proves stable sort order, cursor pagination, tenant isolation, and deleted-task exclusion | Prove checked-task inclusion policy and project-filter semantics before broad promotion |
+| Update task content | `VERIFIED` | `task.Service.Update`, HTTP patch | service + HTTP contracts assert update response and subsequent persisted state; empty content is rejected | None for core content update |
+| Update description | `VERIFIED` | `task.UpdateInput.Description`, HTTP patch | service + HTTP contracts assert durable description update | None for core description update |
+| Delete task | `VERIFIED` | `task.Service.Delete`, HTTP delete | service + HTTP contracts prove deletion hides task from Get/List; service proves repeat delete/close/reopen return not-found | Soft-vs-hard storage policy is tracked separately |
+| Complete non-recurring task | `VERIFIED` | `task.Service.Close`, HTTP close | service + HTTP contracts prove `checked=true`, `processed_count=1`, and idempotent second close | Browser acceptance remains part of M6, not core semantics |
+| Reopen task | `VERIFIED` | `task.Service.Reopen`, HTTP reopen | service + HTTP contracts prove `checked=false` while preserving processed count | Browser acceptance remains part of M6 |
+| Complete recurring task and spawn next occurrence | `VERIFIED` | `task.Service.Close` recurrence path | `TestServiceCloseRecurringTaskSpawnsNextOccurrence` asserts closed original plus open next task with retained recurrence and next due time | Extend in M3 for DST/month-end/edited-rule/failure cases |
+| Reorder tasks | `VERIFIED` | sort order persistence + UI drag/drop | Playwright drag-and-drop test asserts order changes and remains after reload | Add collision/concurrency cases only if product contract requires them |
+| Soft-delete versus hard-delete contract | `PARTIAL` | task model/repository uses deletion state and query exclusion | M1 proves deleted tasks disappear from Get/List and later mutations return not-found | Explicitly define whether physical row retention is part of the public contract and prove storage state |
+| Task ownership/workspace isolation | `VERIFIED` | `UserID`, `WorkspaceID`, repository predicates and auth context | `TestServiceTaskTenantIsolationContract` proves every core mutation cannot cross user/workspace boundaries; HTTP contract proves Get/List isolation | Extend the same resource-boundary pattern to projects/sections/labels in M2 |
 
 ## B. Task fields and metadata
 
 | Capability | Status | Implementation | Strongest current evidence | Gap / next proof |
 | --- | --- | --- | --- | --- |
-| Content/title | `PARTIAL` | canonical field, required on create | Service validation and browser edit/create flows | Consolidate direct-create/update semantic tests |
-| Description | `PARTIAL` | canonical field | Quick-add description parsing cases and model support | Prove persistence through API/UI |
-| Priority 1–4 | `PARTIAL` | canonical field and validation | `TestServiceCreateFromQuickAddPersistsProjectAndPriority` proves quick-add persistence | Add direct create/update boundary tests for 0/5 and UI behavior |
-| Project assignment | `PARTIAL` | `ProjectID` on task | Quick-add project persistence and alias-resolution integration tests | Prove move/update semantics, nonexistent/archived project behavior and UI persistence |
-| Section assignment | `PARTIAL` | `SectionID` on task | Model/compat implementation | Add section/task semantic integration and browser movement tests |
-| Labels | `PARTIAL` | task labels repository + `CreateInput/UpdateInput.Labels` | Parser specs cover labels; existing UI/model uses them | Prove create/update/remove/reload and unknown-label policy |
-| Due date/time | `PARTIAL` | `DueText` / scheduling normalization | Service integration tests prove several timezone-relative values | Audit direct editing, date-only behavior, DST, clearing and view inclusion |
-| Deadline | `PARTIAL` | `DueDeadline` | Service tests prove relative deadline normalization and deadline-before-due scenario | Audit UI editing/clearing, timezone and view semantics |
-| Recurrence RRULE | `VERIFIED` for parsing/persistence, `PARTIAL` overall | canonical `Recurrence` | parser specs + Go service tests prove RRULE extraction/persistence; recurring close core is verified | Cover editing existing recurrence, clearing it, DST/month-end and failure recovery |
-| Schedule input/original text | `PARTIAL` | `ScheduleInput` + migration | canonical model/source | Define user-facing contract and add persistence tests |
-| Checked/completed state | `PARTIAL` | `Checked` | recurring completion semantic test; browser non-recurring behavior | Add complete/reopen direct semantic matrix |
-| Subtasks / parent-child tasks | `UNIMPLEMENTED` | no parent/subtask field found in canonical task model | current model inspection | Decide intended model before implementation |
-| Durable task assignee | `UNIMPLEMENTED` | quick-add parser can recognize assignee syntax, but canonical task model has no assignee field | parser specs demonstrate syntax only | Decide assignment model; do not advertise parser token as persisted assignment |
-| Reminders | `UNIMPLEMENTED` | no reminder field/service found in canonical task model | current source search/model inspection | Define reminder model/provider before implementation |
+| Content/title | `VERIFIED` | canonical required field | M1 service + HTTP create/update round trips; empty create/update validation asserted | None for core field semantics |
+| Description | `VERIFIED` | canonical field | M1 service + HTTP create/update persistence | None for core field semantics |
+| Priority 1–4 | `VERIFIED` | canonical field and validation | M1 round trip plus create priority `5` and update priority `0` rejection | UI priority acceptance remains M6 |
+| Project assignment | `PARTIAL` | `ProjectID` on task | M1 proves create/update persistence; quick-add alias integration also exists | Prove move rules, nonexistent/archived project behavior, clear semantics, and UI persistence in M2 |
+| Section assignment | `PARTIAL` | `SectionID` on task | M1 proves create/update persistence | Prove section ownership, movement, deletion policy, clear semantics, and UI persistence in M2 |
+| Labels | `PARTIAL` | task labels repository + `CreateInput/UpdateInput.Labels` | M1 proves normalized create/update/reload; existing parser specs cover label syntax | Prove explicit removal/empty-set behavior, unknown-label policy, CRUD linkage, and UI persistence in M2 |
+| Due date/time | `PARTIAL` | `DueText` plus scheduling normalization | M1 proves direct create/update persistence and explicit clear; existing service tests cover relative values | M3: date-only, timezone, DST, editing, view inclusion |
+| Deadline | `PARTIAL` | `DueDeadline` | M1 proves direct create/update persistence and explicit clear; existing tests cover relative deadline normalization | M3: timezone/DST/edit/view semantics |
+| Recurrence RRULE | `VERIFIED` for parsing/persistence, `PARTIAL` overall | canonical `Recurrence` | parser specs + M1 round trip + recurring-close semantic test | M3: edit/clear, DST/month-end, transaction failure/recovery |
+| Schedule input/original text | `PARTIAL` | `ScheduleInput` | M1 proves create/update persistence | Define user-facing meaning and explicit clear semantics |
+| Checked/completed state | `VERIFIED` | `Checked`, `ProcessedCount` | M1 service + HTTP contracts prove close, repeated close, reopen, and processed-count behavior | Recurrence-specific broader cases stay in M3 |
+| Subtasks / parent-child tasks | `UNIMPLEMENTED` | no parent/subtask field found in canonical task model | canonical model inspection | Decide intended model before implementation |
+| Durable task assignee | `UNIMPLEMENTED` | parser recognizes assignee syntax, canonical task model has no assignee field | parser specs demonstrate syntax only | Decide assignment model; do not advertise parser token as persisted assignment |
+| Reminders | `UNIMPLEMENTED` | no reminder field/service found in canonical task model | current source/model inspection | Define reminder model/provider before implementation |
 | Task attachments/uploads | `UNIMPLEMENTED` | upload compatibility actions are skipped by parity runner | explicit runner skip | Define storage/security model before implementation |
 
 ## C. Projects, sections, and labels
@@ -80,7 +93,7 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 | Read/list projects | `PARTIAL` | canonical project service/repository | UI consumes projects; compatibility routes exist | Prove ordering, inbox behavior, tenant filtering, pagination where supported |
 | Update/rename project | `PARTIAL` | project service update | compatibility/UI paths exist | Semantic persistence + UI reload assertion |
 | Archive project | `PARTIAL` | `project.Service.Archive` | source + compatibility paths | Prove tasks remain valid, archived visibility rules, repeat archive |
-| Unarchive project | `PARTIAL` | compatibility surface | weak parity happy-path evidence | Add semantic state assertion and UI workflow |
+| Unarchive project | `PARTIAL` | compatibility surface | weak compatibility happy-path evidence | Add semantic state assertion and UI workflow |
 | Delete project | `PARTIAL` | compatibility layer performs project operations outside canonical service | weak compatibility evidence | Define deletion/cascade/orphan policy and prove it |
 | Favorite project | `PARTIAL` | `IsFavorite` field and migration/UI | UI sidebar/favorites behaviors exist | Add persistence and ordering proof |
 | Inbox/default project behavior | `PARTIAL` | `IsInboxProject`, default-project migration | UI Inbox and project code | Prove uniqueness/default routing and per-user/workspace behavior |
@@ -101,7 +114,7 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 | Today view | `PARTIAL` | client task view/model | Playwright navigation | Prove timezone/date-only/overdue/recurring semantics |
 | Upcoming view | `PARTIAL` | client task view/model | Playwright navigation | Prove date window/order/timezone semantics |
 | Overdue behavior | `PARTIAL` | scheduling/view rules present | UI/source coverage | Add explicit acceptance cases |
-| Completion history/search by date | `PARTIAL` | compatibility endpoints | weak parity happy-path cases | Add exact returned task/order/pagination assertions |
+| Completion history/search by date | `PARTIAL` | compatibility endpoints | weak compatibility happy-path cases | Add exact returned task/order/pagination assertions |
 
 ## E. Quick add, search, and interaction
 
@@ -111,8 +124,8 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 | Quick-add create persistence | `PARTIAL` | `task.Service.CreateFromQuickAdd` | Go service tests prove recurrence/project/priority/dates; browser proves created task survives reload | Add labels/description/assignee-contract and complete payload proof |
 | Local browser quick-add preview | `PARTIAL` | `localQuickAddParser.ts` | unit tests + Playwright proves preview without parser API | Build explicit server/local parity corpus; eliminate drift |
 | Search tasks UI | `PARTIAL` | search overlay/client filtering/API | Playwright opens search and task detail from result | Prove matching rules, completed/deleted visibility, pagination and server/client consistency |
-| Filter query API | `PARTIAL` | compatibility filter action | implementation exists; parity transport cases | Current behavior requires semantic contract tests before claiming rich filtering |
-| Inline task edit | `PARTIAL` | client + task update API | Playwright save/cancel | Add reload persistence and error rollback cases |
+| Filter query API | `PARTIAL` | compatibility filter action | implementation exists; compatibility transport cases | Add semantic result/state contract before claiming rich filtering |
+| Inline task edit | `PARTIAL` | client + task update API | Playwright save/cancel; M1 proves backend update semantics | M6: reload persistence and error rollback acceptance |
 | Detail modal edit flows | `PARTIAL` | client detail modal | Playwright covers multiple controls | Complete field-by-field persistence/error matrix |
 | Mobile task workflow | `PARTIAL` | responsive client | Playwright covers quick add/navigation portions | Complete lifecycle acceptance at mobile viewport |
 
@@ -138,23 +151,28 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 | Production auth cannot be disabled | `VERIFIED` | production config validation tests added during open-source hardening |
 | Reader role cannot mutate | `VERIFIED` | explicit session role scope test |
 | Task API rate limiting where configured | `PARTIAL` | limiter tests exist; audit endpoint coverage and retry semantics |
-| Idempotent compatibility mutations | `PARTIAL` | YAML cases claim idempotency but success harness does not prove repeated state | 
-| Pagination correctness | `PARTIAL` | many compatibility cases request limit/cursor but happy-path assertions do not inspect result contents |
-| Cross-tenant task isolation | `PARTIAL` | schema/auth supports tenancy, but needs explicit per-operation denial matrix |
-| Database migration from existing installs | `PARTIAL` | migration runner and CI/tests exist; add upgrade-path fixture from representative historical DB |
-| SQLite/Turso behavioral parity | `PARTIAL` | same repository/migration abstraction intended | add shared contract suite against both backends where feasible |
+| Idempotent compatibility mutations | `PARTIAL` | YAML cases claim idempotency but success harness does not prove repeated state |
+| Pagination correctness | `VERIFIED` for canonical task list | `TestServiceTaskListPaginationContract` asserts total, page size, next cursor, second page, and stable ordering | Compatibility endpoint pagination remains separate evidence work |
+| Cross-tenant task isolation | `VERIFIED` for canonical lifecycle | M1 service contract covers Get/List/Update/Close/Reopen/Delete across user/workspace boundaries; HTTP contract proves Get/List boundaries | Apply equivalent resource contracts to M2 organization entities |
+| Database migration from existing installs | `PARTIAL` | migration runner and CI/tests exist | Add upgrade-path fixture from representative historical DB |
+| SQLite/Turso behavioral parity | `PARTIAL` | same repository/migration abstraction intended | Add shared contract suite against both backends where feasible |
 
 ## Prioritized audit queue
 
 The implementation order is evidence-driven, not feature-count-driven.
 
-### M1 — core lifecycle gate
+### M1 — core lifecycle gate — COMPLETE
 
-1. Add a semantic task service/repository contract covering create → get/list → update → close → reopen → delete.
-2. Assert every supported field on create/update, including labels, project, section, priority, due/deadline, recurrence and ordering.
-3. Add cross-user/workspace denial tests.
-4. Add API semantic assertions for the same lifecycle.
-5. Only after these pass, promote the relevant M1 rows from `PARTIAL` to `VERIFIED`.
+Completed evidence:
+
+1. Canonical task service/repository lifecycle contract for create → get/list → update → close → reopen → delete.
+2. Round-trip assertions for every currently supported canonical task field.
+3. Direct validation assertions for required content and priority bounds.
+4. Cursor pagination and stable ordering assertions.
+5. Cross-user/workspace isolation across all core canonical mutations.
+6. Public HTTP-handler lifecycle contract with semantic response and persisted-state assertions.
+
+Known M1 deferrals are explicitly retained as `PARTIAL` rows rather than hidden: broader list inclusion/filter rules, nullable project/section/recurrence/schedule clearing, labels policy, and scheduling/view edge cases.
 
 ### M2 — organization gate
 
