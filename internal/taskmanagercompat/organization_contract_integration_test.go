@@ -15,78 +15,87 @@ import (
 	"donegeon/internal/task"
 )
 
+type organizationActionResult struct {
+	value any
+	err   error
+}
+
+func organizationResult(value any, err error) organizationActionResult {
+	return organizationActionResult{value: value, err: err}
+}
+
 func TestOrganizationCRUDAndOrphanPolicies(t *testing.T) {
 	t.Parallel()
 
 	service, tasks := newOrganizationTestService(t)
 	ctx := organizationPrincipalContext("user-a", "workspace-a")
 
-	createdProject := mustProject(t, service.Dispatch(ctx, "addProject", map[string]any{
+	createdProject := mustProject(t, organizationResult(service.Dispatch(ctx, "addProject", map[string]any{
 		"name":       "Launch",
 		"isFavorite": false,
-	}))
+	})))
 	if createdProject.ID == "" || createdProject.Name != "Launch" || createdProject.IsFavorite {
 		t.Fatalf("unexpected created project: %+v", createdProject)
 	}
 
-	updatedProject := mustProject(t, service.Dispatch(ctx, "updateProject", map[string]any{
+	updatedProject := mustProject(t, organizationResult(service.Dispatch(ctx, "updateProject", map[string]any{
 		"projectId":  createdProject.ID,
 		"name":       "Launch Plan",
 		"isFavorite": true,
-	}))
+	})))
 	if updatedProject.Name != "Launch Plan" || !updatedProject.IsFavorite {
 		t.Fatalf("project update/favorite did not persist: %+v", updatedProject)
 	}
 
-	archived := mustProject(t, service.Dispatch(ctx, "archiveProject", map[string]any{"projectId": createdProject.ID}))
+	archived := mustProject(t, organizationResult(service.Dispatch(ctx, "archiveProject", map[string]any{"projectId": createdProject.ID})))
 	if !archived.IsArchived {
 		t.Fatalf("archive project: expected archived state, got %+v", archived)
 	}
-	activeProjects := mustProjectList(t, service.Dispatch(ctx, "getProjects", map[string]any{}))
+	activeProjects := mustProjectList(t, organizationResult(service.Dispatch(ctx, "getProjects", map[string]any{})))
 	if projectListContainsID(activeProjects, createdProject.ID) {
 		t.Fatalf("archive project: project remained in active list: %+v", activeProjects)
 	}
-	archivedProjects := mustProjectList(t, service.Dispatch(ctx, "getArchivedProjects", map[string]any{}))
+	archivedProjects := mustProjectList(t, organizationResult(service.Dispatch(ctx, "getArchivedProjects", map[string]any{})))
 	if !projectListContainsID(archivedProjects, createdProject.ID) {
 		t.Fatalf("archive project: project missing from archived list: %+v", archivedProjects)
 	}
-	unarchived := mustProject(t, service.Dispatch(ctx, "unarchiveProject", map[string]any{"projectId": createdProject.ID}))
+	unarchived := mustProject(t, organizationResult(service.Dispatch(ctx, "unarchiveProject", map[string]any{"projectId": createdProject.ID})))
 	if unarchived.IsArchived {
 		t.Fatalf("unarchive project: expected active state, got %+v", unarchived)
 	}
 
-	section := mustSection(t, service.Dispatch(ctx, "addSection", map[string]any{
+	section := mustSection(t, organizationResult(service.Dispatch(ctx, "addSection", map[string]any{
 		"projectId": createdProject.ID,
 		"name":      "Next",
-	}))
-	section = mustSection(t, service.Dispatch(ctx, "updateSection", map[string]any{
+	})))
+	section = mustSection(t, organizationResult(service.Dispatch(ctx, "updateSection", map[string]any{
 		"sectionId": section.ID,
 		"name":      "Doing",
-	}))
+	})))
 	if section.Name != "Doing" {
 		t.Fatalf("section rename did not persist: %+v", section)
 	}
 
-	label := mustLabel(t, service.Dispatch(ctx, "addLabel", map[string]any{
+	label := mustLabel(t, organizationResult(service.Dispatch(ctx, "addLabel", map[string]any{
 		"name":  "launch",
 		"color": "blue",
-	}))
-	label = mustLabel(t, service.Dispatch(ctx, "updateLabel", map[string]any{
+	})))
+	label = mustLabel(t, organizationResult(service.Dispatch(ctx, "updateLabel", map[string]any{
 		"labelId": label.ID,
 		"name":    "release",
 		"color":   "green",
-	}))
+	})))
 	if label.Name != "release" || label.Color == nil || *label.Color != "green" {
 		t.Fatalf("label update did not persist: %+v", label)
 	}
 
-	createdTask := mustTask(t, service.Dispatch(ctx, "addTask", map[string]any{
+	createdTask := mustTask(t, organizationResult(service.Dispatch(ctx, "addTask", map[string]any{
 		"content":   "Ship release",
 		"projectId": createdProject.ID,
 		"sectionId": section.ID,
 		"labels":    []string{"release"},
 		"priority":  2,
-	}))
+	})))
 	if createdTask.ProjectID == nil || createdTask.SectionID == nil || *createdTask.SectionID != section.ID {
 		t.Fatalf("task organization assignment missing: %+v", createdTask)
 	}
@@ -108,31 +117,31 @@ func TestOrganizationCRUDAndOrphanPolicies(t *testing.T) {
 		t.Fatalf("section delete unexpectedly cleared project: %+v", afterSectionDelete)
 	}
 
-	section2 := mustSection(t, service.Dispatch(ctx, "addSection", map[string]any{
+	section2 := mustSection(t, organizationResult(service.Dispatch(ctx, "addSection", map[string]any{
 		"projectId": createdProject.ID,
 		"name":      "Later",
-	}))
-	movedTask := mustTask(t, service.Dispatch(ctx, "moveTask", map[string]any{
+	})))
+	movedTask := mustTask(t, organizationResult(service.Dispatch(ctx, "moveTask", map[string]any{
 		"taskId":    createdTask.ID,
 		"sectionId": section2.ID,
-	}))
+	})))
 	if movedTask.SectionID == nil || *movedTask.SectionID != section2.ID || movedTask.ProjectID == nil {
 		t.Fatalf("section-only move did not derive project: %+v", movedTask)
 	}
 
-	clearedTask := mustTask(t, service.Dispatch(ctx, "moveTask", map[string]any{
+	clearedTask := mustTask(t, organizationResult(service.Dispatch(ctx, "moveTask", map[string]any{
 		"taskId":    createdTask.ID,
 		"projectId": "",
-	}))
+	})))
 	if clearedTask.ProjectID != nil || clearedTask.SectionID != nil {
 		t.Fatalf("project clear did not clear project+section: %+v", clearedTask)
 	}
 
-	movedTask = mustTask(t, service.Dispatch(ctx, "moveTask", map[string]any{
+	movedTask = mustTask(t, organizationResult(service.Dispatch(ctx, "moveTask", map[string]any{
 		"taskId":    createdTask.ID,
 		"projectId": createdProject.ID,
 		"sectionId": section2.ID,
-	}))
+	})))
 	if movedTask.ProjectID == nil || movedTask.SectionID == nil {
 		t.Fatalf("task move did not restore organization: %+v", movedTask)
 	}
@@ -164,33 +173,33 @@ func TestOrganizationTenantIsolationAndForeignMoves(t *testing.T) {
 	sameWorkspaceCtx := organizationPrincipalContext("user-b", "workspace-a")
 	otherWorkspaceCtx := organizationPrincipalContext("user-b", "workspace-b")
 
-	ownerProject := mustProject(t, service.Dispatch(ownerCtx, "addProject", map[string]any{"name": "Owner Project"}))
-	ownerSection := mustSection(t, service.Dispatch(ownerCtx, "addSection", map[string]any{"projectId": ownerProject.ID, "name": "Owner Section"}))
-	ownerLabel := mustLabel(t, service.Dispatch(ownerCtx, "addLabel", map[string]any{"name": "owner-label"}))
-	ownerTask := mustTask(t, service.Dispatch(ownerCtx, "addTask", map[string]any{
+	ownerProject := mustProject(t, organizationResult(service.Dispatch(ownerCtx, "addProject", map[string]any{"name": "Owner Project"})))
+	ownerSection := mustSection(t, organizationResult(service.Dispatch(ownerCtx, "addSection", map[string]any{"projectId": ownerProject.ID, "name": "Owner Section"})))
+	ownerLabel := mustLabel(t, organizationResult(service.Dispatch(ownerCtx, "addLabel", map[string]any{"name": "owner-label"})))
+	ownerTask := mustTask(t, organizationResult(service.Dispatch(ownerCtx, "addTask", map[string]any{
 		"content":   "Owner task",
 		"projectId": ownerProject.ID,
 		"sectionId": ownerSection.ID,
 		"labels":    []string{"owner-label"},
-	}))
+	})))
 
-	foreignProject := mustProject(t, service.Dispatch(otherWorkspaceCtx, "addProject", map[string]any{"name": "Foreign Project"}))
-	foreignSection := mustSection(t, service.Dispatch(otherWorkspaceCtx, "addSection", map[string]any{"projectId": foreignProject.ID, "name": "Foreign Section"}))
-	foreignLabel := mustLabel(t, service.Dispatch(otherWorkspaceCtx, "addLabel", map[string]any{"name": "foreign-label"}))
+	foreignProject := mustProject(t, organizationResult(service.Dispatch(otherWorkspaceCtx, "addProject", map[string]any{"name": "Foreign Project"})))
+	foreignSection := mustSection(t, organizationResult(service.Dispatch(otherWorkspaceCtx, "addSection", map[string]any{"projectId": foreignProject.ID, "name": "Foreign Section"})))
+	foreignLabel := mustLabel(t, organizationResult(service.Dispatch(otherWorkspaceCtx, "addLabel", map[string]any{"name": "foreign-label"})))
 
 	// Projects and their sections are workspace resources. A different user in
 	// the same workspace can discover them; user-owned tasks and labels remain
 	// isolated, and HTTP role/scope middleware controls whether that user may
 	// mutate shared workspace resources.
-	if got := mustProject(t, service.Dispatch(sameWorkspaceCtx, "getProject", map[string]any{"projectId": ownerProject.ID})); got.ID == "" {
+	if got := mustProject(t, organizationResult(service.Dispatch(sameWorkspaceCtx, "getProject", map[string]any{"projectId": ownerProject.ID}))); got.ID == "" {
 		t.Fatal("same-workspace project lookup returned empty project")
 	}
-	if got := mustSection(t, service.Dispatch(sameWorkspaceCtx, "getSection", map[string]any{"sectionId": ownerSection.ID})); got.ID != ownerSection.ID {
+	if got := mustSection(t, organizationResult(service.Dispatch(sameWorkspaceCtx, "getSection", map[string]any{"sectionId": ownerSection.ID}))); got.ID != ownerSection.ID {
 		t.Fatalf("same-workspace section lookup: got=%+v want=%s", got, ownerSection.ID)
 	}
 	assertOrganizationNotFound(t, service, sameWorkspaceCtx, "getLabel", map[string]any{"labelId": ownerLabel.ID}, "labelId")
 	assertOrganizationNotFound(t, service, sameWorkspaceCtx, "getTask", map[string]any{"taskId": ownerTask.ID}, "taskId")
-	otherUserLabels := mustLabelList(t, service.Dispatch(sameWorkspaceCtx, "getLabels", map[string]any{}))
+	otherUserLabels := mustLabelList(t, organizationResult(service.Dispatch(sameWorkspaceCtx, "getLabels", map[string]any{})))
 	if labelListContainsID(otherUserLabels, ownerLabel.ID) {
 		t.Fatalf("same-workspace label list leaked owner label: %+v", otherUserLabels)
 	}
@@ -238,7 +247,7 @@ func TestOrganizationLabelRenameRemoveAndDeleteAffectTaskLinks(t *testing.T) {
 	service, tasks := newOrganizationTestService(t)
 	ctx := organizationPrincipalContext("user-a", "workspace-a")
 
-	alpha := mustLabel(t, service.Dispatch(ctx, "addLabel", map[string]any{"name": "alpha", "color": "red"}))
+	alpha := mustLabel(t, organizationResult(service.Dispatch(ctx, "addLabel", map[string]any{"name": "alpha", "color": "red"})))
 	linked, err := tasks.Create(ctx, task.CreateInput{Content: "label-linked task", Priority: 4, Labels: []string{"alpha"}})
 	if err != nil {
 		t.Fatalf("create label-linked task: %v", err)
@@ -247,11 +256,11 @@ func TestOrganizationLabelRenameRemoveAndDeleteAffectTaskLinks(t *testing.T) {
 		t.Fatalf("initial task labels: %v", linked.Labels)
 	}
 
-	renamed := mustLabel(t, service.Dispatch(ctx, "renameSharedLabel", map[string]any{
+	renamed := mustLabel(t, organizationResult(service.Dispatch(ctx, "renameSharedLabel", map[string]any{
 		"name":    "alpha",
 		"newName": "beta",
 		"color":   "orange",
-	}))
+	})))
 	if renamed.ID != alpha.ID || renamed.Name != "beta" {
 		t.Fatalf("shared label rename: got=%+v original=%+v", renamed, alpha)
 	}
@@ -274,7 +283,7 @@ func TestOrganizationLabelRenameRemoveAndDeleteAffectTaskLinks(t *testing.T) {
 		t.Fatalf("shared label removal left task link: %v", afterRemove.Labels)
 	}
 
-	gamma := mustLabel(t, service.Dispatch(ctx, "addLabel", map[string]any{"name": "gamma"}))
+	gamma := mustLabel(t, organizationResult(service.Dispatch(ctx, "addLabel", map[string]any{"name": "gamma"})))
 	linked2, err := tasks.Create(ctx, task.CreateInput{Content: "second label-linked task", Priority: 4, Labels: []string{"gamma"}})
 	if err != nil {
 		t.Fatalf("create second label-linked task: %v", err)
@@ -321,82 +330,82 @@ func organizationPrincipalContext(userID, workspaceID string) context.Context {
 	})
 }
 
-func mustProject(t *testing.T, value any, err error) project.Project {
+func mustProject(t *testing.T, result organizationActionResult) project.Project {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("project action: %v", err)
+	if result.err != nil {
+		t.Fatalf("project action: %v", result.err)
 	}
-	item, ok := value.(project.Project)
+	item, ok := result.value.(project.Project)
 	if !ok {
-		t.Fatalf("project action returned %T", value)
+		t.Fatalf("project action returned %T", result.value)
 	}
 	return item
 }
 
-func mustSection(t *testing.T, value any, err error) sectionRow {
+func mustSection(t *testing.T, result organizationActionResult) sectionRow {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("section action: %v", err)
+	if result.err != nil {
+		t.Fatalf("section action: %v", result.err)
 	}
-	item, ok := value.(sectionRow)
+	item, ok := result.value.(sectionRow)
 	if !ok {
-		t.Fatalf("section action returned %T", value)
+		t.Fatalf("section action returned %T", result.value)
 	}
 	return item
 }
 
-func mustLabel(t *testing.T, value any, err error) labelRow {
+func mustLabel(t *testing.T, result organizationActionResult) labelRow {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("label action: %v", err)
+	if result.err != nil {
+		t.Fatalf("label action: %v", result.err)
 	}
-	item, ok := value.(labelRow)
+	item, ok := result.value.(labelRow)
 	if !ok {
-		t.Fatalf("label action returned %T", value)
+		t.Fatalf("label action returned %T", result.value)
 	}
 	return item
 }
 
-func mustTask(t *testing.T, value any, err error) task.Task {
+func mustTask(t *testing.T, result organizationActionResult) task.Task {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("task action: %v", err)
+	if result.err != nil {
+		t.Fatalf("task action: %v", result.err)
 	}
-	item, ok := value.(task.Task)
+	item, ok := result.value.(task.Task)
 	if !ok {
-		t.Fatalf("task action returned %T", value)
+		t.Fatalf("task action returned %T", result.value)
 	}
 	return item
 }
 
-func mustProjectList(t *testing.T, value any, err error) []project.Project {
+func mustProjectList(t *testing.T, result organizationActionResult) []project.Project {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("project list: %v", err)
+	if result.err != nil {
+		t.Fatalf("project list: %v", result.err)
 	}
-	result, ok := value.(map[string]any)
+	payload, ok := result.value.(map[string]any)
 	if !ok {
-		t.Fatalf("project list returned %T", value)
+		t.Fatalf("project list returned %T", result.value)
 	}
-	items, ok := result["items"].([]project.Project)
+	items, ok := payload["items"].([]project.Project)
 	if !ok {
-		t.Fatalf("project list items returned %T", result["items"])
+		t.Fatalf("project list items returned %T", payload["items"])
 	}
 	return items
 }
 
-func mustLabelList(t *testing.T, value any, err error) []labelRow {
+func mustLabelList(t *testing.T, result organizationActionResult) []labelRow {
 	t.Helper()
-	if err != nil {
-		t.Fatalf("label list: %v", err)
+	if result.err != nil {
+		t.Fatalf("label list: %v", result.err)
 	}
-	result, ok := value.(map[string]any)
+	payload, ok := result.value.(map[string]any)
 	if !ok {
-		t.Fatalf("label list returned %T", value)
+		t.Fatalf("label list returned %T", result.value)
 	}
-	items, ok := result["items"].([]labelRow)
+	items, ok := payload["items"].([]labelRow)
 	if !ok {
-		t.Fatalf("label list items returned %T", result["items"])
+		t.Fatalf("label list items returned %T", payload["items"])
 	}
 	return items
 }
