@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { addQuickTask, listTasks, resetTasks, taskRowByContent } from "./support/api";
+import { listTasks, resetTasks, taskRowByContent } from "./support/api";
 
 function toDatetimeLocalOffset(daysFromNow: number, hour = 9, minute = 0): string {
   const target = new Date();
@@ -9,6 +9,23 @@ function toDatetimeLocalOffset(daysFromNow: number, hour = 9, minute = 0): strin
 
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+}
+
+async function addQuickTaskAudited(page: Page, request: APIRequestContext, value: string, expectedContent: string) {
+  await page.getByTestId("add-task-input").fill(value);
+  const responsePromise = page.waitForResponse(
+    (response) => response.url().includes("/api/tasks/quick-add") && response.request().method() === "POST",
+  );
+  await page.getByTestId("add-task-submit").click();
+  const response = await responsePromise;
+  const responseText = await response.text();
+  expect(response.ok(), `quick add failed with HTTP ${response.status()}: ${responseText}`).toBeTruthy();
+
+  const persisted = await listTasks(request, { limit: 50 });
+  expect(
+    persisted.items.some((item) => item.content === expectedContent),
+    `quick add returned success but ${JSON.stringify(expectedContent)} was not persisted`,
+  ).toBeTruthy();
 }
 
 async function openTaskDetail(page: Page, content: string) {
@@ -58,7 +75,7 @@ test.describe("task-manager audit acceptance", () => {
     const taskName = `audit launch ${Date.now()}`;
     const recurringName = `audit recurring ${Date.now()}`;
 
-    await addQuickTask(page, `${taskName} @focus p2 // browser persistence`);
+    await addQuickTaskAudited(page, request, `${taskName} @focus p2 // browser persistence`, taskName);
     await expect(taskRowByContent(page, taskName)).toBeVisible();
 
     await openTaskDetail(page, taskName);
@@ -76,7 +93,7 @@ test.describe("task-manager audit acceptance", () => {
     await expect(page.getByTestId("task-detail-due")).not.toHaveValue("");
     await closeTaskDetail(page);
 
-    await addQuickTask(page, `${recurringName} every day at 9am`);
+    await addQuickTaskAudited(page, request, `${recurringName} every day at 9am`, recurringName);
     await openTaskDetail(page, recurringName);
     await expect(page.getByTestId("task-detail-recurrence")).not.toHaveValue("");
     await page.getByTestId("task-detail-mark-done").click();
@@ -100,7 +117,7 @@ test.describe("task-manager audit acceptance", () => {
     await expect(page.getByRole("button", { name: new RegExp(taskName, "i") })).toHaveCount(0);
   });
 
-  test("mobile journey supports add, persisted search/detail, and completion", async ({ page }) => {
+  test("mobile journey supports add, persisted search/detail, and completion", async ({ page, request }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const taskName = `mobile audit ${Date.now()}`;
 
@@ -109,8 +126,7 @@ test.describe("task-manager audit acceptance", () => {
     await expect(page.getByTestId("add-task-input")).toBeFocused();
     await closeMobileSidebar(page);
 
-    await page.getByTestId("add-task-input").fill(`${taskName} @mobile p3 // mobile persisted`);
-    await page.getByTestId("add-task-submit").click();
+    await addQuickTaskAudited(page, request, `${taskName} @mobile p3 // mobile persisted`, taskName);
     await expect(taskRowByContent(page, taskName)).toBeVisible();
 
     await page.reload();
