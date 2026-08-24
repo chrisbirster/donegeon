@@ -1,6 +1,6 @@
 # Task manager feature / evidence matrix
 
-Status: M2 organization gate complete
+Status: M3 scheduling gate complete
 
 This document is the working source of truth for the task-manager audit defined in `docs/task-manager-audit-plan.md`. It intentionally distinguishes code that exists from behavior that has been proven.
 
@@ -45,7 +45,7 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 6. Cross-user and cross-workspace isolation is proven for canonical Get/List/Update/Close/Reopen/Delete, and the public HTTP task handlers prove Get/List isolation as well.
 7. Public task handlers now have a semantic lifecycle contract covering create, get, list, patch, close, reopen, delete, response bodies/statuses, persisted completion state, and deletion visibility.
 8. No production task-lifecycle code change was required: the stronger contracts passed against the existing implementation.
-9. Project, section, recurrence, and schedule input can currently be set but do not have explicit clear semantics in `UpdateInput`; those field contracts remain `PARTIAL` until intentionally designed.
+9. Project, section, recurrence, and schedule input were identified as fields needing explicit clear semantics or stronger organization/scheduling contracts; M2 and M3 close those backend gaps.
 10. The broad compatibility YAML happy-path suite remains transport-level evidence unless its assertions are strengthened.
 
 ## M2 findings
@@ -61,6 +61,18 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 9. Label CRUD is tenant-scoped. Renaming a linked label changes the label observed on the task; shared-label removal and label deletion remove task-label links without deleting the task.
 10. Workspace membership/share permission semantics, project-to-workspace/personal policy, collaborators, comments, and invitation authorization remain M5 rather than being overclaimed by M2.
 
+## M3 findings
+
+1. `TestSchedulingContractNormalizesLocalCalendarTimeAcrossDST` and `TestSchedulingContractDateOnlyUsesLocalMidnight` prove local calendar-time normalization, including the spring DST boundary and date-only midnight behavior.
+2. Recurring completion now closes the current occurrence and creates the next occurrence in one database transaction. `TestSchedulingContractRecurringCloseRollsBackIfNextCreateFails` proves that a failed next insert leaves the original occurrence open and retryable.
+3. The recurring transaction uses an open-only close mutation so a racing/repeated close cannot create a second future occurrence after another close has already won the state transition.
+4. `TestSchedulingContractRecurringClosePreservesLocalTimeAndDeadlineLeadAcrossDST` proves a weekly 9:00 AM recurrence remains 9:00 AM after the DST offset changes and its two-hour deadline lead remains 7:00 AM local time.
+5. `TestSchedulingContractMonthlyLastDayHandlesShortMonths` proves a last-day monthly rule advances January 31 → February 28 rather than overflowing into March.
+6. Finite recurrence is explicit: spawned `COUNT` rules decrement instead of resetting, and `UNTIL` stops at its boundary. The semantic suite proves no extra occurrence is created.
+7. Editing a recurrence changes the rule used for the next occurrence. Clearing recurrence, due, deadline, and schedule input is explicit in `UpdateInput`, persisted by SQL, and exposed by the HTTP PATCH contract.
+8. Home scheduling now treats `dueText` as the primary scheduling date and `dueDeadline` as fallback. Overdue work is bucketed into Today; Upcoming remains strictly future work. These rules live in the pure `home-scheduling.ts` module and are covered by Node unit tests.
+9. Browser-level scheduling acceptance remains M6; M3 proves the underlying service/API and client-rule semantics without treating navigation alone as sufficient evidence.
+
 ## A. Core task lifecycle
 
 | Capability | Status | Implementation | Strongest current evidence | Gap / next proof |
@@ -73,7 +85,7 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 | Delete task | `VERIFIED` | `task.Service.Delete`, HTTP delete | service + HTTP contracts prove deletion hides task from Get/List; service proves repeat delete/close/reopen return not-found | Soft-vs-hard storage policy is tracked separately |
 | Complete non-recurring task | `VERIFIED` | `task.Service.Close`, HTTP close | service + HTTP contracts prove `checked=true`, `processed_count=1`, and idempotent second close | Browser acceptance remains part of M6, not core semantics |
 | Reopen task | `VERIFIED` | `task.Service.Reopen`, HTTP reopen | service + HTTP contracts prove `checked=false` while preserving processed count | Browser acceptance remains part of M6 |
-| Complete recurring task and spawn next occurrence | `VERIFIED` | `task.Service.Close` recurrence path | `TestServiceCloseRecurringTaskSpawnsNextOccurrence` asserts closed original plus open next task with retained recurrence and next due time | Extend in M3 for DST/month-end/edited-rule/failure cases |
+| Complete recurring task and spawn next occurrence | `VERIFIED` | transactional recurrence path in `task.Service.Close` / repository | M3 contracts prove next occurrence, DST/month-end, edited rules, finite `COUNT`/`UNTIL`, deadline lead, rollback on spawn failure, and repeat-close protection | Browser recurrence acceptance remains M6 |
 | Reorder tasks | `VERIFIED` | sort order persistence + UI drag/drop | Playwright drag-and-drop test asserts order changes and remains after reload | Add collision/concurrency cases only if product contract requires them |
 | Soft-delete versus hard-delete contract | `PARTIAL` | task model/repository uses deletion state and query exclusion | M1 proves deleted tasks disappear from Get/List and later mutations return not-found | Explicitly define whether physical row retention is part of the public contract and prove storage state |
 | Task ownership/workspace isolation | `VERIFIED` | `UserID`, `WorkspaceID`, repository predicates and auth context | M1 service contract covers core mutations; M2 proves foreign-workspace organization IDs cannot be used to reposition a task | Fine-grained shared-workspace write permissions remain M5 |
@@ -88,11 +100,11 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 | Project assignment | `VERIFIED` | `ProjectID` on task + compatibility placement validator | M1 persistence + M2 validated moves, foreign-workspace rejection, explicit clear, and non-mutation on rejected moves | Archived-project creation policy and browser acceptance remain separate |
 | Section assignment | `VERIFIED` | `SectionID` on task + compatibility placement validator | M1 persistence + M2 section-only move, mismatch rejection, explicit clear, and section-deletion cleanup | Browser acceptance remains M6 |
 | Labels | `VERIFIED` for backend CRUD/link semantics | task labels repository + tenant-scoped compatibility CRUD | M1 normalized round trips + M2 rename/remove/delete effects on linked tasks | Duplicate/case policy and browser acceptance remain |
-| Due date/time | `PARTIAL` | `DueText` plus scheduling normalization | M1 proves direct create/update persistence and explicit clear; existing service tests cover relative values | M3: date-only, timezone, DST, editing, view inclusion |
-| Deadline | `PARTIAL` | `DueDeadline` | M1 proves direct create/update persistence and explicit clear; existing tests cover relative deadline normalization | M3: timezone/DST/edit/view semantics |
-| Recurrence RRULE | `VERIFIED` for parsing/persistence, `PARTIAL` overall | canonical `Recurrence` | parser specs + M1 round trip + recurring-close semantic test | M3: edit/clear, DST/month-end, transaction failure/recovery |
-| Schedule input/original text | `PARTIAL` | `ScheduleInput` | M1 proves create/update persistence | Define user-facing meaning and explicit clear semantics |
-| Checked/completed state | `VERIFIED` | `Checked`, `ProcessedCount` | M1 service + HTTP contracts prove close, repeated close, reopen, and processed-count behavior | Recurrence-specific broader cases stay in M3 |
+| Due date/time | `VERIFIED` for current scheduling contract | `DueText` plus timezone-aware scheduling normalization | M1 persistence/clear + M3 local date-only, relative-time and DST normalization; client rule tests prove due-date view precedence and overdue bucketing | Browser acceptance remains M6 |
+| Deadline | `VERIFIED` for current scheduling contract | `DueDeadline` plus timezone-aware normalization | M1 persistence + M3 DST normalization, recurring deadline-lead preservation, and HTTP clear semantics | Browser acceptance remains M6 |
+| Recurrence RRULE | `VERIFIED` for supported execution matrix | canonical `Recurrence`, RRULE parser, transactional close/spawn | parser specs + M3 daily/weekly/monthly execution, edit/clear, DST, month-end, finite `COUNT`/`UNTIL`, and rollback recovery | Additional exotic BY* combinations remain parser-level unless explicitly exercised |
+| Schedule input/original text | `VERIFIED` for persistence/clear contract | `ScheduleInput` | M1 create/update persistence + M3 continuity across recurrence and explicit service/HTTP clear | Product wording/display polish remains UI work |
+| Checked/completed state | `VERIFIED` | `Checked`, `ProcessedCount` | M1 lifecycle + M3 atomic recurring close prove processed-count and completion behavior | Browser recurrence acceptance remains M6 |
 | Subtasks / parent-child tasks | `UNIMPLEMENTED` | no parent/subtask field found in canonical task model | canonical model inspection | Decide intended model before implementation |
 | Durable task assignee | `UNIMPLEMENTED` | parser recognizes assignee syntax, canonical task model has no assignee field | parser specs demonstrate syntax only | Decide assignment model; do not advertise parser token as persisted assignment |
 | Reminders | `UNIMPLEMENTED` | no reminder field/service found in canonical task model | current source/model inspection | Define reminder model/provider before implementation |
@@ -118,15 +130,15 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 
 | Capability | Status | Implementation | Strongest current evidence | Gap / next proof |
 | --- | --- | --- | --- | --- |
-| Relative due parsing | `VERIFIED` for parser | quick-add parser/service | executable parser specs + service normalization tests | Browser/server parity and DST matrix |
-| Calendar-style due parsing | `VERIFIED` for parser | quick-add parser | executable quick-add YAML specs | Persistence/view semantics remain `PARTIAL` |
-| Deadline parsing | `VERIFIED` for covered parser forms | quick-add parser/service | executable specs + service tests | Boundary/DST/clear/edit cases |
-| Daily/weekly/monthly interval recurrence | `VERIFIED` for covered parser forms | parser + RRULE | parser recurrence Go/spec tests | recurrence execution matrix remains broader than parser proof |
-| Recurring next occurrence | `VERIFIED` core | service close recurrence | semantic service integration test | DST, month-end, edited rules, transaction failure |
+| Relative due parsing | `VERIFIED` | quick-add parser/service | parser specs + service normalization tests + M3 DST-local normalization | M4 will prove server/local preview parity |
+| Calendar-style due parsing | `VERIFIED` for current date contract | quick-add parser/service | parser specs + M3 date-only local-midnight persistence | Browser acceptance remains M6 |
+| Deadline parsing | `VERIFIED` for covered forms | quick-add parser/service | executable specs + M3 DST normalization, recurring lead preservation, and HTTP clear | Browser acceptance remains M6 |
+| Daily/weekly/monthly interval recurrence | `VERIFIED` for execution matrix | parser + RRULE + transactional recurrence service | M3 executes daily edited/finite rules, weekly DST, and monthly last-day semantics | Exotic RRULE combinations are not implied by this row |
+| Recurring next occurrence | `VERIFIED` | transactional service/repository recurrence path | M3 proves close→spawn, local-time preservation, deadline shift, month-end, edited rule, finite stop, and rollback recovery | Browser acceptance remains M6 |
 | Inbox view | `PARTIAL` | client task view/model + backend filtering | Playwright navigation/tasks | Define exact inclusion/exclusion and prove against persisted data |
-| Today view | `PARTIAL` | client task view/model | Playwright navigation | Prove timezone/date-only/overdue/recurring semantics |
-| Upcoming view | `PARTIAL` | client task view/model | Playwright navigation | Prove date window/order/timezone semantics |
-| Overdue behavior | `PARTIAL` | scheduling/view rules present | UI/source coverage | Add explicit acceptance cases |
+| Today view | `VERIFIED` for scheduling inclusion rule | client `home-scheduling.ts` used by Home counters/filter | Node contract proves due-first scheduling and overdue→Today bucketing | Browser acceptance/reload remains M6 |
+| Upcoming view | `VERIFIED` for scheduling inclusion rule | client `home-scheduling.ts` used by Home counters/filter | Node contract proves future work remains strictly after Today and due date takes precedence over deadline | Browser ordering/reload remains M6 |
+| Overdue behavior | `VERIFIED` for scheduling inclusion rule | Home scheduling bucket | Node contract proves overdue scheduled work remains visible in Today | Browser rendering remains M6 |
 | Completion history/search by date | `PARTIAL` | compatibility endpoints | weak compatibility happy-path cases | Add exact returned task/order/pagination assertions |
 
 ## E. Quick add, search, and interaction
@@ -168,6 +180,7 @@ A successful HTTP status by itself is not semantic verification. In particular, 
 | Pagination correctness | `VERIFIED` for canonical task list | `TestServiceTaskListPaginationContract` asserts total, page size, next cursor, second page, and stable ordering | Compatibility endpoint pagination remains separate evidence work |
 | Cross-tenant task isolation | `VERIFIED` | M1 covers user/workspace lifecycle isolation; M2 proves cross-workspace project/section IDs cannot reposition owned tasks | Fine-grained shared-workspace write permissions remain M5 |
 | Organization resource isolation | `VERIFIED` for M2 boundary | M2 semantic contract proves workspace-bounded project/section access, user+workspace labels/tasks, and rejected foreign-workspace movement | Fine-grained membership/write permissions remain M5 |
+| Recurring close atomicity | `VERIFIED` | M3 rollback contract proves failed next-occurrence creation does not close the original; open-only close prevents duplicate spawn after the state transition | Cross-process load testing is optional hardening, not a semantic gap |
 | Database migration from existing installs | `PARTIAL` | migration runner and CI/tests exist | Add upgrade-path fixture from representative historical DB |
 | SQLite/Turso behavioral parity | `PARTIAL` | same repository/migration abstraction intended | Add shared contract suite against both backends where feasible |
 
@@ -186,7 +199,7 @@ Completed evidence:
 5. Cross-user/workspace isolation across all core canonical mutations.
 6. Public HTTP-handler lifecycle contract with semantic response and persisted-state assertions.
 
-Known M1 deferrals are explicitly retained as `PARTIAL` rows rather than hidden: broader list inclusion/filter rules, nullable recurrence/schedule clearing, and scheduling/view edge cases.
+Known M1 deferrals are explicitly retained as `PARTIAL` rows rather than hidden: broader list inclusion/filter rules and later organization/scheduling/browser acceptance work.
 
 ### M2 — organization gate — COMPLETE
 
@@ -202,9 +215,19 @@ Completed evidence:
 
 Collaboration membership and fine-grained shared-workspace write policy intentionally remain M5.
 
-### M3 — scheduling gate
+### M3 — scheduling gate — COMPLETE
 
-Dates, deadlines, timezone handling, recurrence execution, DST/month-end cases, Today/Upcoming/overdue inclusion rules.
+Completed evidence:
+
+1. Timezone-aware due/deadline normalization, including date-only values and DST transitions.
+2. Atomic recurring close + next-occurrence creation with rollback on failure and open-only duplicate-spawn protection.
+3. Daily/weekly/monthly recurrence execution across edited rules, DST and month-end boundaries.
+4. Finite `COUNT` decrement/termination and `UNTIL` boundary termination.
+5. Recurring deadline-lead preservation and schedule-input/label continuity.
+6. Explicit service/repository/HTTP clearing for recurrence, due, deadline, and schedule input.
+7. Client Today/Upcoming scheduling rules: due date before deadline, overdue included in Today, future work in Upcoming.
+
+Browser acceptance remains M6 and is intentionally not being used to inflate the M3 semantic claims.
 
 ### M4 — quick add/search gate
 

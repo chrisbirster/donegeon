@@ -153,6 +153,12 @@ func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, 
 	if in.ProjectID != nil {
 		in.ProjectID = canonicalizeProjectID(ctx, in.ProjectID)
 	}
+	if in.ClearRecurrence {
+		in.Recurrence = nil
+	}
+	if in.ClearScheduleInput {
+		in.ScheduleInput = nil
+	}
 	in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())
 	in.DueDeadline = normalizeDeadline(in.DueDeadline, timezoneFromContext(ctx), s.nowFn())
 	if in.Recurrence != nil {
@@ -167,7 +173,9 @@ func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, 
 	}
 
 	effectiveRecurrence := current.Recurrence
-	if in.Recurrence != nil {
+	if in.ClearRecurrence {
+		effectiveRecurrence = nil
+	} else if in.Recurrence != nil {
 		effectiveRecurrence = in.Recurrence
 	}
 	if effectiveRecurrence != nil && in.DueText == nil && !in.ClearDueText && current.DueText == nil {
@@ -194,16 +202,15 @@ func (s *Service) Close(ctx context.Context, id string) error {
 	if current.Checked {
 		return nil
 	}
-
-	if err := s.repo.Close(ctx, id); err != nil {
-		return err
-	}
-
 	if current.Recurrence == nil {
-		return nil
+		return s.repo.Close(ctx, id)
 	}
 
-	nextDue := current.DueText
+	nextRecurrence := recurrenceForNextOccurrence(*current.Recurrence)
+	if nextRecurrence == nil {
+		return s.repo.Close(ctx, id)
+	}
+
 	loc := locationFromTimezone(timezoneFromContext(ctx))
 	anchor := s.nowFn().In(loc)
 	if current.DueText != nil {
@@ -211,23 +218,59 @@ func (s *Service) Close(ctx context.Context, id string) error {
 			anchor = parsedAnchor
 		}
 	}
-	if nextDueText, ok := nextOccurrenceDueText(*current.Recurrence, timezoneFromContext(ctx), anchor, false); ok {
-		nextDue = strPtr(nextDueText)
+	nextDueText, ok := nextOccurrenceDueText(*current.Recurrence, timezoneFromContext(ctx), anchor, false)
+	if !ok {
+		return s.repo.Close(ctx, id)
 	}
+	nextDue := normalizeDueText(strPtr(nextDueText), timezoneFromContext(ctx), anchor)
+	nextDeadline := shiftRecurringDeadline(current.DueText, current.DueDeadline, nextDue, timezoneFromContext(ctx))
 
-	_, err = s.Create(ctx, CreateInput{
+	return s.repo.CloseRecurringAndCreateNext(ctx, id, CreateInput{
 		Content:       current.Content,
 		Description:   current.Description,
-		ProjectID:     current.ProjectID,
+		ProjectID:     canonicalizeProjectID(ctx, current.ProjectID),
 		SectionID:     current.SectionID,
-		Recurrence:    current.Recurrence,
+		Recurrence:    nextRecurrence,
 		Priority:      current.Priority,
 		DueText:       nextDue,
-		DueDeadline:   current.DueDeadline,
+		DueDeadline:   nextDeadline,
 		ScheduleInput: current.ScheduleInput,
 		Labels:        current.Labels,
 	})
-	return err
+}
+
+func recurrenceForNextOccurrence(raw string) *string {
+	parsed, err := rrule.Parse(raw)
+	if err != nil {
+		return strPtr(raw)
+	}
+	if parsed.Count == nil {
+		return strPtr(raw)
+	}
+	if *parsed.Count <= 1 {
+		return nil
+	}
+	remaining := *parsed.Count - 1
+	parsed.Count = &remaining
+	return strPtr(parsed.Canonical())
+}
+
+func shiftRecurringDeadline(currentDue, currentDeadline, nextDue *string, timezone string) *string {
+	if currentDeadline == nil {
+		return nil
+	}
+	if currentDue == nil || nextDue == nil {
+		return currentDeadline
+	}
+	loc := locationFromTimezone(timezone)
+	currentDueTime, dueOK := parseDueAnchor(*currentDue, loc)
+	currentDeadlineTime, deadlineOK := parseDueAnchor(*currentDeadline, loc)
+	nextDueTime, nextDueOK := parseDueAnchor(*nextDue, loc)
+	if !dueOK || !deadlineOK || !nextDueOK {
+		return currentDeadline
+	}
+	shifted := nextDueTime.Add(currentDeadlineTime.Sub(currentDueTime)).In(loc)
+	return strPtr(shifted.Format(time.RFC3339))
 }
 
 func (s *Service) Reopen(ctx context.Context, id string) error {
