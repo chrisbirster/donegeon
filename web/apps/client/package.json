@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
-    "@types/node": "^24.3.0",
+    "@types/node": "^26.2.0",
     "@vite-pwa/assets-generator": "^1.0.2",
     "@wyw-in-js/vite": "^2.4.1",
     "typescript": "^5.9.2",
