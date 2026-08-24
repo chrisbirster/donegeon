@@ -269,7 +269,7 @@ func shiftRecurringDeadline(currentDue, currentDeadline, nextDue *string, timezo
 	if !dueOK || !deadlineOK || !nextDueOK {
 		return currentDeadline
 	}
-	shifted := currentDeadlineTime.Add(nextDueTime.Sub(currentDueTime)).In(loc)
+	shifted := nextDueTime.Add(currentDeadlineTime.Sub(currentDueTime)).In(loc)
 	return strPtr(shifted.Format(time.RFC3339))
 }
 
