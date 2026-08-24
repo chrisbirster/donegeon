@@ -150,8 +150,22 @@ export function parseTaskDateValue(value: string | undefined): Date | null {
   return startOfLocalDay(parsed);
 }
 
-export function taskDueDate(task: Task): Date | null {
-  return parseTaskDateValue(task.dueDeadline) ?? parseTaskDateValue(task.dueText);
+export function taskScheduledDate(task: Task): Date | null {
+  return parseTaskDateValue(task.dueText) ?? parseTaskDateValue(task.dueDeadline);
+}
+
+// Home treats overdue work as part of Today. Returning today's local-day bucket
+// for an overdue task lets the existing Today/Upcoming counters and filters use
+// one consistent scheduling rule while preserving taskScheduledDate for the
+// task's actual stored date.
+export function taskDueDate(task: Task, now: Date = new Date()): Date | null {
+  const scheduled = taskScheduledDate(task);
+  if (!scheduled) return null;
+  const today = startOfLocalDay(now);
+  if (scheduled.getTime() < today.getTime()) {
+    return today;
+  }
+  return scheduled;
 }
 
 export const DEFAULT_SIDEBAR_PROJECTS: Project[] = [
