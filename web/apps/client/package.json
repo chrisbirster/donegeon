@@ -23,7 +23,7 @@
     "@solidjs/web": "2.0.0-rc.0",
     "@tanstack/solid-query": "6.0.0-rc.0",
     "idb": "^8.0.3",
-    "solid-js": "2.0.0-rc.0"
+    "solid-js": "2.0.0-rc.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
