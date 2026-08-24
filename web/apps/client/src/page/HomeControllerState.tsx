@@ -396,6 +396,10 @@ export function createHomeControllerState() {
     }
   }
 
+  onSettled(() => {
+    void refreshData();
+  });
+
   async function persistOrder(orderedOpenTasks: Task[]) {
     try {
       await Promise.all(
