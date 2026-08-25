@@ -95,6 +95,38 @@ jobs:
         working-directory: web
         run: npm audit --omit=dev --audit-level=high
 
+  browser:
+    name: Browser acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: web/apps/client
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Run task-manager acceptance
+        working-directory: web/apps/client
+        run: npm run test:e2e -- tests/e2e/task-manager-audit.spec.ts
+
   infra:
     name: Infra typecheck
     runs-on: ubuntu-latest
