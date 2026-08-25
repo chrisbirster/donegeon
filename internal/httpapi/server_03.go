@@ -62,6 +62,10 @@ func (a *API) handleTaskManagerAction(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "action is required"), "action"))
 		return
 	}
+	if reason, retired := retiredTaskManagerAction(action); retired {
+		writeAPIError(w, apperrors.WithField(apperrors.New(apperrors.CodeNotFound, reason), "action"))
+		return
+	}
 	if req.Payload == nil {
 		req.Payload = map[string]any{}
 	}
