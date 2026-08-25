@@ -8,6 +8,10 @@ func TestTaskCompleteStackSpawnsCoinReward(t *testing.T) {
 	t.Parallel()
 
 	env := newBoardIntegrationEnv(t)
+	cfg := DefaultGameplayConfig()
+	cfg.Villagers.Leveling.TaskCompletionRewards.BonusRolls = 0
+	cfg.Villagers.Leveling.TaskCompletionRewards.RNGPool = nil
+	env.boardSvc = NewService(NewRepository(env.db, env.queries), env.taskService, WithGameplayConfig(cfg))
 	taskStack := patchStack(t, env.command(t, "card.spawn", map[string]any{
 		"defId": "task.blank",
 		"x":     520,
