@@ -118,6 +118,9 @@ func TestTaskManagerParityNonUploadActions(t *testing.T) {
 		if action == "" || action == "parse_quick_add_text" || isUploadAction(action) {
 			continue
 		}
+		if _, retired := retiredTaskManagerAction(action); retired {
+			continue
+		}
 		considered++
 		actionsDiscovered[action] = struct{}{}
 
