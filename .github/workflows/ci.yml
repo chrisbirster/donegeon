@@ -61,40 +61,6 @@ jobs:
       - name: Vulnerability scan
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
-  web:
-    name: Web typecheck, test, and build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install web dependencies
-        working-directory: web
-        run: npm ci --no-audit --no-fund
-
-      - name: Typecheck
-        working-directory: web
-        run: npm run typecheck
-
-      - name: Unit tests
-        working-directory: web
-        run: npm --workspace @donegeon/client run test:unit
-
-      - name: Build
-        working-directory: web
-        run: npm run build
-
-      - name: Audit production web dependencies
-        working-directory: web
-        run: npm audit --omit=dev --audit-level=high
-
   browser:
     name: Browser acceptance
     runs-on: ubuntu-latest
@@ -126,6 +92,41 @@ jobs:
       - name: Run task-manager acceptance
         working-directory: web/apps/client
         run: npm run test:e2e -- tests/e2e/task-manager-audit.spec.ts
+
+  web:
+    name: Web typecheck, test, and build
+    needs: browser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: web
+        run: npm --workspace @donegeon/client run test:unit
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+      - name: Audit production web dependencies
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
 
   infra:
     name: Infra typecheck
