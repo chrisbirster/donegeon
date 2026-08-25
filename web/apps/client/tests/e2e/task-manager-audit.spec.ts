@@ -89,7 +89,7 @@ test.describe("task-manager audit acceptance", () => {
 
     await page.reload();
     await openTaskFromSearch(page, "browser persistence", taskName);
-    await expect(page.getByTestId("task-detail-content")).toHaveValue(taskName);
+    await expect(page.getByTestId("task-detail-title")).toHaveValue(taskName);
     await expect(page.getByTestId("task-detail-due")).not.toHaveValue("");
     await closeTaskDetail(page);
 
@@ -135,6 +135,7 @@ test.describe("task-manager audit acceptance", () => {
     await openMobileSidebar(page);
     await page.locator("aside:visible").getByRole("button", { name: "Search" }).click();
     await expect(page.getByTestId("search-input")).toBeVisible();
+    await closeMobileSidebar(page);
     await page.getByTestId("search-input").fill("mobile persisted");
     await page.getByRole("button", { name: new RegExp(taskName, "i") }).click();
 
