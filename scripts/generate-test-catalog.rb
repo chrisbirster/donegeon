@@ -124,6 +124,8 @@ header = <<~MARKDOWN
 
   Generated from the repository's executable Go tests, Playwright specifications, and YAML cases loaded by the Go specification runners. Each bullet states the covered domain, functionality, and expected outcome. Descriptive-only files under `docs/scenarios/` and `docs/test-case-board.yaml` are excluded because no test runner executes them. TaskManager upload YAML cases are also excluded because the parity runner explicitly skips upload actions.
 
+  **This catalog is an executable-test inventory, not a feature-support matrix.** A legacy compatibility case may remain here even after that public compatibility action is retired. For the maintained task-manager support contract, use [`docs/audits/task-manager-closeout.md`](audits/task-manager-closeout.md) and [`docs/audits/task-manager-feature-matrix.md`](audits/task-manager-feature-matrix.md).
+
   Inventory: **#{total} test entries** — #{counts.map { |name, count| "#{count} #{name.downcase}" }.join(', ')}.
 
   Regenerate with `ruby scripts/generate-test-catalog.rb` after adding or renaming tests.
