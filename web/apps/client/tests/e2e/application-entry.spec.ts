@@ -92,8 +92,8 @@ test.describe("application entry with real auth", () => {
     await page.goto("/login?local_beta=open");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
-    const openBetaButton = page.getByRole("button", { name: "Open beta" });
-    const waitlistButton = page.getByRole("button", { name: "Waitlist" });
+    const openBetaButton = page.getByRole("button", { name: "Open beta", exact: true });
+    const waitlistButton = page.getByRole("button", { name: "Waitlist", exact: true });
 
     await expect(openBetaButton).toHaveAttribute("aria-pressed", "true");
     await expectReadableButton(openBetaButton);
@@ -102,7 +102,7 @@ test.describe("application entry with real auth", () => {
     await expect(waitlistButton).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("heading", { name: "Donegeon is in closed beta" })).toBeVisible();
 
-    const joinButton = page.getByRole("button", { name: "Join the waitlist" });
+    const joinButton = page.getByRole("button", { name: "Join the waitlist", exact: true });
     await expect(joinButton).toBeDisabled();
 
     await page.getByPlaceholder("Your name").fill("Entry Gate Tester");
