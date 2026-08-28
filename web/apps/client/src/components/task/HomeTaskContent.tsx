@@ -9,6 +9,7 @@ import {
   projectQuickAddAlias,
   scheduleBadgeLabel,
   scheduleValidationWarning,
+  tokenClass,
   visibleTaskLabels,
 } from "../../features/tasks/home-model";
 import { isNextActionTask } from "../../features/tasks/home-rules";
@@ -95,7 +96,6 @@ export default function HomeTaskContent() {
     onDragOver,
     onDrop,
     onDragEnd,
-    tokenClass,
   } = useHome();
 
   const projectToken = (item: Task) => {
