@@ -1,5 +1,6 @@
 import { css } from "@linaria/core";
 import type { JSX } from "@solidjs/web";
+import { splitProps } from "solid-js";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "warning";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -80,22 +81,23 @@ const blockClass = css`width: 100%;`;
 const iconClass = css`aspect-ratio: 1; padding-inline: 0;`;
 
 export default function Button(props: ButtonProps) {
-  const variant = () => props.variant ?? "secondary";
-  const size = () => props.size ?? "md";
-  const buttonProps = { ...props } as ButtonProps;
-  delete buttonProps.variant;
-  delete buttonProps.size;
-  delete buttonProps.block;
-  delete buttonProps.iconOnly;
-  delete buttonProps.unstyled;
-  delete buttonProps.class;
+  const [local, buttonProps] = splitProps(props, [
+    "variant",
+    "size",
+    "block",
+    "iconOnly",
+    "unstyled",
+    "class",
+  ]);
+  const variant = () => local.variant ?? "secondary";
+  const size = () => local.size ?? "md";
   const className = () => [
-    props.unstyled ? "" : buttonBase,
-    props.unstyled ? "" : variants[variant()],
-    props.unstyled ? "" : sizes[size()],
-    props.block ? blockClass : "",
-    props.iconOnly ? iconClass : "",
-    props.class ?? "",
+    local.unstyled ? "" : buttonBase,
+    local.unstyled ? "" : variants[variant()],
+    local.unstyled ? "" : sizes[size()],
+    local.block ? blockClass : "",
+    local.iconOnly ? iconClass : "",
+    local.class ?? "",
   ].filter(Boolean).join(" ");
 
   return <button {...buttonProps} class={className()} />;
