@@ -6,16 +6,21 @@ This is the operational gate for task-manager changes after the M0–M7 semantic
 
 ## Required merge evidence
 
-Donegeon `main` already requires the established CI contexts. M8 makes the task-manager browser journey transitively mandatory without depending on an additional repository-settings change:
+Donegeon `main` already requires the established CI contexts. M8 makes both application entry and the authenticated task-manager browser journey transitively mandatory without depending on an additional repository-settings change:
 
 - `Full-history secret scan`
 - `Go checks`
 - `Infra typecheck`
 - `Web typecheck, test, and build`
-  - this job now has `needs: browser`
-  - therefore it cannot succeed unless `Browser acceptance` succeeds first
+  - this job has `needs: [entry, browser]`
+  - therefore it cannot succeed unless both `Application entry acceptance` and `Browser acceptance` succeed first
 
-`Browser acceptance` remains a distinct visible CI job, but failure now also prevents the already-protected web context from succeeding. This closes the gap where browser acceptance could be red while the four previously required contexts were green.
+The two browser jobs have deliberately different responsibilities:
+
+- `Application entry acceptance` runs with real backend authentication enabled and `VITE_E2E_BYPASS_AUTH=false`. It proves a fresh browser can be redirected to login, enable and submit the login form, use the development OTP, complete onboarding, reach Inbox, survive reload, switch into local waitlist mode, submit the waitlist form, and render the selected beta toggle with readable contrast.
+- `Browser acceptance` keeps the narrow E2E auth bypass so its task-manager scenarios can focus on create/persistence/search/scheduling/completion/recurrence/mobile semantics without repeatedly exercising account setup.
+
+The task-manager bypass is therefore an isolation mechanism, not evidence that application entry works. A release must pass both jobs.
 
 ## What each gate protects
 
@@ -23,8 +28,9 @@ Donegeon `main` already requires the established CI contexts. M8 makes the task-
 | --- | --- |
 | Full-history secret scan | No unapproved secrets enter reachable Git history |
 | Go checks | Vet, durable domain/API semantics, compatibility retirement policy, tenant boundaries, recurrence/scheduling, board/game integration, vulnerability scan |
+| Application entry acceptance | Real Go auth + temporary SQLite + Vite + Chromium: protected-route redirect, login button reactivity, OTP verification, onboarding, Inbox entry/reload, local beta-toggle readability, waitlist button reactivity/submission |
 | Browser acceptance | Real Go server + temporary SQLite + Vite + Chromium task-manager journey: create, persistence, reload hydration, search/detail, scheduling, completion, recurrence, mobile core flow |
-| Web typecheck, test, and build | SolidJS/TypeScript correctness, unit rules, production build, production dependency audit; blocked until browser acceptance is green |
+| Web typecheck, test, and build | SolidJS/TypeScript correctness, unit rules, production build, production dependency audit; blocked until both browser acceptance jobs are green |
 | Infra typecheck | SST type generation/configuration and production dependency audit |
 
 ## Determinism rule
@@ -53,7 +59,8 @@ For future task-manager work:
 1. Backend-only state changes need durable Go semantic assertions.
 2. HTTP behavior needs authorization/response/persistence assertions.
 3. User-visible lifecycle or scheduling changes must extend `web/apps/client/tests/e2e/task-manager-audit.spec.ts` or add an equally authoritative browser contract.
-4. New collaboration behavior must use the authoritative account/team/board-member model rather than bypassing it through legacy compatibility SQL.
-5. A change is not release-ready until the protected CI chain is green.
+4. Login, beta/waitlist, onboarding, protected-route, or other application-entry changes must extend `web/apps/client/tests/e2e/application-entry.spec.ts`; the task-manager auth bypass cannot substitute for this evidence.
+5. New collaboration behavior must use the authoritative account/team/board-member model rather than bypassing it through legacy compatibility SQL.
+6. A change is not release-ready until the protected CI chain is green.
 
-M0–M8 therefore leave the task manager with both an explicit support matrix and an enforced end-to-end merge gate rather than relying on feature count or route availability as evidence of correctness.
+M0–M8 therefore leave the task manager with an explicit support matrix, a real application-entry gate, and an enforced task-manager browser gate rather than relying on feature count, route availability, or an auth-bypassed browser path as evidence of correctness.
