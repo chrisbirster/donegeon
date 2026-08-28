@@ -64,6 +64,10 @@ async function openTaskFromSearch(page: Page, query: string, taskName: string) {
   await expect(page.getByTestId("task-detail-modal")).toBeVisible();
 }
 
+async function taskTitles(page: Page) {
+  return page.getByTestId("task-row").getByTestId("task-content").allTextContents();
+}
+
 test.describe("task-manager audit acceptance", () => {
   test.beforeEach(async ({ page, request }) => {
     await resetTasks(request);
@@ -146,5 +150,96 @@ test.describe("task-manager audit acceptance", () => {
 
     await page.reload();
     await expect(taskRowByContent(page, taskName)).toHaveCount(0);
+  });
+
+  test("new captures lead the list and restore preserves position", async ({ page, request }) => {
+    await addQuickTaskAudited(page, request, "first captured // first description", "first captured");
+    await page.waitForTimeout(5);
+    await addQuickTaskAudited(page, request, "second captured @focus // second description", "second captured");
+    await page.waitForTimeout(5);
+    await addQuickTaskAudited(page, request, "third captured // third description", "third captured");
+
+    await expect.poll(() => taskTitles(page)).toEqual(["third captured", "second captured", "first captured"]);
+
+    const second = taskRowByContent(page, "second captured");
+    await expect(second.getByTestId("task-description-summary")).toHaveText("second description");
+
+    const inputBox = await page.getByTestId("add-task-input").boundingBox();
+    const rowBox = await page.getByTestId("task-row").first().boundingBox();
+    expect(inputBox).not.toBeNull();
+    expect(rowBox).not.toBeNull();
+    expect(Math.abs((inputBox?.x ?? 0) - (rowBox?.x ?? 0))).toBeLessThanOrEqual(4);
+    expect(Math.abs((inputBox?.width ?? 0) - (rowBox?.width ?? 0))).toBeLessThanOrEqual(4);
+
+    await second.getByRole("button", { name: "Complete task" }).click();
+    await expect(page.getByRole("heading", { level: 3, name: "Open" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 3, name: "Completed" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Completed 1/ })).toBeVisible();
+
+    const completed = page.getByTestId("completed-task-row").filter({ hasText: "second captured" });
+    await expect(completed.getByRole("button", { name: "Drag completed task to reorder" })).toBeVisible();
+    await expect(completed.getByRole("button", { name: "Task details" })).toHaveText("Details");
+    await expect(completed.getByTestId("reopen-task")).toHaveText("Restore");
+
+    await completed.getByTestId("reopen-task").click();
+    await expect.poll(() => taskTitles(page)).toEqual(["third captured", "second captured", "first captured"]);
+
+    await page.reload();
+    await expect.poll(() => taskTitles(page)).toEqual(["third captured", "second captured", "first captured"]);
+  });
+
+  test("completed tasks can be reordered and keep their order after reload", async ({ page, request }) => {
+    await addQuickTaskAudited(page, request, "completed one", "completed one");
+    await page.waitForTimeout(5);
+    await addQuickTaskAudited(page, request, "completed two", "completed two");
+
+    await taskRowByContent(page, "completed one").getByRole("button", { name: "Complete task" }).click();
+    await taskRowByContent(page, "completed two").getByRole("button", { name: "Complete task" }).click();
+
+    const rows = page.getByTestId("completed-task-row");
+    await expect(rows).toHaveCount(2);
+    await expect(page.getByTestId("completed-task-content")).toHaveText(["completed two", "completed one"]);
+
+    await rows.nth(1).getByRole("button", { name: "Drag completed task to reorder" }).dragTo(rows.nth(0));
+    await expect(page.getByTestId("completed-task-content")).toHaveText(["completed one", "completed two"]);
+
+    await page.reload();
+    await expect(page.getByTestId("completed-task-content")).toHaveText(["completed one", "completed two"]);
+  });
+
+  test("task detail is themed and explains scheduling without debug storage text", async ({ page, request }) => {
+    await addQuickTaskAudited(page, request, "detail audit @focus", "detail audit");
+    await openTaskDetail(page, "detail audit");
+
+    const modal = page.getByTestId("task-detail-modal");
+    for (const testID of [
+      "task-detail-project",
+      "task-detail-tags",
+      "task-detail-priority",
+      "task-detail-schedule-original",
+      "task-detail-recurrence",
+    ]) {
+      const background = await modal.getByTestId(testID).evaluate((element) => getComputedStyle(element).backgroundColor);
+      expect(background).not.toBe("rgb(255, 255, 255)");
+    }
+
+    const dueLabel = modal.getByText("Due", { exact: true });
+    const deadlineLabel = modal.getByText("Deadline", { exact: true });
+    expect(await dueLabel.evaluate((element) => getComputedStyle(element, "::after").content)).toContain("Scheduled for");
+    expect(await deadlineLabel.evaluate((element) => getComputedStyle(element, "::after").content)).toContain("Must be finished by");
+    await expect(modal.getByText(/^Stored:/)).toHaveCount(0);
+  });
+
+  test("search palette finds labels and previews description context", async ({ page, request }) => {
+    await addQuickTaskAudited(page, request, "search target @needle // hidden context", "search target");
+
+    await page.getByTestId("open-search").click();
+    await expect(page.getByRole("region", { name: "Task search" })).toBeVisible();
+    await expect(page.getByTestId("search-input")).toHaveAttribute("placeholder", "Search the dungeon...");
+
+    await page.getByTestId("search-input").fill("needle");
+    const result = page.getByRole("button", { name: /search target/i });
+    await expect(result).toBeVisible();
+    await expect(result).toContainText("hidden context");
   });
 });
