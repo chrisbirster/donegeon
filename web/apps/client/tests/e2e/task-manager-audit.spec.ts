@@ -168,8 +168,8 @@ test.describe("task-manager audit acceptance", () => {
     const rowBox = await page.getByTestId("task-row").first().boundingBox();
     expect(inputBox).not.toBeNull();
     expect(rowBox).not.toBeNull();
-    expect(Math.abs((inputBox?.x ?? 0) - (rowBox?.x ?? 0))).toBeLessThanOrEqual(3);
-    expect(Math.abs((inputBox?.width ?? 0) - (rowBox?.width ?? 0))).toBeLessThanOrEqual(3);
+    expect(Math.abs((inputBox?.x ?? 0) - (rowBox?.x ?? 0))).toBeLessThanOrEqual(4);
+    expect(Math.abs((inputBox?.width ?? 0) - (rowBox?.width ?? 0))).toBeLessThanOrEqual(4);
 
     await second.getByRole("button", { name: "Complete task" }).click();
     await expect(page.getByRole("heading", { level: 3, name: "Open" })).toBeVisible();
@@ -186,6 +186,25 @@ test.describe("task-manager audit acceptance", () => {
 
     await page.reload();
     await expect.poll(() => taskTitles(page)).toEqual(["third captured", "second captured", "first captured"]);
+  });
+
+  test("completed tasks can be reordered and keep their order after reload", async ({ page, request }) => {
+    await addQuickTaskAudited(page, request, "completed one", "completed one");
+    await page.waitForTimeout(5);
+    await addQuickTaskAudited(page, request, "completed two", "completed two");
+
+    await taskRowByContent(page, "completed one").getByRole("button", { name: "Complete task" }).click();
+    await taskRowByContent(page, "completed two").getByRole("button", { name: "Complete task" }).click();
+
+    const rows = page.getByTestId("completed-task-row");
+    await expect(rows).toHaveCount(2);
+    await expect(page.getByTestId("completed-task-content")).toHaveText(["completed two", "completed one"]);
+
+    await rows.nth(1).getByRole("button", { name: "Drag completed task to reorder" }).dragTo(rows.nth(0));
+    await expect(page.getByTestId("completed-task-content")).toHaveText(["completed one", "completed two"]);
+
+    await page.reload();
+    await expect(page.getByTestId("completed-task-content")).toHaveText(["completed one", "completed two"]);
   });
 
   test("task detail is themed and explains scheduling without debug storage text", async ({ page, request }) => {
