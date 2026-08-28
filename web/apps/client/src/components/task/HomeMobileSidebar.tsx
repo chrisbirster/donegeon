@@ -2,15 +2,7 @@ import Button from "../Button";
 import { css } from "@linaria/core";
 import { For, Show } from "solid-js";
 
-import {
-  projectQuickAddAlias,
-  searchButtonClass,
-  sidebarCardClass,
-  sidebarItemActiveClass,
-  sidebarItemBaseClass,
-  sidebarItemIdleClass,
-  smallActionButtonClass,
-} from "../../features/tasks/home-model";
+import { isTeamBoardProject } from "../../features/tasks/home-model";
 import { useHome } from "../../page/HomeContext";
 
 export default function HomeMobileSidebar() {
@@ -22,6 +14,7 @@ export default function HomeMobileSidebar() {
     navigateToProject,
     navigateToView,
     openSearchModal,
+    projectMap,
     sidebarProjectCount,
     sidebarProjects,
     todayCount,
@@ -29,144 +22,76 @@ export default function HomeMobileSidebar() {
   } = useHome();
 
   return (
-    <div class={style1}>
-      <div class={sidebarCardClass}>
-        <div class={style2}>
-          <h2 class={style3}>Tasks</h2>
-          <Button type="button" class={smallActionButtonClass} onClick={focusComposer}>
-            Add
-          </Button>
+    <div class={stack}>
+      <section class={card}>
+        <div class={headingRow}>
+          <h2 class={heading}>Tasks</h2>
+          <Button type="button" class={smallButton} onClick={focusComposer}>Add</Button>
         </div>
-        <Button type="button" class={searchButtonClass} onClick={openSearchModal}>
-          <span>Search</span>
-          <span class={style4}>⌘K</span>
+        <Button type="button" class={searchButton} onClick={openSearchModal}>
+          <span>⌕ Search</span><span class={muted}>⌘K</span>
         </Button>
-      </div>
+      </section>
 
-      <div class={sidebarCardClass}>
-        <p class={style5}>Views</p>
-        <div class={style6}>
+      <section class={card}>
+        <p class={sectionLabel}>Views</p>
+        <div class={list}>
           {(["inbox", "today", "upcomming"] as const).map((view) => {
             const label = view === "upcomming" ? "Upcoming" : view[0].toUpperCase() + view.slice(1);
             const count = view === "inbox" ? inboxCount : view === "today" ? todayCount : upcomingCount;
             return (
               <Button
                 type="button"
-                class={`${sidebarItemBaseClass} ${isViewActive(view) ? sidebarItemActiveClass : sidebarItemIdleClass}`}
+                class={`${row} ${isViewActive(view) ? activeRow : ""}`}
                 onClick={() => navigateToView(view)}
               >
-                <span>{label}</span>
-                <span class={style4}>{count()}</span>
+                <span>{label}</span><span class={muted}>{count()}</span>
               </Button>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      <div class={sidebarCardClass}>
-        <p class={style5}>Projects</p>
-        <div class={style6}>
+      <section class={card}>
+        <p class={sectionLabel}>Projects</p>
+        <div class={list}>
           <For each={sidebarProjects()}>
             {(project) => (
               <Button
                 type="button"
-                class={`${sidebarItemBaseClass} ${isProjectActive(project.id) ? sidebarItemActiveClass : sidebarItemIdleClass}`}
+                class={`${row} ${isProjectActive(project.id) ? activeRow : ""} ${
+                  isTeamBoardProject(project.id, projectMap()) ? teamRow : ""
+                }`}
                 onClick={() => navigateToProject(project.id)}
               >
-                <span class={style7}>
-                  <span class={style8}>{project.name}</span>
-                  <Show when={projectQuickAddAlias(project)}>
-                    {(alias) => (
-                      <span class={style9}>
-                        #{alias()}
-                      </span>
-                    )}
+                <span class={projectIdentity}>
+                  <span class={projectName}>{project.name}</span>
+                  <Show when={isTeamBoardProject(project.id, projectMap())}>
+                    <span class={teamChip}>◆ Team Board</span>
                   </Show>
                 </span>
-                <span class={style10}>{sidebarProjectCount(project)}</span>
+                <span class={muted}>{sidebarProjectCount(project)}</span>
               </Button>
             )}
           </For>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-
-const style1 = css`
-:where(& > :not(:last-child)) {
-    --tw-space-y-reverse: 0;
-    margin-block-start: calc(calc(var(--spacing) * 5) * var(--tw-space-y-reverse));
-    margin-block-end: calc(calc(var(--spacing) * 5) * calc(1 - var(--tw-space-y-reverse)));
-  }
-`;
-
-const style2 = css`
-display: flex;
-align-items: center;
-justify-content: space-between;
-`;
-
-const style3 = css`
-font-size: var(--text-sm);
-  line-height: var(--tw-leading, var(--text-sm--line-height));
---tw-font-weight: var(--font-weight-semibold);
-  font-weight: var(--font-weight-semibold);
---tw-tracking: var(--tracking-tight);
-  letter-spacing: var(--tracking-tight);
-color: var(--color-white);
-font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
-`;
-
-const style4 = css`
-font-size: var(--text-xs);
-  line-height: var(--tw-leading, var(--text-xs--line-height));
-color: var(--text-dim);
-`;
-
-const style5 = css`
-font-size: var(--text-xs);
-  line-height: var(--tw-leading, var(--text-xs--line-height));
---tw-font-weight: var(--font-weight-semibold);
-  font-weight: var(--font-weight-semibold);
---tw-tracking: 0.12em;
-  letter-spacing: 0.12em;
-color: var(--text-dim);
-text-transform: uppercase;
-`;
-
-const style6 = css`
-margin-top: calc(var(--spacing) * 2);
-:where(& > :not(:last-child)) {
-    --tw-space-y-reverse: 0;
-    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
-    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
-  }
-`;
-
-const style7 = css`
-min-width: calc(var(--spacing) * 0);
-`;
-
-const style8 = css`
-display: block;
-overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-const style9 = css`
-font-size: 10px;
---tw-tracking: 0.08em;
-  letter-spacing: 0.08em;
-color: var(--text-muted);
-text-transform: uppercase;
-`;
-
-const style10 = css`
-margin-left: calc(var(--spacing) * 2);
-font-size: var(--text-xs);
-  line-height: var(--tw-leading, var(--text-xs--line-height));
-color: var(--text-dim);
-`;
+const stack = css`display:flex; flex-direction:column; gap:1rem;`;
+const card = css`border:1px solid var(--border-strong); border-radius:.9rem; padding:.85rem; background:var(--panel-soft);`;
+const headingRow = css`display:flex; align-items:center; justify-content:space-between; gap:.75rem;`;
+const heading = css`font-size:1rem; font-weight:650; color:var(--text-main);`;
+const smallButton = css`border:1px solid var(--border-strong); border-radius:.55rem; padding:.4rem .65rem; background:rgba(255,255,255,.025); color:var(--text-main); font-size:.8rem;`;
+const searchButton = css`display:flex; justify-content:space-between; width:100%; margin-top:.75rem; border:1px solid var(--border-soft); border-radius:.65rem; padding:.58rem .65rem; background:rgba(255,255,255,.02); color:var(--text-main); font-size:.88rem;`;
+const sectionLabel = css`font-size:.7rem; font-weight:750; letter-spacing:.12em; color:var(--text-dim); text-transform:uppercase;`;
+const list = css`display:flex; flex-direction:column; gap:.38rem; margin-top:.55rem;`;
+const row = css`display:flex; align-items:center; justify-content:space-between; gap:.6rem; width:100%; border:1px solid transparent; border-radius:.65rem; padding:.6rem .65rem; background:transparent; color:var(--text-main); text-align:left; font-size:.88rem;`;
+const activeRow = css`border-color:rgba(196,69,255,.35); background:var(--accent-wash);`;
+const teamRow = css`border-color:rgba(218,67,255,.34); background:linear-gradient(110deg,rgba(82,22,112,.46),rgba(255,32,114,.06));`;
+const muted = css`flex:0 0 auto; color:var(--text-dim); font-size:.72rem;`;
+const projectIdentity = css`display:flex; align-items:center; gap:.45rem; min-width:0; flex-wrap:wrap;`;
+const projectName = css`overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600;`;
+const teamChip = css`border:1px solid rgba(218,67,255,.32); border-radius:999px; padding:.1rem .35rem; color:#efc4ff; font-size:.58rem; font-weight:750; letter-spacing:.08em; text-transform:uppercase;`;
