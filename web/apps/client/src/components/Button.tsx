@@ -98,5 +98,14 @@ export default function Button(props: ButtonProps) {
     props.class ?? "",
   ].filter(Boolean).join(" ");
 
-  return <button {...buttonProps} class={className()} />;
+  return (
+    <button
+      {...buttonProps}
+      disabled={props.disabled}
+      aria-pressed={props["aria-pressed"]}
+      aria-expanded={props["aria-expanded"]}
+      aria-selected={props["aria-selected"]}
+      class={className()}
+    />
+  );
 }

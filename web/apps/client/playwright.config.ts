@@ -12,6 +12,7 @@ const webPort = Number(process.env.PW_WEB_PORT || "4173");
 const dbPath = path.resolve(repoRoot, "tmp", "playwright-e2e.db");
 const dbDir = path.dirname(dbPath);
 const outputDir = process.env.PW_OUTPUT_DIR || "test-results";
+const realAuth = process.env.PW_REAL_AUTH === "true";
 
 function parseScreenshotMode(value: string | undefined): "off" | "on" | "only-on-failure" {
   if (value === "off" || value === "on" || value === "only-on-failure") return value;
@@ -53,14 +54,14 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `sh -c "mkdir -p '${dbDir}' && rm -f '${dbPath}' && DONEGEON_HTTP_PORT=${apiPort} DONEGEON_DB_PATH='${dbPath}' DONEGEON_REQUIRE_AUTH=false DONEGEON_AUTH_DEBUG_CODE=true DONEGEON_OPEN_BETA=true go run ."`,
+      command: `sh -c "mkdir -p '${dbDir}' && rm -f '${dbPath}' && DONEGEON_HTTP_PORT=${apiPort} DONEGEON_DB_PATH='${dbPath}' DONEGEON_REQUIRE_AUTH=${realAuth ? "true" : "false"} DONEGEON_AUTH_DEBUG_CODE=true DONEGEON_OPEN_BETA=true go run ."`,
       cwd: repoRoot,
       port: apiPort,
       timeout: 120_000,
       reuseExistingServer: false,
     },
     {
-      command: `sh -c "DONEGEON_API_URL='http://127.0.0.1:${apiPort}' VITE_E2E_BYPASS_AUTH=true npm run dev -- --host 127.0.0.1 --port ${webPort}"`,
+      command: `sh -c "DONEGEON_API_URL='http://127.0.0.1:${apiPort}' VITE_E2E_BYPASS_AUTH=${realAuth ? "false" : "true"} npm run dev -- --host 127.0.0.1 --port ${webPort}"`,
       cwd: __dirname,
       port: webPort,
       timeout: 120_000,

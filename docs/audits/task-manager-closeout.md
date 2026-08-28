@@ -24,7 +24,7 @@ The following behaviors are supported by the maintained product model and have s
 | Mobile add/search/detail/complete core flow | `VERIFIED` | M6 Chromium responsive acceptance |
 | Browser mutation hydration | `VERIFIED` | M6 specifically proves successful mutations become visible and survive reload |
 
-The authoritative browser acceptance is `web/apps/client/tests/e2e/task-manager-audit.spec.ts`. CI runs it as the `Browser acceptance` job against a real Go process, temporary SQLite database, Vite client, and Chromium.
+The authoritative task-manager browser acceptance is `web/apps/client/tests/e2e/task-manager-audit.spec.ts`. It intentionally isolates task-manager semantics from account setup. It is paired in protected CI with `web/apps/client/tests/e2e/application-entry.spec.ts`, which runs with real backend authentication enabled and without the frontend auth bypass. The application-entry contract proves login, development OTP verification, onboarding, authenticated Inbox entry/reload, local beta-toggle readability, and waitlist submission. A green task-manager acceptance job by itself is therefore not treated as proof that a fresh user can enter the application.
 
 ## Intentionally not advertised as supported
 
@@ -58,10 +58,11 @@ The old implementations and YAML fixtures may remain temporarily as historical c
 
 1. Canonical Go domain/repository tests prove durable semantics.
 2. HTTP semantic tests prove request/authorization/response/persistence contracts.
-3. The M6 browser gate proves the supported user journey across client + HTTP + SQLite.
-4. Compatibility YAML cases are secondary regression evidence only; a passing `2xx` does not promote a capability to `VERIFIED`.
-5. `docs/test-catalog.md` inventories executable tests. It does **not** override the support statuses in this closeout or the feature matrix.
+3. The protected application-entry browser gate proves a fresh user can traverse the real auth/onboarding boundary into the product and that beta/waitlist entry controls are usable.
+4. The M6 task-manager browser gate proves the supported post-entry task journey across client + HTTP + SQLite.
+5. Compatibility YAML cases are secondary regression evidence only; a passing `2xx` does not promote a capability to `VERIFIED`.
+6. `docs/test-catalog.md` inventories executable tests. It does **not** override the support statuses in this closeout or the feature matrix.
 
 ## Closeout rule for future changes
 
-A task-manager change is release-ready only when the strongest relevant layer remains green. New user-visible lifecycle/scheduling behavior should extend the M6 browser audit or add an equally authoritative acceptance spec; new backend-only behavior needs semantic durable-state assertions. Compatibility case count must never be used as a proxy for feature completeness.
+A task-manager change is release-ready only when the strongest relevant layer remains green. New user-visible lifecycle/scheduling behavior should extend the M6 task-manager browser audit or add an equally authoritative acceptance spec. Changes to login, beta/waitlist, onboarding, protected routing, or other application-entry behavior must extend the real-auth application-entry acceptance. New backend-only behavior needs semantic durable-state assertions. Compatibility case count must never be used as a proxy for feature completeness.
