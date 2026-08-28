@@ -1,6 +1,6 @@
 # M8 — Release gate human verification
 
-Goal: verify that a regression in the audited task-manager journey actually blocks merge and that the required CI chain remains deterministic.
+Goal: verify that regressions in both application entry and the audited task-manager journey actually block merge and that the required CI chain remains deterministic.
 
 ## Session
 
@@ -17,16 +17,28 @@ Goal: verify that a regression in the audited task-manager journey actually bloc
 | Full-history secret scan | Must pass | `NOT_REVIEWED` | |
 | Go checks | Vet + tests + govulncheck must pass | `NOT_REVIEWED` | |
 | Infra typecheck | SST/typecheck/audit must pass | `NOT_REVIEWED` | |
-| Browser acceptance | Real Chromium task-manager journey must pass | `NOT_REVIEWED` | |
-| Web typecheck, test, and build | Must not start/succeed before browser acceptance succeeds | `NOT_REVIEWED` | protected context depends on browser |
+| Application entry acceptance | Real-auth Chromium login/waitlist/onboarding entry must pass | `NOT_REVIEWED` | no frontend auth bypass |
+| Browser acceptance | Real Chromium task-manager journey must pass | `NOT_REVIEWED` | task-focused auth bypass is allowed here only |
+| Web typecheck, test, and build | Must not start/succeed before both browser gates succeed | `NOT_REVIEWED` | protected context depends on entry + browser |
 
 ## Structural verification
 
-- [ ] `.github/workflows/ci.yml` keeps `Browser acceptance` as a distinct visible job.
-- [ ] `Web typecheck, test, and build` declares `needs: browser`.
-- [ ] GitHub visibly waits for browser acceptance before starting the protected web job.
-- [ ] A browser failure therefore prevents the protected web context from succeeding.
+- [ ] `.github/workflows/ci.yml` keeps `Application entry acceptance` as a distinct visible job.
+- [ ] The application-entry job runs with `PW_REAL_AUTH=true`, causing backend auth to remain required and `VITE_E2E_BYPASS_AUTH=false`.
+- [ ] `.github/workflows/ci.yml` keeps task-manager `Browser acceptance` as a distinct visible job.
+- [ ] `Web typecheck, test, and build` declares `needs: [entry, browser]`.
+- [ ] GitHub visibly waits for both browser jobs before starting the protected web job.
+- [ ] A failure in either browser job therefore prevents the protected web context from succeeding.
 - [ ] Branch protection still requires the established protected contexts on `main`.
+
+## Application-entry verification
+
+- [ ] A fresh protected-route visit redirects to login rather than bypassing auth.
+- [ ] Entering an email changes Continue from disabled to enabled.
+- [ ] The real development OTP flow reaches onboarding.
+- [ ] Onboarding reaches Inbox and the authenticated state survives reload.
+- [ ] The local Open Beta selected state has readable text contrast.
+- [ ] Waitlist submission changes from disabled to enabled after required fields are entered and persists through the real API.
 
 ## Determinism verification
 
@@ -38,7 +50,8 @@ Goal: verify that a regression in the audited task-manager journey actually bloc
 
 - [ ] Backend state changes require durable semantic Go evidence.
 - [ ] HTTP changes require authorization/response/persistence evidence.
-- [ ] User-visible lifecycle/scheduling changes extend authoritative browser acceptance.
+- [ ] User-visible lifecycle/scheduling changes extend authoritative task-manager browser acceptance.
+- [ ] Login/waitlist/onboarding/protected-route changes extend authoritative application-entry acceptance.
 - [ ] Collaboration changes use canonical account/team models, not legacy compatibility SQL.
 - [ ] Retired compatibility behavior is not re-enabled merely to satisfy historical fixtures.
 
