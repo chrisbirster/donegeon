@@ -1,427 +1,155 @@
-import Button from "../Button";
 import { css } from "@linaria/core";
 import { For, Show } from "solid-js";
-import AppShell from "../AppShell";
-import SidebarAccountCard from "../SidebarAccountCard";
-import TaskQuickAddComposer from "./TaskQuickAddComposer";
-import TaskViewHeader from "./TaskViewHeader";
-import HomeMobileSidebar from "./HomeMobileSidebar";
 
 import {
-  TokenKind,
-  TokenPiece,
-  TaskActivationCoinRequirement,
-  TaskActivationModifierRequirement,
-  TaskActivationPreview,
-  QUICK_ADD_TOKEN_PATTERN,
-  RECURRENCE_TOKEN_PATTERN,
-  classifyToken,
-  tokenizeQuickAdd,
-  tokenClass,
-  sidebarCardClass,
-  sidebarItemBaseClass,
-  sidebarItemActiveClass,
-  sidebarItemIdleClass,
-  searchButtonClass,
-  panelActionButtonClass,
-  smallActionButtonClass,
-  listActionButtonClass,
-  successActionButtonClass,
-  dangerActionButtonClass,
-  formFieldClass,
-  iconMutedClass,
-  iconActiveClass,
-  teamBadgeClass,
-  dueBadgeClass,
-  deadlineBadgeClass,
-  warningBadgeClass,
-  boardDraftBadgeClass,
-  boardLiveBadgeClass,
-  tagBadgeClass,
-  emptyStateClass,
-  errorBannerClass,
-  warningBannerClass,
-  successBannerClass,
-  taskRowBaseClass,
-  taskRowDropClass,
-  taskRowNextActionClass,
-  taskRowDefaultClass,
-  completedTaskRowClass,
-  dateTimeFormatter,
-  formatScheduleDateTime,
-  scheduleTokenFromInput,
-  scheduleBadgeLabel,
-  parseScheduleInstant,
-  scheduleValidationWarning,
-  formatLabelsInput,
-  parseLabelsInput,
-  toDatetimeLocalValue,
-  fromDatetimeLocalValue,
-  slugifyProjectID,
-  addChip,
-  sortTasks,
-  sortCompletedTasks,
-  prettifyLabel,
-  normalizeLabelToken,
-  isBoardLiveLabel,
-  isBoardLiveTask,
-  projectSlug,
-  isBoardProject,
-  isTeamBoardProject,
-  boardIDForProject,
-  projectQuickAddAlias,
-  hasExplicitProjectToken,
   projectAliasFromProjectID,
+  projectQuickAddAlias,
+  scheduleBadgeLabel,
   visibleTaskLabels,
-  formatModifierRequirementName,
-  toNumber,
-  toString,
 } from "../../features/tasks/home-model";
-import {
-  parseTaskActivationPreview,
-  isNextActionLabel,
-  isNextActionTask,
-  TaskView,
-  ViewState,
-  parseTaskView,
-  startOfLocalDay,
-  shiftDays,
-  parseTaskDateValue,
-  taskDueDate,
-  DEFAULT_SIDEBAR_PROJECTS,
-} from "../../features/tasks/home-rules";import { useHome } from "../../page/HomeContext";
+import { useHome } from "../../page/HomeContext";
+import Button from "../Button";
 
 export default function HomeSearchModal() {
   const {
-    api,
-    toast,
-    location,
-    navigate,
-    tasks,
-    setTasks,
-    projects,
-    setProjects,
-    content,
-    setContent,
-    parsedInput,
-    setParsedInput,
-    error,
-    setError,
     isSearchOpen,
-    setIsSearchOpen,
     searchText,
     setSearchText,
-    dragTaskId,
-    setDragTaskId,
-    dropTargetId,
-    setDropTargetId,
-    editingTaskId,
-    setEditingTaskId,
-    editingContent,
-    setEditingContent,
-    detailTaskId,
-    setDetailTaskId,
-    isDetailOpen,
-    setIsDetailOpen,
-    detailContent,
-    setDetailContent,
-    detailDescription,
-    setDetailDescription,
-    detailPriority,
-    setDetailPriority,
-    detailDueText,
-    setDetailDueText,
-    detailDeadline,
-    setDetailDeadline,
-    detailProjectId,
-    setDetailProjectId,
-    detailTags,
-    setDetailTags,
-    detailScheduleOriginal,
-    setDetailScheduleOriginal,
-    detailRecurrence,
-    setDetailRecurrence,
-    detailRecurrenceCanonical,
-    setDetailRecurrenceCanonical,
-    detailRecurrenceError,
-    setDetailRecurrenceError,
-    detailActivationPreview,
-    setDetailActivationPreview,
-    detailActivationLoading,
-    setDetailActivationLoading,
-    detailActivationError,
-    setDetailActivationError,
-    detailActivating,
-    setDetailActivating,
-    rowActivatingTaskID,
-    setRowActivatingTaskID,
-    detailNewProjectName,
-    setDetailNewProjectName,
-    detailProjectAssigning,
-    setDetailProjectAssigning,
-    tasksQuery,
-    projectsQuery,
-    mainInputRef,
-    setMainInputRef,
-    parseTimer,
-    parseController,
-    parseRequestSeq,
-    searchInputRef,
     setSearchInputRef,
-    globalKeyHandler,
-    lastParsedText,
-    inputTokens,
-    currentView,
-    mergedProjects,
-    projectMap,
-    openTasks,
-    completedTasks,
-    openTaskCountByProjectID,
-    isInboxTask,
-    inboxCount,
-    todayCount,
-    upcomingCount,
-    favoriteProjects,
-    sidebarProjects,
-    selectedProject,
-    viewTitle,
-    filterTasksForCurrentView,
-    visibleTasks,
-    visibleCompletedTasks,
-    detailTask,
-    detailTaskIsBoardProject,
-    detailDueInputToken,
-    detailDeadlineInputToken,
-    detailDueStoredValue,
-    detailDeadlineStoredValue,
-    detailScheduleWarning,
-    parsedChips,
-    parsedGuidance,
     searchResults,
-    projectNameByID,
-    sidebarProjectCount,
-    refreshData,
-    persistOrder,
-    reorderTasks,
-    focusComposer,
-    navigateToView,
-    navigateToProject,
-    openSearchModal,
+    projectMap,
     closeSearchModal,
-    toggleProjectFavorite,
-    isViewActive,
-    isProjectActive,
-    parseMainInput,
-    onMainInput,
-    parseTaskTitleInput,
-    hasParsedSchedule,
-    addTask,
-    completeTask,
-    reopenTask,
-    removeTask,
-    beginInlineEdit,
-    cancelInlineEdit,
-    saveInlineEdit,
-    loadDetailActivationPreview,
-    makeDetailTaskLive,
-    makeRowTaskLive,
     openDetailModal,
-    closeDetailModal,
-    projectByRef,
-    nextProjectID,
-    resolveProjectIDForDetail,
-    createAndAssignDetailProject,
-    saveDetailModal,
-    parseDetailRecurrence,
-    onDragStart,
-    onDragOver,
-    onDrop,
-    onDragEnd,
   } = useHome();
+
+  const projectToken = (projectID?: string) => {
+    if (!projectID) return null;
+    const project = projectMap().get(projectID);
+    return project ? projectQuickAddAlias(project) : projectAliasFromProjectID(projectID);
+  };
+
   return (
-        <Show when={isSearchOpen()}>
-        <div
-          class={style1}
-          onClick={closeSearchModal}
-        >
-          <div
-            class={style2}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div class={style3}>
-              <input
-                ref={setSearchInputRef}
-                value={searchText()}
-                onInput={(event) => setSearchText(event.currentTarget.value)}
-                placeholder="Search tasks, descriptions, projects..."
-                aria-label="Search tasks"
-                data-testid="search-input"
-                class={formFieldClass}
-              />
-            </div>
-            <div class={style4}>
+    <Show when={isSearchOpen()}>
+      <div class={overlay} onClick={closeSearchModal}>
+        <section class={palette} onClick={(event) => event.stopPropagation()} aria-label="Task search">
+          <div class={searchHeader}>
+            <span class={searchGlyph} aria-hidden="true">⌕</span>
+            <input
+              ref={setSearchInputRef}
+              value={searchText()}
+              onInput={(event) => setSearchText(event.currentTarget.value)}
+              placeholder="Search the dungeon..."
+              aria-label="Search tasks"
+              data-testid="search-input"
+              class={searchInput}
+            />
+            <kbd class={shortcut}>⌘K</kbd>
+          </div>
+          <p class={searchHint}>Search task titles, descriptions, projects, and tags.</p>
+
+          <div class={results}>
+            <Show
+              when={searchText().trim().length > 0}
+              fallback={
+                <div class={emptyState}>
+                  <span class={emptyGlyph}>⌕</span>
+                  <p>Start typing to find an open task.</p>
+                </div>
+              }
+            >
               <Show
-                when={searchText().trim().length > 0}
-                fallback={<p class={style5}>Type to search.</p>}
+                when={searchResults().length > 0}
+                fallback={<p class={emptyState}>No matching open tasks.</p>}
               >
-                <Show
-                  when={searchResults().length > 0}
-                  fallback={<p class={style5}>No matching open tasks.</p>}
-                >
-                  <div class={style6}>
-                    <For each={searchResults()}>
-                      {(item) => (
+                <p class={resultHeading}>{searchResults().length} result(s)</p>
+                <div class={resultList}>
+                  <For each={searchResults()}>
+                    {(item) => {
+                      const token = () => projectToken(item.projectId);
+                      return (
                         <Button
                           type="button"
-                          class={style7}
+                          class={resultButton}
                           onClick={() => {
                             closeSearchModal();
                             openDetailModal(item);
                           }}
                         >
-                          <p class={style8}>{item.content}</p>
-                          <div class={style9}>
-                            <Show when={projectNameByID(item.projectId)}>
-                              {(projectName) => (
-                                <span class={` ${style10} ${tagBadgeClass}`}>
-                                  <span>#{projectName()}</span>
-                                  <Show when={isTeamBoardProject(item.projectId, projectMap())}>
-                                    <span class={teamBadgeClass}>Team</span>
-                                  </Show>
-                                </span>
-                              )}
+                          <span class={resultMain}>
+                            <span class={resultTitle}>{item.content}</span>
+                            <Show when={item.description?.trim()}>
+                              <span class={resultDescription}>{item.description.trim()}</span>
                             </Show>
-                            <Show when={scheduleBadgeLabel(item, "due")}>
-                              {(label) => <span class={dueBadgeClass}>{label()}</span>}
-                            </Show>
-                            <Show when={scheduleBadgeLabel(item, "deadline")}>
-                              {(label) => <span class={deadlineBadgeClass}>{label()}</span>}
-                            </Show>
-                            <Show when={scheduleValidationWarning(item)}>
-                              {(warning) => <span class={warningBadgeClass}>{warning()}</span>}
-                            </Show>
-                            <For each={visibleTaskLabels(item.labels)}>
-                              {(label) => <span class={tagBadgeClass}>@{label}</span>}
-                            </For>
-                          </div>
+                            <span class={metadata}>
+                              <Show when={token()}>{(value) => <span class={projectBadge}>#{value()}</span>}</Show>
+                              <Show when={scheduleBadgeLabel(item, "due")}>
+                                {(label) => <span class={metadataBadge}>{label()}</span>}
+                              </Show>
+                              <Show when={scheduleBadgeLabel(item, "deadline")}>
+                                {(label) => <span class={metadataBadge}>{label()}</span>}
+                              </Show>
+                              <For each={visibleTaskLabels(item.labels)}>
+                                {(label) => <span class={metadataBadge}>@{label}</span>}
+                              </For>
+                            </span>
+                          </span>
+                          <span class={openHint}>Details ↗</span>
                         </Button>
-                      )}
-                    </For>
-                  </div>
-                </Show>
+                      );
+                    }}
+                  </For>
+                </div>
               </Show>
-            </div>
+            </Show>
           </div>
-        </div>
-        </Show>
+        </section>
+      </div>
+    </Show>
   );
 }
 
-
-const style1 = css`
-position: fixed;
-inset: calc(var(--spacing) * 0);
-z-index: 40;
-display: flex;
-align-items: flex-start;
-justify-content: center;
-background-color: color-mix(in srgb, #000 55%, transparent);
-  @supports (color: color-mix(in lab, red, red)) {
-    background-color: color-mix(in oklab, var(--color-black) 55%, transparent);
-  }
-padding: calc(var(--spacing) * 4);
-padding-top: calc(var(--spacing) * 20);
---tw-backdrop-blur: blur(var(--blur-sm));
-  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
-  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+const overlay = css`
+  position:fixed; inset:0; z-index:60; display:flex; align-items:flex-start; justify-content:center;
+  padding:clamp(1rem,6vh,4.5rem) 1rem 1rem; background:rgba(0,0,0,.7); backdrop-filter:blur(9px);
 `;
-
-const style2 = css`
-width: 100%;
-max-width: var(--container-2xl);
-border-radius: var(--radius-2xl);
---tw-shadow: 0 25px 70px var(--tw-shadow-color, rgba(0,0,0,0.55));
-  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow-elevated); backdrop-filter: blur(18px);
+const palette = css`
+  width:min(760px,100%); overflow:hidden; border:1px solid rgba(196,69,255,.46); border-radius:1.25rem;
+  background:linear-gradient(180deg, rgba(11,14,25,.985), rgba(8,10,19,.985));
+  box-shadow:0 28px 90px rgba(0,0,0,.7), 0 0 42px rgba(196,69,255,.12);
 `;
-
-const style3 = css`
-border-bottom-style: var(--tw-border-style);
-  border-bottom-width: 1px;
-border-color: var(--border-strong);
-padding-inline: calc(var(--spacing) * 4);
-padding-block: calc(var(--spacing) * 3);
+const searchHeader = css`
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.8rem;
+  padding:1rem 1.1rem .65rem;
 `;
-
-const style4 = css`
-max-height: 420px;
-overflow-y: auto;
-padding-inline: calc(var(--spacing) * 3);
-padding-block: calc(var(--spacing) * 3);
+const searchGlyph = css`font-size:1.35rem; color:#e59cff; text-shadow:0 0 14px rgba(196,69,255,.5);`;
+const searchInput = css`
+  width:100%; border:0; outline:0; background:transparent; color:var(--text-main);
+  font:500 1.12rem/1.4 "Space Grotesk","IBM Plex Sans",sans-serif;
+  &::placeholder { color:var(--text-dim); }
 `;
-
-const style5 = css`
-padding-inline: calc(var(--spacing) * 2);
-padding-block: calc(var(--spacing) * 2);
-font-size: var(--text-sm);
-  line-height: var(--tw-leading, var(--text-sm--line-height));
-color: var(--text-dim);
+const shortcut = css`
+  border:1px solid var(--border-strong); border-bottom-color:rgba(196,69,255,.4); border-radius:.45rem;
+  padding:.22rem .42rem; background:rgba(255,255,255,.035); color:var(--text-dim); font-size:.68rem;
 `;
-
-const style6 = css`
-:where(& > :not(:last-child)) {
-    --tw-space-y-reverse: 0;
-    margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
-    margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
-  }
+const searchHint = css`padding:0 1.1rem 1rem 3.25rem; border-bottom:1px solid var(--border-strong); color:var(--text-dim); font-size:.78rem;`;
+const results = css`max-height:min(62vh,540px); overflow-y:auto; padding:.75rem;`;
+const emptyState = css`
+  display:flex; align-items:center; justify-content:center; gap:.6rem; min-height:7rem; padding:1rem;
+  color:var(--text-dim); font-size:.9rem; text-align:center;
 `;
-
-const style7 = css`
-width: 100%;
-border-radius: var(--radius-lg);
-border-style: var(--tw-border-style);
-  border-width: 1px;
-border-color: transparent;
-padding-inline: calc(var(--spacing) * 3);
-padding-block: calc(var(--spacing) * 2);
-text-align: left;
-transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
-  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
-  transition-duration: var(--tw-duration, var(--default-transition-duration));
-&:hover {
-    @media (hover: hover) {
-      border-color: rgba(119,155,187,0.24);
-    }
-  }
-&:hover {
-    @media (hover: hover) {
-      background-color: rgba(255,255,255,0.04);
-    }
-  }
+const emptyGlyph = css`font-size:1.2rem; color:rgba(229,156,255,.72);`;
+const resultHeading = css`padding:.2rem .45rem .55rem; color:var(--text-dim); font-size:.68rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;`;
+const resultList = css`display:flex; flex-direction:column; gap:.4rem;`;
+const resultButton = css`
+  display:flex; align-items:center; justify-content:space-between; gap:1rem; width:100%;
+  border:1px solid transparent; border-radius:.85rem; padding:.8rem .9rem;
+  background:rgba(255,255,255,.018); color:var(--text-main); text-align:left;
+  &:hover, &:focus-visible { border-color:rgba(196,69,255,.34); background:rgba(196,69,255,.075); outline:none; }
 `;
-
-const style8 = css`
-overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-font-size: var(--text-sm);
-  line-height: var(--tw-leading, var(--text-sm--line-height));
-color: var(--text-main);
-`;
-
-const style9 = css`
-margin-top: calc(var(--spacing) * 1);
-display: flex;
-flex-wrap: wrap;
-align-items: center;
-gap: calc(var(--spacing) * 2);
-font-size: var(--text-xs);
-  line-height: var(--tw-leading, var(--text-xs--line-height));
-color: var(--text-dim);
-`;
-
-const style10 = css`
-display: inline-flex;
-align-items: center;
-gap: calc(var(--spacing) * 1);
-`;
+const resultMain = css`display:flex; min-width:0; flex:1; flex-direction:column; gap:.2rem;`;
+const resultTitle = css`overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.98rem; font-weight:650;`;
+const resultDescription = css`overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-soft); font-size:.8rem;`;
+const metadata = css`display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.18rem;`;
+const metadataBadge = css`border-radius:.42rem; padding:.12rem .38rem; background:rgba(103,187,255,.08); color:var(--text-dim); font-size:.68rem;`;
+const projectBadge = css`border-radius:.42rem; padding:.12rem .38rem; background:rgba(196,69,255,.11); color:#e9c7ff; font-size:.68rem;`;
+const openHint = css`flex:0 0 auto; color:var(--text-dim); font-size:.72rem;`;

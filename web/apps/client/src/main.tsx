@@ -1,6 +1,7 @@
 import { render } from "@solidjs/web";
 
 import "./index.css";
+import "./audit-polish.css";
 import { AppRouter } from "./app";
 import AppProviders from "./context/AppProviders";
 import { initializeTheme } from "./lib/theme";

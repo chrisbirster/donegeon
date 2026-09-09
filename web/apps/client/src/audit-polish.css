@@ -1,0 +1,121 @@
+/* Human-audit remediation for task detail controls and team-workspace identity. */
+
+[data-testid="task-detail-modal"] {
+  color-scheme: dark;
+}
+
+[data-testid="task-detail-modal"] input,
+[data-testid="task-detail-modal"] select,
+[data-testid="task-detail-modal"] textarea {
+  color-scheme: dark;
+}
+
+[data-testid="task-detail-project"],
+[data-testid="task-detail-tags"],
+[data-testid="task-detail-priority"],
+[data-testid="task-detail-schedule-original"],
+[data-testid="task-detail-recurrence"],
+[data-testid="task-detail-new-project"],
+[data-testid="task-detail-due"],
+[data-testid="task-detail-deadline"] {
+  width: 100%;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: .65rem !important;
+  background: rgba(255, 255, 255, .035) !important;
+  color: var(--text-main) !important;
+  padding: .58rem .72rem !important;
+  font-size: .9rem !important;
+  outline: none !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.018);
+}
+
+[data-testid="task-detail-project"]:focus,
+[data-testid="task-detail-tags"]:focus,
+[data-testid="task-detail-priority"]:focus,
+[data-testid="task-detail-recurrence"]:focus,
+[data-testid="task-detail-new-project"]:focus,
+[data-testid="task-detail-due"]:focus,
+[data-testid="task-detail-deadline"]:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(196, 69, 255, .12);
+}
+
+[data-testid="task-detail-modal"] select option {
+  background: #10151f;
+  color: #f2edf7;
+}
+
+[data-testid="task-detail-schedule-original"][readonly] {
+  color: var(--text-soft) !important;
+  background: rgba(255,255,255,.02) !important;
+}
+
+/* Clarify the two scheduling concepts without adding more field chrome. */
+[data-testid="task-detail-modal"] label:has(+ div [data-testid="task-detail-due"])::after {
+  content: " · Scheduled for";
+  color: var(--text-soft);
+  font-size: .72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+[data-testid="task-detail-modal"] label:has(+ div [data-testid="task-detail-deadline"])::after {
+  content: " · Must be finished by";
+  color: var(--text-soft);
+  font-size: .72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The Team workspace should feel like part of Donegeon, not a generic billing portal. */
+body:has(#team-profile) {
+  --border-strong: rgba(196, 69, 255, .34);
+  --border-soft: rgba(159, 87, 194, .22);
+  --panel-soft: rgba(20, 18, 31, .76);
+}
+
+body:has(#team-profile) main {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255,32,114,.085), transparent 31rem),
+    radial-gradient(circle at 83% 26%, rgba(196,69,255,.08), transparent 34rem);
+}
+
+body:has(#team-profile) header:has(a[href="#team-profile"]) {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(218, 67, 255, .43) !important;
+  background:
+    linear-gradient(135deg, rgba(62, 21, 79, .72), rgba(9, 12, 22, .94) 48%, rgba(53, 10, 39, .5)) !important;
+  box-shadow: 0 18px 54px rgba(0,0,0,.46), 0 0 38px rgba(196,69,255,.1) !important;
+}
+
+body:has(#team-profile) header:has(a[href="#team-profile"])::before {
+  content: "◆ TEAM BOARD";
+  position: absolute;
+  top: 1rem;
+  right: 1.2rem;
+  border: 1px solid rgba(218,67,255,.36);
+  border-radius: 999px;
+  padding: .25rem .55rem;
+  background: rgba(196,69,255,.1);
+  color: #efc4ff;
+  font: 700 .62rem/1 "IBM Plex Sans", sans-serif;
+  letter-spacing: .12em;
+}
+
+body:has(#team-profile) #plan,
+body:has(#team-profile) #team-profile,
+body:has(#team-profile) #team-members {
+  border-color: rgba(196,69,255,.28) !important;
+  background:
+    linear-gradient(180deg, rgba(17, 16, 28, .96), rgba(8, 11, 19, .96)) !important;
+  box-shadow: 0 16px 42px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.018) !important;
+}
+
+body:has(#team-profile) #plan h2,
+body:has(#team-profile) #team-profile h2,
+body:has(#team-profile) #team-members h2 {
+  color: #eac8f5;
+}
