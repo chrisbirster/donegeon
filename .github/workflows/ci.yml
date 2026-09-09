@@ -96,7 +96,7 @@ jobs:
         run: npm run test:e2e -- tests/e2e/application-entry.spec.ts
 
   browser:
-    name: Browser acceptance
+    name: Human-audit certified browser set
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -119,13 +119,17 @@ jobs:
         working-directory: web
         run: npm ci --no-audit --no-fund
 
+      - name: Verify human-audit checklist contract
+        working-directory: web/apps/client
+        run: npm run test:audit:contract
+
       - name: Install Chromium
         working-directory: web/apps/client
         run: npx --no-install playwright install --with-deps chromium
 
-      - name: Run task-manager acceptance
+      - name: Run only manually certified milestone specs
         working-directory: web/apps/client
-        run: npm run test:e2e -- tests/e2e/task-manager-audit.spec.ts
+        run: npm run test:audit:certified
 
   web:
     name: Web typecheck, test, and build
