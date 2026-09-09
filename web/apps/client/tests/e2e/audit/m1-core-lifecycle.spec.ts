@@ -15,6 +15,12 @@ async function openTaskTitles(page: Page) {
   return page.getByTestId("task-row").getByTestId("task-content").allTextContents();
 }
 
+async function addQuickTaskAndWait(page: Page, value: string, expectedCount: number) {
+  await addQuickTask(page, value);
+  await expect(page.getByTestId("task-row")).toHaveCount(expectedCount);
+  await expect(taskRowByContent(page, value)).toBeVisible();
+}
+
 test.describe("M1 — core lifecycle mirrors the human verification sheet", () => {
   test.beforeEach(async ({ page, request }) => {
     await resetTasks(request);
@@ -72,10 +78,11 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
     await addQuickTask(page, "m1 cancel original");
     const row = taskRowByContent(page, "m1 cancel original");
     await row.hover();
-    await row.getByTestId("edit-task-inline").click();
-    const input = row.locator("input").first();
+    await row.getByTestId("edit-task-inline").click({ force: true });
+    const input = page.locator('[data-testid="task-row"] input').first();
+    await expect(input).toBeVisible();
     await input.fill("m1 cancel should not save");
-    await input.press("Escape");
+    await page.getByRole("button", { name: "Cancel" }).first().click();
     await expect(taskRowByContent(page, "m1 cancel original")).toBeVisible();
     await page.reload();
     await expect(taskRowByContent(page, "m1 cancel original")).toBeVisible();
@@ -133,27 +140,30 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
   });
 
   test("[M1] Reorder tasks", async ({ page }) => {
-    await addQuickTask(page, "m1 order one");
-    await page.waitForTimeout(5);
-    await addQuickTask(page, "m1 order two");
-    await page.waitForTimeout(5);
-    await addQuickTask(page, "m1 order three");
+    await addQuickTaskAndWait(page, "m1 order one", 1);
+    await addQuickTaskAndWait(page, "m1 order two", 2);
+    await addQuickTaskAndWait(page, "m1 order three", 3);
     await expect.poll(() => openTaskTitles(page)).toEqual(["m1 order three", "m1 order two", "m1 order one"]);
 
-    const rows = page.getByTestId("task-row");
-    await rows.nth(2).getByRole("button", { name: "Drag to reorder" }).dragTo(rows.nth(0));
+    const source = taskRowByContent(page, "m1 order one");
+    const target = taskRowByContent(page, "m1 order three");
+    await source.getByRole("button", { name: "Drag to reorder" }).dragTo(target);
     await expect.poll(() => openTaskTitles(page)).toEqual(["m1 order one", "m1 order three", "m1 order two"]);
   });
 
   test("[M1] Reload after reorder", async ({ page }) => {
-    await addQuickTask(page, "m1 reload order one");
-    await page.waitForTimeout(5);
-    await addQuickTask(page, "m1 reload order two");
-    await page.waitForTimeout(5);
-    await addQuickTask(page, "m1 reload order three");
+    await addQuickTaskAndWait(page, "m1 reload order one", 1);
+    await addQuickTaskAndWait(page, "m1 reload order two", 2);
+    await addQuickTaskAndWait(page, "m1 reload order three", 3);
+    await expect.poll(() => openTaskTitles(page)).toEqual([
+      "m1 reload order three",
+      "m1 reload order two",
+      "m1 reload order one",
+    ]);
 
-    const rows = page.getByTestId("task-row");
-    await rows.nth(2).getByRole("button", { name: "Drag to reorder" }).dragTo(rows.nth(0));
+    const source = taskRowByContent(page, "m1 reload order one");
+    const target = taskRowByContent(page, "m1 reload order three");
+    await source.getByRole("button", { name: "Drag to reorder" }).dragTo(target);
     const expected = ["m1 reload order one", "m1 reload order three", "m1 reload order two"];
     await expect.poll(() => openTaskTitles(page)).toEqual(expected);
     await page.reload();
