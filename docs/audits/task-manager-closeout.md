@@ -1,30 +1,49 @@
 # Task manager semantic audit closeout
 
-Status: **M7 complete when this branch is green and merged**
+Status: **semantic evidence established; human/browser milestone certification in progress**
 
-This document is the release-facing conclusion of the task-manager audit started in `docs/task-manager-audit-plan.md` and detailed in `docs/audits/task-manager-feature-matrix.md`.
+This document is the release-facing conclusion of the semantic task-manager audit started in `docs/task-manager-audit-plan.md` and detailed in `docs/audits/task-manager-feature-matrix.md`.
 
-The rule for this closeout is simple: **implemented code is not the same thing as supported product behavior**. A capability is listed as verified only when an executable test proves meaningful state/result semantics. The large compatibility YAML suite remains useful regression evidence, but its case count is not a product-support statement.
+The rule for this closeout is simple: **implemented code is not the same thing as supported product behavior**. A backend capability can have strong semantic evidence while its user-facing workflow is still incomplete or undiscoverable. Human/browser certification is therefore tracked separately by `docs/audits/human-verification/` and `web/apps/client/tests/e2e/audit/audit-contract.json`.
 
-## Release-gated task-manager contract
+The large compatibility YAML suite remains useful regression evidence, but its case count is not a product-support statement.
 
-The following behaviors are supported by the maintained product model and have semantic evidence:
+## Semantic task-manager contract
 
-| Area | Status | Release evidence |
+The following maintained behaviors have meaningful executable evidence at the indicated layer:
+
+| Area | Semantic status | Evidence |
 | --- | --- | --- |
 | Canonical task create/get/list/update/delete | `VERIFIED` | Go service/repository contracts plus HTTP lifecycle tests |
 | Complete/reopen non-recurring tasks | `VERIFIED` | Durable lifecycle and HTTP state assertions |
-| Quick Add create and parsed metadata | `VERIFIED` | parser/service tests plus M6 browser POST → persistence → UI checks |
-| Content, description, priority, labels | `VERIFIED` | backend round trips plus M6 detail assertions |
-| Project/section placement and tenant isolation | `VERIFIED` | organization semantic tests and cross-workspace rejection |
+| Quick Add parsing/create semantics | `VERIFIED` for documented semantic cases | parser/service contracts; browser certification is tracked by M4/M6 |
+| Content, description, priority, labels | `VERIFIED` at durable/API layer | backend round trips; browser presentation is milestone evidence |
+| Project/section placement and tenant isolation | `VERIFIED` at durable/API layer | organization semantic tests and cross-workspace rejection; this does not imply project/section management is exposed well in the UI |
 | Due/deadline normalization and clearing | `VERIFIED` | scheduling contracts including local time/DST plus HTTP tests |
 | Recurrence execution | `VERIFIED` | transactional close/spawn, finite recurrence, DST/month-end and rollback tests |
-| Inbox/Today/Upcoming scheduling rules | `VERIFIED` for maintained rules | client rule tests; M6 proves persisted browser hydration/search workflow |
-| Search/detail after reload | `VERIFIED` | M6 Chromium acceptance against real Go server and SQLite |
-| Mobile add/search/detail/complete core flow | `VERIFIED` | M6 Chromium responsive acceptance |
-| Browser mutation hydration | `VERIFIED` | M6 specifically proves successful mutations become visible and survive reload |
+| Inbox/Today/Upcoming scheduling rules | `VERIFIED` for maintained client rules | deterministic client rules; browser certification is tracked separately |
 
-The authoritative task-manager browser acceptance is `web/apps/client/tests/e2e/task-manager-audit.spec.ts`. It intentionally isolates task-manager semantics from account setup. It is paired in protected CI with `web/apps/client/tests/e2e/application-entry.spec.ts`, which runs with real backend authentication enabled and without the frontend auth bypass. The application-entry contract proves login, development OTP verification, onboarding, authenticated Inbox entry/reload, local beta-toggle readability, and waitlist submission. A green task-manager acceptance job by itself is therefore not treated as proof that a fresh user can enter the application.
+## Browser certification is milestone-based
+
+There is no longer one file whose green status is allowed to stand in for the whole task manager.
+
+The authoritative browser model is:
+
+```text
+web/apps/client/tests/e2e/audit/audit-contract.json
+web/apps/client/tests/e2e/audit/m1-core-lifecycle.spec.ts
+web/apps/client/tests/e2e/audit/m2-organization.spec.ts
+web/apps/client/tests/e2e/audit/m3-scheduling.spec.ts
+web/apps/client/tests/e2e/audit/m4-quickadd-search.spec.ts
+web/apps/client/tests/e2e/audit/m5-collaboration.spec.ts
+web/apps/client/tests/e2e/audit/m6-browser-acceptance.spec.ts
+```
+
+Every browser-observable human checklist row must map to an exact, non-skipped `[M#] <row>` case. Protected CI runs only the milestones explicitly listed in `certifiedBrowserMilestones`.
+
+A milestone enters that list only after both its automated spec and matching manual human review pass. This means semantic project/section CRUD can remain backend-verified while M2 browser certification is still `NEEDS_WORK`; that is an intentional distinction, not a contradiction.
+
+Application entry remains a separate protected real-auth contract in `web/apps/client/tests/e2e/application-entry.spec.ts`.
 
 ## Intentionally not advertised as supported
 
@@ -41,7 +60,7 @@ The authoritative task-manager browser acceptance is `web/apps/client/tests/e2e/
 
 ## Retired compatibility HTTP actions
 
-`POST /api/taskmanager/action` now rejects the following before dispatching to the compatibility service:
+`POST /api/taskmanager/action` rejects the following retired actions before maintained dispatch:
 
 - `moveProjectToWorkspace`, `moveProjectToPersonal`
 - `getWorkspaceActiveProjects`, `getWorkspaceArchivedProjects`, `getProjectCollaborators`
@@ -52,17 +71,25 @@ The authoritative task-manager browser acceptance is `web/apps/client/tests/e2e/
 - `getWorkspacePlanDetails`
 - `addComment`, `getComment`, `getComments`, `updateComment`, `deleteComment`
 
-The old implementations and YAML fixtures may remain temporarily as historical compatibility evidence. They are not reachable through the maintained HTTP compatibility endpoint and must not be counted as supported collaboration features. Removing the dead implementations/fixtures later is cleanup, not a prerequisite for this support boundary.
+Historical implementations/fixtures may remain as regression evidence. They are not maintained product support.
 
 ## Evidence hierarchy
 
 1. Canonical Go domain/repository tests prove durable semantics.
 2. HTTP semantic tests prove request/authorization/response/persistence contracts.
-3. The protected application-entry browser gate proves a fresh user can traverse the real auth/onboarding boundary into the product and that beta/waitlist entry controls are usable.
-4. The M6 task-manager browser gate proves the supported post-entry task journey across client + HTTP + SQLite.
-5. Compatibility YAML cases are secondary regression evidence only; a passing `2xx` does not promote a capability to `VERIFIED`.
-6. `docs/test-catalog.md` inventories executable tests. It does **not** override the support statuses in this closeout or the feature matrix.
+3. Exact-title milestone Playwright specs prove browser-observable rows from the human checklists.
+4. The protected real-auth application-entry gate proves a fresh user can traverse login/onboarding/waitlist boundaries.
+5. Manual milestone review decides whether technically working behavior is actually acceptable and discoverable.
+6. Compatibility YAML cases are secondary regression evidence only; a passing `2xx` does not promote a capability to product/browser `VERIFIED`.
+7. `docs/test-catalog.md` is inventory, not the support matrix.
 
 ## Closeout rule for future changes
 
-A task-manager change is release-ready only when the strongest relevant layer remains green. New user-visible lifecycle/scheduling behavior should extend the M6 task-manager browser audit or add an equally authoritative acceptance spec. Changes to login, beta/waitlist, onboarding, protected routing, or other application-entry behavior must extend the real-auth application-entry acceptance. New backend-only behavior needs semantic durable-state assertions. Compatibility case count must never be used as a proxy for feature completeness.
+A task-manager change is release-ready only when the strongest relevant evidence layer remains green **and** any affected manually certified milestone remains valid.
+
+- Backend-only state changes require semantic durable-state assertions.
+- HTTP changes require authorization/response/persistence assertions.
+- Browser-observable changes update the matching human checklist and exact-title milestone Playwright case.
+- If a change invalidates a milestone's human contract, remove/rework certification rather than teaching a stale test to accept the new behavior.
+- Login/beta/waitlist/onboarding/protected-routing changes extend the real-auth application-entry suite.
+- Compatibility test count is never a proxy for feature completeness.
