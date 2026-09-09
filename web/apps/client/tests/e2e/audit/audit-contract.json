@@ -27,13 +27,13 @@
       "defaultEvidence": "semantic-or-external",
       "overrides": {
         "Workspace owner/admin role behavior": "playwright",
-        "Read-only role behavior": "playwright",
+        "Read-only role behavior": "semantic",
         "Invitation creation": "playwright",
-        "Invitation acceptance": "playwright",
+        "Invitation acceptance": "semantic",
         "Unauthorized invitation action": "semantic",
         "Cross-workspace access attempt": "semantic",
         "Connect calendar account": "external-manual",
-        "OAuth callback/failure": "playwright-provider-stub",
+        "OAuth callback/failure": "semantic",
         "Task/calendar mapping": "semantic",
         "Update synchronization": "semantic",
         "Tenant isolation": "semantic"
@@ -56,7 +56,7 @@
   "notes": [
     "M0 is intentionally not a browser milestone; its document explicitly defines it as an inventory review.",
     "M7 is a truth-in-support review and M8 is a CI/release-structure review; Playwright is not allowed to masquerade as proof for those rows.",
-    "M5 mixes browser, semantic/API, and live-provider evidence. Live Google OAuth is not treated as deterministic Playwright proof.",
+    "M5 mixes browser, semantic/API, and live-provider evidence. Cross-user authorization and Google OAuth semantics stay deterministic in Go/API integration tests; the user-facing owner/admin and invite-create surfaces are still exercised in Playwright.",
     "The contract test auto-discovers milestone documents. Adding M9/M10 later will fail CI until they are classified here."
   ]
 }
