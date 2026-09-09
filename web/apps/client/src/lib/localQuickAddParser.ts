@@ -15,6 +15,7 @@ const duePatterns = [
   /\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b/i,
   /\b\d+\s+(?:day|days|week|weeks|month|months)\s+from\s+now\b/i,
   /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b/i,
+  /\b(?:due\s+(?:on\s+)?)?tomorrow(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b/i,
   /\btomorrow\b/i,
 ];
 
