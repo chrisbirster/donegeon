@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "description": "Maps human-verification milestones to the evidence layer that must prove each checklist row. Browser-observable rows must have an exact Playwright test title in tests/e2e/audit.",
+  "milestones": {
+    "M0": {
+      "document": "M0-feature-inventory.md",
+      "defaultEvidence": "human-inventory"
+    },
+    "M1": {
+      "document": "M1-core-lifecycle.md",
+      "defaultEvidence": "playwright"
+    },
+    "M2": {
+      "document": "M2-organization.md",
+      "defaultEvidence": "playwright"
+    },
+    "M3": {
+      "document": "M3-scheduling.md",
+      "defaultEvidence": "playwright"
+    },
+    "M4": {
+      "document": "M4-quickadd-search.md",
+      "defaultEvidence": "playwright"
+    },
+    "M5": {
+      "document": "M5-collaboration.md",
+      "defaultEvidence": "semantic-or-external",
+      "overrides": {
+        "Workspace owner/admin role behavior": "playwright",
+        "Read-only role behavior": "semantic",
+        "Invitation creation": "playwright",
+        "Invitation acceptance": "semantic",
+        "Unauthorized invitation action": "semantic",
+        "Cross-workspace access attempt": "semantic",
+        "Connect calendar account": "external-manual",
+        "OAuth callback/failure": "semantic",
+        "Task/calendar mapping": "semantic",
+        "Update synchronization": "semantic",
+        "Tenant isolation": "semantic"
+      }
+    },
+    "M6": {
+      "document": "M6-browser-acceptance.md",
+      "defaultEvidence": "playwright"
+    },
+    "M7": {
+      "document": "M7-support-boundary.md",
+      "defaultEvidence": "human-support-boundary"
+    },
+    "M8": {
+      "document": "M8-release-gate.md",
+      "defaultEvidence": "ci-structural"
+    }
+  },
+  "certifiedBrowserMilestones": ["M1"],
+  "notes": [
+    "M0 is intentionally not a browser milestone; its document explicitly defines it as an inventory review.",
+    "M7 is a truth-in-support review and M8 is a CI/release-structure review; Playwright is not allowed to masquerade as proof for those rows.",
+    "M5 mixes browser, semantic/API, and live-provider evidence. Cross-user authorization and Google OAuth semantics stay deterministic in Go/API integration tests; the user-facing owner/admin and invite-create surfaces are still exercised in Playwright.",
+    "The contract test auto-discovers milestone documents. Adding M9/M10 later will fail CI until they are classified here."
+  ]
+}

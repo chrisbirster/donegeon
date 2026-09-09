@@ -12,14 +12,21 @@ Goal: watch the real user journey in Chromium and decide whether the product beh
 
 ## Recommended command
 
-From `web/`:
+From `web/apps/client`:
 
 ```bash
-npm --workspace @donegeon/client run test:e2e:ui -- \
-  tests/e2e/task-manager-audit.spec.ts
+npm run test:audit:m6 -- --ui
 ```
 
-The Playwright config starts a real Go server, fresh temporary SQLite DB, Vite client, and Chromium.
+For a normal non-UI run:
+
+```bash
+npm run test:audit:m6
+```
+
+The Playwright config starts a real Go server, fresh temporary SQLite DB, Vite client, and Chromium. The M6 spec mirrors the browser-observable rows below using exact test titles such as `[M6] Quick Add task` and `[M6] Open detail`.
+
+A green M6 Playwright run is automated evidence only. The human-only questions at the bottom still require an actual reviewer.
 
 ## Desktop journey
 
