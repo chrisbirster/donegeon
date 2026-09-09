@@ -176,12 +176,10 @@ export default function HomeTaskContent() {
         </Show>
 
         <section id="open-task-section" data-testid="open-task-section" class={sectionBlock}>
-          <Show when={visibleCompletedTasks().length > 0}>
-            <div class={sectionHeader}>
-              <h3 class={sectionTitle}>Open</h3>
-              <span class={sectionCount}>{visibleTasks().length} task(s)</span>
-            </div>
-          </Show>
+          <div class={sectionHeader}>
+            <h3 class={sectionTitle}>Open</h3>
+            <span class={sectionCount}>{visibleTasks().length} task(s)</span>
+          </div>
 
           <Show
             when={visibleTasks().length > 0}
