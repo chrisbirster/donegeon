@@ -15,7 +15,16 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:install": "playwright install chromium",
+    "test:audit:contract": "node --test tests/unit/audit-contract.test.ts",
+    "test:audit:certified": "node tests/e2e/audit/run-certified.mjs",
+    "test:audit": "playwright test tests/e2e/audit",
+    "test:audit:m1": "playwright test tests/e2e/audit/m1-core-lifecycle.spec.ts",
+    "test:audit:m2": "playwright test tests/e2e/audit/m2-organization.spec.ts",
+    "test:audit:m3": "playwright test tests/e2e/audit/m3-scheduling.spec.ts",
+    "test:audit:m4": "playwright test tests/e2e/audit/m4-quickadd-search.spec.ts",
+    "test:audit:m5": "playwright test tests/e2e/audit/m5-collaboration.spec.ts",
+    "test:audit:m6": "playwright test tests/e2e/audit/m6-browser-acceptance.spec.ts"
   },
   "dependencies": {
     "@linaria/core": "^8.2.0",
