@@ -18,8 +18,8 @@ func TestQuickAddTimedTomorrowResolvesExactLocalClock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create timed tomorrow quick add: %v", err)
 	}
-	if parsed.DueText == nil || *parsed.DueText != "tomorrow at 8pm" {
-		t.Fatalf("parsed due text: got %v want %q", parsed.DueText, "tomorrow at 8pm")
+	if got, want := strOrNil(parsed.DueText), any("2026-09-09T20:00:00-04:00"); got != want {
+		t.Fatalf("normalized parsed due: got=%v want=%v", got, want)
 	}
 	if got, want := strOrNil(created.DueText), any("2026-09-09T20:00:00-04:00"); got != want {
 		t.Fatalf("persisted due: got=%v want=%v", got, want)
