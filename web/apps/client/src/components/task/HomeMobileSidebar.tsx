@@ -5,9 +5,11 @@ import { For, Show } from "solid-js";
 import { isTeamBoardProject } from "../../features/tasks/home-model";
 import { useHome } from "../../page/HomeContext";
 
+const openTaskCreate = () => window.dispatchEvent(new CustomEvent("donegeon:open-task-create"));
+const openLabels = () => window.dispatchEvent(new CustomEvent("donegeon:open-labels"));
+
 export default function HomeMobileSidebar() {
   const {
-    focusComposer,
     inboxCount,
     isProjectActive,
     isViewActive,
@@ -26,11 +28,12 @@ export default function HomeMobileSidebar() {
       <section class={card}>
         <div class={headingRow}>
           <h2 class={heading}>Tasks</h2>
-          <Button type="button" class={smallButton} onClick={focusComposer}>Add</Button>
+          <Button type="button" class={smallButton} onClick={openTaskCreate}>Add</Button>
         </div>
         <Button type="button" class={searchButton} onClick={openSearchModal}>
           <span>⌕ Search</span><span class={muted}>⌘K</span>
         </Button>
+        <Button type="button" class={searchButton} onClick={openLabels}>Manage labels</Button>
       </section>
 
       <section class={card}>
@@ -40,11 +43,7 @@ export default function HomeMobileSidebar() {
             const label = view === "upcomming" ? "Upcoming" : view[0].toUpperCase() + view.slice(1);
             const count = view === "inbox" ? inboxCount : view === "today" ? todayCount : upcomingCount;
             return (
-              <Button
-                type="button"
-                class={`${row} ${isViewActive(view) ? activeRow : ""}`}
-                onClick={() => navigateToView(view)}
-              >
+              <Button type="button" class={`${row} ${isViewActive(view) ? activeRow : ""}`} onClick={() => navigateToView(view)}>
                 <span>{label}</span><span class={muted}>{count()}</span>
               </Button>
             );
@@ -59,16 +58,12 @@ export default function HomeMobileSidebar() {
             {(project) => (
               <Button
                 type="button"
-                class={`${row} ${isProjectActive(project.id) ? activeRow : ""} ${
-                  isTeamBoardProject(project.id, projectMap()) ? teamRow : ""
-                }`}
+                class={`${row} ${isProjectActive(project.id) ? activeRow : ""} ${isTeamBoardProject(project.id, projectMap()) ? teamRow : ""}`}
                 onClick={() => navigateToProject(project.id)}
               >
                 <span class={projectIdentity}>
                   <span class={projectName}>{project.name}</span>
-                  <Show when={isTeamBoardProject(project.id, projectMap())}>
-                    <span class={teamChip}>◆ Team Board</span>
-                  </Show>
+                  <Show when={isTeamBoardProject(project.id, projectMap())}><span class={teamChip}>◆ Team Board</span></Show>
                 </span>
                 <span class={muted}>{sidebarProjectCount(project)}</span>
               </Button>
