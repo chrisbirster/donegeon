@@ -133,9 +133,6 @@ jobs:
 
   web:
     name: Web typecheck, test, and build
-    needs:
-      - entry
-      - browser
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
