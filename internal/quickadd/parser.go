@@ -56,6 +56,7 @@ var duePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\bin\s+\d+\s+(?:day|days|week|weeks|month|months)\b`),
 	regexp.MustCompile(`(?i)\b\d+\s+(?:day|days|week|weeks|month|months)\s+from\s+now\b`),
 	regexp.MustCompile(`(?i)\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b`),
+	regexp.MustCompile(`(?i)\b(?:due\s+(?:on\s+)?)?tomorrow(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?\b`),
 	regexp.MustCompile(`(?i)\btomorrow\b`),
 }
 
@@ -65,12 +66,32 @@ func (p *Parser) Parse(text string) Parsed {
 		Description: "",
 	}
 
-	working := strings.TrimSpace(text)
-
-	if idx := strings.Index(working, "//"); idx >= 0 {
-		result.Description = strings.TrimSpace(working[idx+2:])
-		working = strings.TrimSpace(working[:idx])
+	titleRegion, descriptionRegion, hasDescription := splitDescriptionRegions(text)
+	result.Content = parseMetadataRegion(titleRegion, &result)
+	if hasDescription {
+		result.Description = parseMetadataRegion(descriptionRegion, &result)
 	}
+
+	return result
+}
+
+// splitDescriptionRegions preserves the semantic boundary introduced by //
+// without making metadata after that boundary invisible to the parser.
+func splitDescriptionRegions(text string) (title string, description string, hasDescription bool) {
+	working := strings.TrimSpace(text)
+	idx := strings.Index(working, "//")
+	if idx < 0 {
+		return working, "", false
+	}
+	return strings.TrimSpace(working[:idx]), strings.TrimSpace(working[idx+2:]), true
+}
+
+// parseMetadataRegion extracts recognized quick-add metadata from one side of
+// the // boundary and returns the remaining prose. Parsing both regions through
+// this function makes metadata order-independent while keeping title and
+// description prose separate.
+func parseMetadataRegion(value string, result *Parsed) string {
+	working := strings.TrimSpace(value)
 
 	working = deadlinePattern.ReplaceAllStringFunc(working, func(match string) string {
 		if result.Deadline == nil {
@@ -94,6 +115,7 @@ func (p *Parser) Parse(text string) Parsed {
 		case result.Assignee == nil && assigneePattern.MatchString(part):
 			result.Assignee = stringPtr(part[1:])
 		case priorityPattern.MatchString(part):
+			// Preserve existing semantics: the last explicit priority token wins.
 			result.Priority = intPtr(int(part[1] - '0'))
 		default:
 			contentParts = append(contentParts, part)
@@ -102,17 +124,16 @@ func (p *Parser) Parse(text string) Parsed {
 
 	content := normalizeSpaces(strings.Join(contentParts, " "))
 	recurrenceRule, content := extractRecurrenceRule(content)
-	if recurrenceRule != "" {
+	if result.RecurrenceRule == nil && recurrenceRule != "" {
 		result.RecurrenceRule = stringPtr(recurrenceRule)
 	}
 
 	due, content := extractDueText(content)
-	if due != "" {
+	if result.DueText == nil && due != "" {
 		result.DueText = stringPtr(due)
 	}
 
-	result.Content = content
-	return result
+	return content
 }
 
 func isProjectToken(value string) bool {
