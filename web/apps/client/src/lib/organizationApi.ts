@@ -1,4 +1,4 @@
-import type { Task } from "../domain/contracts";
+import type { Project, Task } from "../domain/contracts";
 
 export type OrganizationSection = {
   id: string;
@@ -95,9 +95,9 @@ export const organizationApi = {
       taskManagerAction<{ deleted: boolean }>("deleteLabel", { labelId }),
   },
   projects: {
-    archived: () => taskManagerAction<ActionPage<any>>("getArchivedProjects"),
-    archive: (projectId: string) => taskManagerAction<any>("archiveProject", { projectId }),
-    unarchive: (projectId: string) => taskManagerAction<any>("unarchiveProject", { projectId }),
+    archived: () => taskManagerAction<ActionPage<Project>>("getArchivedProjects"),
+    archive: (projectId: string) => taskManagerAction<Project>("archiveProject", { projectId }),
+    unarchive: (projectId: string) => taskManagerAction<Project>("unarchiveProject", { projectId }),
   },
 };
 
