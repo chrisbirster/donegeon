@@ -1,9 +1,11 @@
 import { css } from "@linaria/core";
 import AppShell from "../components/AppShell";
 import HomeDesktopSidebar from "../components/task/HomeDesktopSidebar";
+import HomeLabelsManager from "../components/task/HomeLabelsManager";
 import HomeMobileSidebar from "../components/task/HomeMobileSidebar";
 import HomeSearchModal from "../components/task/HomeSearchModal";
 import HomeTaskContent from "../components/task/HomeTaskContent";
+import HomeTaskCreateModal from "../components/task/HomeTaskCreateModal";
 import HomeTaskDetailModal from "../components/task/HomeTaskDetailModal";
 
 export default function HomeView() {
@@ -16,11 +18,12 @@ export default function HomeView() {
         </div>
         <HomeSearchModal />
         <HomeTaskDetailModal />
+        <HomeTaskCreateModal />
+        <HomeLabelsManager />
       </div>
     </AppShell>
   );
 }
-
 
 const style1 = css`
 height: 100%;
