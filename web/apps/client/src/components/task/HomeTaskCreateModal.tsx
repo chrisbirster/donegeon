@@ -1,5 +1,5 @@
 import { css } from "@linaria/core";
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal, onSettled } from "solid-js";
 
 import { fromDatetimeLocalValue, parseLabelsInput } from "../../features/tasks/home-model";
 import { createFullTask, organizationApi, type OrganizationSection } from "../../lib/organizationApi";
@@ -102,8 +102,10 @@ export default function HomeTaskCreateModal() {
     }
   }
 
-  onMount(() => window.addEventListener(OPEN_EVENT, show));
-  onCleanup(() => window.removeEventListener(OPEN_EVENT, show));
+  onSettled(() => {
+    window.addEventListener(OPEN_EVENT, show);
+    return () => window.removeEventListener(OPEN_EVENT, show);
+  });
 
   return (
     <Show when={open()}>
