@@ -23,7 +23,6 @@ import {
 
 export default function HomeTaskDetailModal() {
   const {
-    api,
     toast,
     setTasks,
     setError,
@@ -138,10 +137,11 @@ export default function HomeTaskDetailModal() {
 
     try {
       const targetProject = projectByRef(detailProjectId());
-      const placement = await api.tasks.update(taskId, {
-        projectId: targetProject?.id ?? "",
-        sectionId: targetProject ? detailSectionId() : "",
-      });
+      const placement = await organizationApi.tasks.updatePlacement(
+        taskId,
+        targetProject?.id ?? "",
+        targetProject ? detailSectionId() : "",
+      );
       setTasks((current) => current.map((task) => task.id === taskId ? placement : task));
       await saveDetailModal();
     } catch (err) {
