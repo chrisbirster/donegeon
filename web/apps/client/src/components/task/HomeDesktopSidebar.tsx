@@ -44,6 +44,7 @@ export default function HomeDesktopSidebar() {
   const [dialog, setDialog] = createSignal<ProjectDialog>(null);
   const [projectNameInput, setProjectNameInput] = createSignal("");
   const [menuProject, setMenuProject] = createSignal<Project | null>(null);
+  const [projectEditing, setProjectEditing] = createSignal(false);
   const [archivedOpen, setArchivedOpen] = createSignal(false);
   const [archivedProjects, setArchivedProjects] = createSignal<Project[]>([]);
   const [busy, setBusy] = createSignal(false);
@@ -56,6 +57,15 @@ export default function HomeDesktopSidebar() {
 
   const isProtectedProject = (project: Project) =>
     project.isInboxProject || project.id.toLowerCase() === "board" || project.name.trim().toLowerCase() === "board";
+
+  const projectLineClass = (project: Project) =>
+    `${projectLine} ${projectEditing() && !isProtectedProject(project) ? projectLineEditing : ""}`;
+
+  function toggleProjectEditing() {
+    const next = !projectEditing();
+    setProjectEditing(next);
+    if (!next) setMenuProject(null);
+  }
 
   function beginCreateProject() {
     setProjectNameInput("");
@@ -182,9 +192,10 @@ export default function HomeDesktopSidebar() {
           class={projectActionsButton}
           aria-label={`Project actions ${project.name}`}
           aria-haspopup="menu"
+          aria-expanded={menuProject()?.id === project.id}
           onClick={() => setMenuProject(menuProject()?.id === project.id ? null : project)}
         >
-          •••
+          <span aria-hidden="true">•••</span>
         </Button>
         <Show when={menuProject()?.id === project.id}>
           <div class={menu} role="menu">
@@ -260,7 +271,7 @@ export default function HomeDesktopSidebar() {
                         aria-label={`Remove favorite ${project.name}`}
                         onClick={() => void toggleProjectFavorite(project)}
                       >
-                        ★
+                        <span aria-hidden="true">★</span>
                       </Button>
                     </div>
                   )}
@@ -272,13 +283,24 @@ export default function HomeDesktopSidebar() {
           <section class={projectsSection}>
             <div class={sectionHeadingRow}>
               <p class={sectionLabel}>My Projects</p>
-              <Button type="button" class={smallManagerButton} onClick={beginCreateProject}>Add project</Button>
+              <div class={sectionHeadingActions}>
+                <Button type="button" class={smallManagerButton} onClick={beginCreateProject}>Add project</Button>
+                <Button
+                  type="button"
+                  class={`${editProjectsButton} ${projectEditing() ? editProjectsButtonActive : ""}`}
+                  aria-label={projectEditing() ? "Done editing projects" : "Edit projects"}
+                  aria-pressed={projectEditing()}
+                  onClick={toggleProjectEditing}
+                >
+                  <span aria-hidden="true">✎</span>
+                </Button>
+              </div>
             </div>
             <div class={projectList}>
               <Show when={sidebarProjects().length > 0} fallback={<p class={emptyCopy}>No projects found.</p>}>
                 <For each={sidebarProjects()}>
                   {(project) => (
-                    <div class={projectLine}>
+                    <div class={projectLineClass(project)}>
                       <Button type="button" class={projectRowClass(project.id)} onClick={() => navigateToProject(project.id)}>
                         <span class={projectIdentity}>
                           <span class={projectName}>{project.name}</span>
@@ -290,11 +312,13 @@ export default function HomeDesktopSidebar() {
                         type="button"
                         class={`${favoriteButton} ${project.isFavorite ? favoriteButtonActive : ""}`}
                         onClick={() => void toggleProjectFavorite(project)}
-                        aria-label={project.isFavorite ? "Remove favorite" : "Add favorite"}
+                        aria-label={project.isFavorite ? `Remove favorite ${project.name}` : `Add favorite ${project.name}`}
                       >
-                        ★
+                        <span aria-hidden="true">★</span>
                       </Button>
-                      {projectActions(project)}
+                      <Show when={projectEditing() && !isProtectedProject(project)}>
+                        {projectActions(project)}
+                      </Show>
                     </div>
                   )}
                 </For>
@@ -407,12 +431,16 @@ const managerRow = css`display:grid; grid-template-columns:1fr 1fr; gap:.4rem; m
 const managerButton = css`border:1px solid var(--border-strong); border-radius:.58rem; padding:.5rem .6rem; background:var(--panel-soft); color:var(--text-main); font-size:.76rem;`;
 const projectScroller = css`flex:1; min-height:0; overflow-y:auto; margin-top:1.25rem; padding-right:.2rem;`;
 const sectionHeadingRow = css`display:flex; align-items:center; justify-content:space-between; gap:.5rem;`;
+const sectionHeadingActions = css`display:flex; align-items:stretch; gap:.35rem;`;
 const sectionLabel = css`margin:0; padding:0 .45rem; font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-dim);`;
 const smallManagerButton = css`border:0; border-radius:.45rem; padding:.3rem .45rem; background:transparent; color:var(--accent-text); font-size:.72rem;`;
+const editProjectsButton = css`width:2.35rem; min-height:2.35rem; border:1px solid var(--border-strong); border-radius:.6rem; background:var(--panel-soft); color:var(--text-dim); font-size:1rem; &:hover{border-color:var(--border-hover); color:var(--text-main);}`;
+const editProjectsButtonActive = css`border-color:rgba(196,69,255,.48); background:var(--accent-wash); color:var(--accent-text);`;
 const projectList = css`display:flex; flex-direction:column; gap:.42rem; margin-top:.65rem;`;
 const emptyCopy = css`padding:.4rem .45rem; font-size:.82rem; color:var(--text-dim);`;
 const projectsSection = css`margin-top:1.5rem;`;
-const projectLine = css`display:grid; grid-template-columns:minmax(0,1fr) 2.35rem 2.35rem; gap:.35rem; align-items:stretch;`;
+const projectLine = css`display:grid; grid-template-columns:minmax(0,1fr) 2.35rem; gap:.35rem; align-items:stretch;`;
+const projectLineEditing = css`grid-template-columns:minmax(0,1fr) 2.35rem 2.35rem;`;
 const favoriteLine = css`display:grid; grid-template-columns:minmax(0,1fr) 2.35rem; gap:.35rem; align-items:stretch;`;
 const projectButton = css`display:flex; align-items:center; justify-content:space-between; gap:.6rem; min-width:0; width:100%; border:1px solid var(--border-soft); border-radius:.75rem; padding:.68rem .75rem; background:rgba(255,255,255,.018); color:var(--text-main); text-align:left; &:hover{border-color:var(--border-hover); background:rgba(255,255,255,.045);}`;
 const projectButtonActive = css`border-color:rgba(196,69,255,.4); background:var(--accent-wash);`;
