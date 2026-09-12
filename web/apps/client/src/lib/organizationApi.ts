@@ -98,6 +98,7 @@ export const organizationApi = {
     archived: () => taskManagerAction<ActionPage<Project>>("getArchivedProjects"),
     archive: (projectId: string) => taskManagerAction<Project>("archiveProject", { projectId }),
     unarchive: (projectId: string) => taskManagerAction<Project>("unarchiveProject", { projectId }),
+    remove: (projectId: string) => taskManagerAction<{ deleted: boolean }>("deleteProject", { projectId }),
   },
 };
 
