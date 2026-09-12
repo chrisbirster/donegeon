@@ -14,6 +14,9 @@ type ProjectDialog =
   | { kind: "delete"; project: Project }
   | null;
 
+type ActiveProjectDialog = Exclude<ProjectDialog, null>;
+
+const deletableProject = (dialog: ActiveProjectDialog) => dialog.kind === "delete" ? dialog.project : undefined;
 const openTaskCreate = () => window.dispatchEvent(new CustomEvent("donegeon:open-task-create"));
 const openLabels = () => window.dispatchEvent(new CustomEvent("donegeon:open-labels"));
 
@@ -344,7 +347,7 @@ export default function HomeDesktopSidebar() {
                 when={activeDialog().kind !== "delete"}
                 fallback={
                   <p class={dialogCopy}>
-                    Delete <strong>{activeDialog().kind === "delete" ? activeDialog().project.name : "this project"}</strong>? Tasks are kept and their project/section placement is cleared.
+                    Delete <strong>{deletableProject(activeDialog())?.name ?? "this project"}</strong>? Tasks are kept and their project/section placement is cleared.
                   </p>
                 }
               >
@@ -371,7 +374,10 @@ export default function HomeDesktopSidebar() {
                     type="button"
                     class={dangerButton}
                     disabled={busy()}
-                    onClick={() => activeDialog().kind === "delete" && void deleteProject(activeDialog().project)}
+                    onClick={() => {
+                      const project = deletableProject(activeDialog());
+                      if (project) void deleteProject(project);
+                    }}
                   >
                     Delete
                   </Button>
