@@ -20,6 +20,12 @@ function projectButton(page: Page, name: string) {
   return page.getByRole("button", { name: new RegExp(`^${name}\\b`, "i") }).first();
 }
 
+function taskViewButton(page: Page, name: string) {
+  return page
+    .getByRole("navigation", { name: "Task views" })
+    .getByRole("button", { name: new RegExp(`^${name}\\b`, "i") });
+}
+
 async function projectActions(page: Page, name: string): Promise<Locator> {
   const actions = page.getByRole("button", { name: new RegExp(`project actions.*${name}`, "i") });
   await expect(
@@ -144,7 +150,7 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
     const confirm = page.getByRole("dialog", { name: /delete project/i });
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button", { name: /^Delete$/i }).click();
-    await page.getByRole("button", { name: /^Inbox\b/i }).click();
+    await taskViewButton(page, "Inbox").click();
     await page.getByTestId("open-search").click();
     await page.getByTestId("search-input").fill("m2 project delete survivor");
     const result = page.getByRole("button", { name: /m2 project delete survivor/i });
@@ -245,7 +251,7 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
 
   test("[M2] Move task to project", async ({ page }) => {
     await createProject(page, "M2 Move Target");
-    await page.getByRole("button", { name: /^Inbox\b/i }).click();
+    await taskViewButton(page, "Inbox").click();
     await addQuickTask(page, "m2 move task @focus p2 // preserve movement metadata");
     let modal = await openTaskDetail(page, "m2 move task");
     await modal.getByTestId("task-detail-project").selectOption({ label: "M2 Move Target" });
@@ -285,7 +291,7 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
     await modal.getByTestId("task-detail-project").selectOption("");
     await modal.getByTestId("task-detail-save").click();
     await page.reload();
-    await page.getByRole("button", { name: /^Inbox\b/i }).click();
+    await taskViewButton(page, "Inbox").click();
     modal = await openTaskDetail(page, "m2 clear placement task");
     await expect(modal.getByTestId("task-detail-project")).toHaveValue("");
     await expect(modal.getByTestId("task-detail-section")).toHaveValue("");
@@ -296,7 +302,7 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
     await projectButton(page, "M2 Pairing A").click();
     await createSection(page, "M2 Section A");
     await createProject(page, "M2 Pairing B");
-    await page.getByRole("button", { name: /^Inbox\b/i }).click();
+    await taskViewButton(page, "Inbox").click();
     await addQuickTask(page, "m2 invalid pairing task");
     const modal = await openTaskDetail(page, "m2 invalid pairing task");
     await modal.getByTestId("task-detail-project").selectOption({ label: "M2 Pairing B" });
