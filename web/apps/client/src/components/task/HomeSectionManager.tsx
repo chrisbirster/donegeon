@@ -38,16 +38,20 @@ export default function HomeSectionManager() {
     }
   }
 
-  createEffect(() => {
-    const project = selectedProject();
-    const projectId = currentView().kind === "project" ? project?.id ?? "" : "";
-    if (projectId === loadedProjectId) return;
-    loadedProjectId = projectId;
-    setDialogMode(null);
-    setMenuSection(null);
-    if (projectId) void load(projectId);
-    else setSections([]);
-  });
+  createEffect(
+    () => {
+      const project = selectedProject();
+      return currentView().kind === "project" ? project?.id ?? "" : "";
+    },
+    (projectId) => {
+      if (projectId === loadedProjectId) return;
+      loadedProjectId = projectId;
+      setDialogMode(null);
+      setMenuSection(null);
+      if (projectId) void load(projectId);
+      else setSections([]);
+    },
+  );
 
   function beginCreate() {
     setName("");
