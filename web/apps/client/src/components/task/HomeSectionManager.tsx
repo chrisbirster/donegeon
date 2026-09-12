@@ -11,6 +11,10 @@ type DialogMode =
   | { kind: "delete"; section: OrganizationSection }
   | null;
 
+type ActiveDialogMode = Exclude<DialogMode, null>;
+
+const deletableSection = (mode: ActiveDialogMode) => mode.kind === "delete" ? mode.section : undefined;
+
 export default function HomeSectionManager() {
   const { currentView, selectedProject, refreshData, toast, setError } = useHome();
   const [sections, setSections] = createSignal<OrganizationSection[]>([]);
@@ -173,7 +177,7 @@ export default function HomeSectionManager() {
                 when={mode().kind !== "delete"}
                 fallback={
                   <p class={dialogCopy}>
-                    Delete <strong>{mode().kind === "delete" ? mode().section.name : "this section"}</strong>? Tasks stay in the project and lose only this section placement.
+                    Delete <strong>{deletableSection(mode())?.name ?? "this section"}</strong>? Tasks stay in the project and lose only this section placement.
                   </p>
                 }
               >
@@ -206,7 +210,10 @@ export default function HomeSectionManager() {
                   <Button
                     type="button"
                     class={dangerButton}
-                    onClick={() => mode().kind === "delete" && void deleteSection(mode().section)}
+                    onClick={() => {
+                      const section = deletableSection(mode());
+                      if (section) void deleteSection(section);
+                    }}
                   >
                     Delete
                   </Button>
