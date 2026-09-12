@@ -162,11 +162,11 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
   });
 
   test("[M2] Inbox/default protection", async ({ page }) => {
-    const inbox = projectButton(page, "Inbox");
+    const myProjects = page.locator("section").filter({ hasText: "My Projects" }).first();
+    const inbox = myProjects.getByRole("button", { name: /^Inbox\b/i }).first();
     await expect(inbox).toBeVisible();
     const row = inbox.locator("..");
-    await expect(row.getByRole("button", { name: /delete project/i })).toHaveCount(0);
-    await expect(row.getByRole("button", { name: /archive project/i })).toHaveCount(0);
+    await expect(row.getByRole("button", { name: /project actions.*Inbox/i })).toHaveCount(0);
   });
 
   test("[M2] Create section", async ({ page }) => {
@@ -276,7 +276,7 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
     await page.reload();
     modal = await openTaskDetail(page, "m2 section move task");
     await expect(modal.getByTestId("task-detail-project")).toHaveValue(/M2 Section Move Project/i);
-    await expect(modal.getByTestId("task-detail-section")).toHaveValue(/Section Alpha/i);
+    await expect(modal.getByTestId("task-detail-section").locator("option:checked")).toHaveText("Section Alpha");
   });
 
   test("[M2] Clear project", async ({ page }) => {
