@@ -100,6 +100,10 @@ export const organizationApi = {
     unarchive: (projectId: string) => taskManagerAction<Project>("unarchiveProject", { projectId }),
     remove: (projectId: string) => taskManagerAction<{ deleted: boolean }>("deleteProject", { projectId }),
   },
+  tasks: {
+    updatePlacement: (taskId: string, projectId: string, sectionId: string) =>
+      taskManagerAction<Task>("updateTask", { taskId, projectId, sectionId }),
+  },
 };
 
 export type FullTaskCreateInput = {
