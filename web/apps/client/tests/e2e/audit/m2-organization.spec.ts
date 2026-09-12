@@ -26,11 +26,23 @@ function taskViewButton(page: Page, name: string) {
     .getByRole("button", { name: new RegExp(`^${name}\\b`, "i") });
 }
 
+async function enableProjectEditing(page: Page) {
+  const edit = page.getByRole("button", { name: /^Edit projects$/i });
+  if (await edit.count()) {
+    await edit.click();
+    await expect(page.getByRole("button", { name: /^Done editing projects$/i })).toHaveAttribute("aria-pressed", "true");
+  }
+}
+
 async function projectActions(page: Page, name: string): Promise<Locator> {
-  const actions = page.getByRole("button", { name: new RegExp(`project actions.*${name}`, "i") });
+  let actions = page.getByRole("button", { name: new RegExp(`project actions.*${name}`, "i") });
+  if ((await actions.count()) === 0) {
+    await enableProjectEditing(page);
+    actions = page.getByRole("button", { name: new RegExp(`project actions.*${name}`, "i") });
+  }
   await expect(
     actions,
-    `Project ${name} must expose discoverable rename/archive/delete actions rather than requiring API knowledge.`,
+    `Project ${name} must expose discoverable rename/archive/delete actions after entering project edit mode.`,
   ).toBeVisible();
   await actions.click();
   return page.getByRole("menu");
@@ -162,6 +174,7 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
   });
 
   test("[M2] Inbox/default protection", async ({ page }) => {
+    await enableProjectEditing(page);
     const myProjects = page.locator("section").filter({ hasText: "My Projects" }).first();
     const inbox = myProjects.getByRole("button", { name: /^Inbox\b/i }).first();
     await expect(inbox).toBeVisible();
