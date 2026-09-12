@@ -157,7 +157,7 @@ export default function HomeDesktopSidebar() {
   async function deleteProject(project: Project) {
     setBusy(true);
     try {
-      await api.projects.remove(project.id);
+      await organizationApi.projects.remove(project.id);
       setDialog(null);
       setMenuProject(null);
       setError("");
