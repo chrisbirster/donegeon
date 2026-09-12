@@ -1,5 +1,5 @@
 import { css } from "@linaria/core";
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal, onSettled } from "solid-js";
 
 import { organizationApi, type OrganizationLabel } from "../../lib/organizationApi";
 import { useHome } from "../../page/HomeContext";
@@ -93,13 +93,13 @@ export default function HomeLabelsManager() {
     if (event.key === "Escape" && open()) close();
   };
 
-  onMount(() => {
+  onSettled(() => {
     window.addEventListener(OPEN_EVENT, show);
     window.addEventListener("keydown", onKeyDown);
-  });
-  onCleanup(() => {
-    window.removeEventListener(OPEN_EVENT, show);
-    window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener(OPEN_EVENT, show);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   });
 
   return (
