@@ -105,18 +105,19 @@ export default function HomeTaskDetailModal() {
     }
   }
 
-  createEffect(() => {
-    const open = isDetailOpen();
-    const task = detailTask();
-    if (!open || !task) {
-      loadedTaskId = "";
-      return;
-    }
-    if (task.id === loadedTaskId) return;
-    loadedTaskId = task.id;
-    setDetailSectionId(task.sectionId ?? "");
-    void loadSections(detailProjectId());
-  });
+  createEffect(
+    () => ({ open: isDetailOpen(), task: detailTask() }),
+    ({ open, task }) => {
+      if (!open || !task) {
+        loadedTaskId = "";
+        return;
+      }
+      if (task.id === loadedTaskId) return;
+      loadedTaskId = task.id;
+      setDetailSectionId(task.sectionId ?? "");
+      void loadSections(detailProjectId());
+    },
+  );
 
   async function selectProject(value: string, select: HTMLSelectElement) {
     if (value === "__create_new__") {
