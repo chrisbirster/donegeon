@@ -89,24 +89,26 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
     await expect(projectButton(page, "M2 Rename Before")).toHaveCount(0);
   });
 
-  test("[M2] Favorite/unfavorite", async ({ page }) => {
-    await createProject(page, "M2 Favorite Project");
-    const row = projectButton(page, "M2 Favorite Project").locator("..");
+  test("[M2] Favorite/unfavorite", async ({ page }, testInfo) => {
+    const projectName = `M2 Favorite Project ${testInfo.retry}`;
+    await createProject(page, projectName);
+    const row = projectButton(page, projectName).locator("..");
     await row.getByRole("button", { name: "Add favorite" }).click();
     const favorites = page.locator("section").filter({ hasText: "Favorites" }).first();
-    await expect(favorites.getByRole("button", { name: /M2 Favorite Project/i })).toBeVisible();
+    const favoriteProject = favorites.getByRole("button", { name: new RegExp(`^${projectName}\\b`, "i") }).first();
+    await expect(favoriteProject).toBeVisible();
     await page.reload();
-    await expect(favorites.getByRole("button", { name: /M2 Favorite Project/i })).toBeVisible();
+    await expect(favoriteProject).toBeVisible();
 
-    const remove = favorites.getByRole("button", { name: /Remove favorite.*M2 Favorite Project|Remove favorite/i }).first();
+    const remove = favorites.getByRole("button", { name: new RegExp(`^Remove favorite ${projectName}$`, "i") });
     await expect(
       remove,
       "A favorite must be removable from the Favorites area itself; requiring the user to find the duplicate under My Projects is not discoverable enough.",
     ).toBeVisible();
     await remove.click();
-    await expect(favorites.getByRole("button", { name: /M2 Favorite Project/i })).toHaveCount(0);
+    await expect(favoriteProject).toHaveCount(0);
     await page.reload();
-    await expect(favorites.getByRole("button", { name: /M2 Favorite Project/i })).toHaveCount(0);
+    await expect(favoriteProject).toHaveCount(0);
   });
 
   test("[M2] Archive project", async ({ page }) => {
