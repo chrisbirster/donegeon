@@ -105,7 +105,7 @@ export default function HomeTaskRow(props: HomeTaskRowProps) {
         type="button"
         draggable="true"
         class={`${dragHandle} ${dragTaskId() === props.item.id ? dragActive : ""}`}
-        aria-label={props.completed ? `Drag ${props.item.content} to reorder` : `Drag ${props.item.content} to reorder`}
+        aria-label={`Drag ${props.item.content} to reorder`}
         onClick={(event) => event.stopPropagation()}
         onDragStart={(event) => onDragStart(event, props.item.id)}
         onDragEnd={onDragEnd}
@@ -113,10 +113,7 @@ export default function HomeTaskRow(props: HomeTaskRowProps) {
         <span aria-hidden="true">⋮⋮</span>
       </Button>
 
-      <Show
-        when={!props.completed}
-        fallback={<span class={completedStatus} aria-label="Completed">✓</span>}
-      >
+      <Show when={!props.completed} fallback={<span class={completedStatus} aria-label="Completed">✓</span>}>
         <Button
           unstyled
           type="button"
@@ -233,12 +230,22 @@ export default function HomeTaskRow(props: HomeTaskRowProps) {
 }
 
 const taskRow = css`
-  display:grid; grid-template-columns:auto auto minmax(0,1fr) auto auto; gap:.7rem; align-items:center;
-  border:1px solid rgba(119,155,187,.18); border-radius:.75rem; padding:.7rem .75rem; background:var(--panel-soft);
+  display:grid;
+  grid-template-columns:auto auto minmax(0,1fr) auto auto;
+  gap:.7rem;
+  align-items:center;
+  border:1px solid rgba(119,155,187,.18);
+  border-radius:.75rem;
+  padding:.7rem .75rem;
+  background:var(--panel-soft);
   transition:border-color 150ms ease, background 150ms ease;
   &:hover{border-color:rgba(119,155,187,.34);}
   &:focus-within{border-color:var(--border-hover);}
-  @media (max-width:60rem){grid-template-columns:auto auto minmax(0,1fr) auto; .${actions}{grid-column:1 / -1; justify-content:flex-end;}}
+  @media (max-width:60rem){
+    grid-template-columns:auto auto minmax(0,1fr) auto;
+    > :last-child{grid-column:1 / -1; justify-content:flex-end;}
+  }
+  @media (prefers-reduced-motion: reduce){transition:none;}
 `;
 const completedRow = css`opacity:.78;`;
 const dropTarget = css`border-color:var(--accent); background:rgba(255,139,80,.08);`;
@@ -252,14 +259,13 @@ const taskTitle = css`margin:0; color:var(--text-main); font-weight:650; overflo
 const completedTitle = css`text-decoration:line-through; color:var(--text-muted);`;
 const description = css`margin:.2rem 0 0; color:var(--text-dim); font-size:.78rem; line-height:1.35;`;
 const metadataStyle = css`display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.4rem;`;
-const badgeBase = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2;`;
-const dueBadge = css`${badgeBase} background:rgba(110,78,21,.34); color:#ffd4a1;`;
-const deadlineBadge = css`${badgeBase} background:rgba(74,78,156,.35); color:#ddd9ff;`;
-const warningBadge = css`${badgeBase} background:rgba(129,61,28,.35); color:#ffd4b5;`;
-const neutralBadge = css`${badgeBase} background:rgba(97,76,132,.26); color:#d9c6ff;`;
-const successBadge = css`${badgeBase} background:rgba(24,88,57,.33); color:#c7f6d4;`;
-const labelBadge = css`${badgeBase} background:rgba(84,95,168,.22); color:#e0d8ff;`;
-const projectBadge = css`${badgeBase} display:inline-flex; align-items:center; gap:.3rem; background:rgba(120,37,34,.26); color:#ffd4cf;`;
+const dueBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(110,78,21,.34); color:#ffd4a1;`;
+const deadlineBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(74,78,156,.35); color:#ddd9ff;`;
+const warningBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(129,61,28,.35); color:#ffd4b5;`;
+const neutralBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(97,76,132,.26); color:#d9c6ff;`;
+const successBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(24,88,57,.33); color:#c7f6d4;`;
+const labelBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(84,95,168,.22); color:#e0d8ff;`;
+const projectBadge = css`display:inline-flex; align-items:center; gap:.3rem; border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(120,37,34,.26); color:#ffd4cf;`;
 const teamChip = css`font-size:.58rem; text-transform:uppercase; color:#d8e1ff;`;
 const priority = css`border-radius:.45rem; padding:.25rem .45rem; font-size:.72rem; font-weight:700; text-transform:lowercase;`;
 const priorityHigh = css`background:rgba(154,52,18,.35); color:#ffd7b7;`;
