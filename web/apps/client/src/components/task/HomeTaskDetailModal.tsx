@@ -35,6 +35,8 @@ export default function HomeTaskDetailModal() {
     setDetailDueText,
     detailDeadline,
     setDetailDeadline,
+    detailReminderAt,
+    setDetailReminderAt,
     detailProjectId,
     setDetailProjectId,
     detailTags,
@@ -220,6 +222,22 @@ export default function HomeTaskDetailModal() {
               <p class={originalText}>Originally entered as: <code>{detailDeadlineInputToken()}</code></p>
             </Show>
             <Show when={detailScheduleWarning()}><p class={warningBanner}>{detailScheduleWarning()}</p></Show>
+
+            <label class={fieldLabel} for="task-detail-reminder">Reminder · Notify me at</label>
+            <div class={inputActionRow}>
+              <input
+                id="task-detail-reminder"
+                type="datetime-local"
+                value={toDatetimeLocalValue(detailReminderAt())}
+                onInput={(event) => setDetailReminderAt(fromDatetimeLocalValue(event.currentTarget.value))}
+                class={textInput}
+                data-testid="task-detail-reminder"
+              />
+              <Show when={detailReminderAt()}>
+                <Button type="button" iconOnly aria-label="Clear reminder" onClick={() => setDetailReminderAt("")}>✕</Button>
+              </Show>
+            </div>
+            <p class={helper}>This reminder is a single notification instant shown in your current timezone.</p>
 
             <label class={fieldLabel} for="task-detail-schedule-original">Original scheduling text</label>
             <input

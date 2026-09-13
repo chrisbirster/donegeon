@@ -1,6 +1,6 @@
-# M3 — Scheduling human verification
+# M3 — Scheduling + reminders human verification
 
-Goal: verify that dates, deadlines, time zones, recurrence, Today, Upcoming, and overdue behavior match user expectations.
+Goal: verify that dates, deadlines, reminders, time zones, recurrence, Today, Upcoming, and overdue behavior match user expectations.
 
 ## Session
 
@@ -10,9 +10,13 @@ Goal: verify that dates, deadlines, time zones, recurrence, Today, Upcoming, and
 - Automated evidence: `________________`
 - Final verdict: `NOT_REVIEWED`
 
+## M3 reminder contract
+
+M3 v1 supports one absolute reminder date/time per task. It is stored as a concrete instant and displayed in the user's current timezone. Create, edit, clear, persistence, tenant isolation, and recurring-occurrence shifting are required. Quick Add reminder syntax and relative-to-due reminder expressions are intentionally deferred; users set reminders through Full Add Task or Task Detail.
+
 ## Automated edge cases
 
-DST, finite recurrence, month-end rollover, rollback, and duplicate-spawn protection should be reviewed through deterministic Go evidence before the browser walkthrough. Human review focuses on whether the resulting product behavior makes sense.
+DST, finite recurrence, month-end rollover, rollback, duplicate-spawn protection, reminder timezone normalization, reminder clear/update, tenant isolation, and recurring reminder shifting should be reviewed through deterministic Go evidence before the browser walkthrough. Human review focuses on whether the resulting product behavior makes sense.
 
 ## Human verification
 
@@ -23,6 +27,10 @@ DST, finite recurrence, month-end rollover, rollback, and duplicate-spawn protec
 | Set deadline | Deadline is distinct from due date and shown meaningfully | `NOT_REVIEWED` | |
 | Clear due date | Scheduling state visibly clears and remains cleared | `NOT_REVIEWED` | |
 | Clear deadline | Deadline visibly clears and remains cleared | `NOT_REVIEWED` | |
+| Set reminder | Reminder is understandable, visible in task metadata/detail, and survives reload | `NOT_REVIEWED` | |
+| Edit reminder | Updated reminder replaces the previous instant after reload | `NOT_REVIEWED` | |
+| Clear reminder | Reminder visibly clears and remains cleared | `NOT_REVIEWED` | |
+| Recurring reminder follows next occurrence | Completing a recurring task shifts its reminder by the same due/reminder offset | `NOT_REVIEWED` | |
 | Create daily recurrence | Rule shown to user matches intended cadence | `NOT_REVIEWED` | |
 | Create weekly recurrence | Rule shown to user matches intended cadence | `NOT_REVIEWED` | |
 | Create monthly recurrence | Rule shown to user matches intended cadence | `NOT_REVIEWED` | |
@@ -35,11 +43,20 @@ DST, finite recurrence, month-end rollover, rollback, and duplicate-spawn protec
 | Future task | Appears in Upcoming according to current rules | `NOT_REVIEWED` | |
 | Due + deadline together | Due date drives scheduling bucket; deadline remains secondary metadata | `NOT_REVIEWED` | |
 
+## Accessibility smoke check
+
+- [ ] All scheduling/reminder inputs have understandable accessible names.
+- [ ] Keyboard-only users can set, edit, clear, save, and dismiss scheduling controls.
+- [ ] Focus remains visible and trapped correctly inside Task Detail / Create Task dialogs.
+- [ ] VoiceOver announces reminder, due, deadline, recurrence, Save changes, and clear controls naturally.
+
 ## Product questions
 
 - [ ] Today including overdue work is the behavior we want.
 - [ ] Upcoming being future-only is the behavior we want.
 - [ ] Due date vs deadline terminology is clear enough.
+- [ ] Reminder terminology and its one-instant v1 behavior are understandable.
+- [ ] Deferring Quick Add reminder syntax to a later parser milestone is acceptable.
 - [ ] Recurrence text is understandable without knowing RRULE syntax.
 - [ ] Completing a recurring task feels natural rather than surprising.
 

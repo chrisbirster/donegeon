@@ -9,6 +9,7 @@ SELECT
     priority,
     due_text,
     due_deadline,
+    reminder_at,
     schedule_input,
     processed_count,
     checked,

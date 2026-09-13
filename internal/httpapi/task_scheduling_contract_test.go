@@ -21,6 +21,7 @@ func TestTaskHTTPSchedulingClearContract(t *testing.T) {
 		"recurrenceRule": "FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0",
 		"dueText":        "2026-09-01T09:00:00-04:00",
 		"dueDeadline":    "2026-09-01T08:00:00-04:00",
+		"reminderAt":     "2026-09-01T07:30:00-04:00",
 		"scheduleInput":  "every day at 9am {8am}",
 	}, principal, true)
 	createRec := httptest.NewRecorder()
@@ -30,7 +31,7 @@ func TestTaskHTTPSchedulingClearContract(t *testing.T) {
 	}
 	var created task.Task
 	decodeLifecycleResponse(t, createRec, &created)
-	if created.Recurrence == nil || created.DueText == nil || created.DueDeadline == nil || created.ScheduleInput == nil {
+	if created.Recurrence == nil || created.DueText == nil || created.DueDeadline == nil || created.ReminderAt == nil || created.ScheduleInput == nil {
 		t.Fatalf("create scheduled task response: %+v", created)
 	}
 
@@ -38,6 +39,7 @@ func TestTaskHTTPSchedulingClearContract(t *testing.T) {
 		"recurrenceRule": "",
 		"dueText":        "",
 		"dueDeadline":    "",
+		"reminderAt":     "",
 		"scheduleInput":  "",
 	}, principal, true)
 	patchReq.SetPathValue("id", created.ID)
@@ -48,7 +50,7 @@ func TestTaskHTTPSchedulingClearContract(t *testing.T) {
 	}
 	var cleared task.Task
 	decodeLifecycleResponse(t, patchRec, &cleared)
-	if cleared.Recurrence != nil || cleared.DueText != nil || cleared.DueDeadline != nil || cleared.ScheduleInput != nil {
+	if cleared.Recurrence != nil || cleared.DueText != nil || cleared.DueDeadline != nil || cleared.ReminderAt != nil || cleared.ScheduleInput != nil {
 		t.Fatalf("HTTP schedule clear did not persist: %+v", cleared)
 	}
 

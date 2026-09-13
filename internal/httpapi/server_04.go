@@ -46,6 +46,7 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Priority      int      `json:"priority"`
 		DueText       *string  `json:"dueText"`
 		DueDeadline   *string  `json:"dueDeadline"`
+		ReminderAt    *string  `json:"reminderAt"`
 		ScheduleInput *string  `json:"scheduleInput"`
 		Labels        []string `json:"labels"`
 	}
@@ -65,6 +66,7 @@ func (a *API) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Priority:      req.Priority,
 		DueText:       cleanPtr(req.DueText),
 		DueDeadline:   cleanPtr(req.DueDeadline),
+		ReminderAt:    cleanPtr(req.ReminderAt),
 		ScheduleInput: cleanPtr(req.ScheduleInput),
 		Labels:        cleanStringSlice(req.Labels),
 	})
@@ -98,6 +100,7 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 		Priority      *int     `json:"priority"`
 		DueText       *string  `json:"dueText"`
 		DueDeadline   *string  `json:"dueDeadline"`
+		ReminderAt    *string  `json:"reminderAt"`
 		ScheduleInput *string  `json:"scheduleInput"`
 		Labels        []string `json:"labels"`
 	}
@@ -120,6 +123,8 @@ func (a *API) handlePatchTask(w http.ResponseWriter, r *http.Request) {
 		ClearDueText:       req.DueText != nil && strings.TrimSpace(*req.DueText) == "",
 		DueDeadline:        cleanPtr(req.DueDeadline),
 		ClearDueDeadline:   req.DueDeadline != nil && strings.TrimSpace(*req.DueDeadline) == "",
+		ReminderAt:         cleanPtr(req.ReminderAt),
+		ClearReminderAt:    req.ReminderAt != nil && strings.TrimSpace(*req.ReminderAt) == "",
 		ScheduleInput:      cleanPtr(req.ScheduleInput),
 		ClearScheduleInput: req.ScheduleInput != nil && strings.TrimSpace(*req.ScheduleInput) == "",
 	}

@@ -115,6 +115,7 @@ export type FullTaskCreateInput = {
   labels?: string[];
   dueText?: string;
   dueDeadline?: string;
+  reminderAt?: string;
   recurrenceRule?: string;
   scheduleInput?: string;
 };

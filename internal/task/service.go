@@ -94,6 +94,11 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Task, error) {
 	in.ProjectID = canonicalizeProjectID(ctx, in.ProjectID)
 	in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())
 	in.DueDeadline = normalizeDeadline(in.DueDeadline, timezoneFromContext(ctx), s.nowFn())
+	normalizedReminder, reminderOK := normalizeReminderAt(in.ReminderAt, timezoneFromContext(ctx), s.nowFn())
+	if !reminderOK {
+		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid reminder date/time"), "reminderAt")
+	}
+	in.ReminderAt = normalizedReminder
 	if in.Recurrence != nil {
 		if _, err := rrule.Parse(*in.Recurrence); err != nil {
 			return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid recurrence rule: "+err.Error()), "recurrenceRule")
@@ -161,6 +166,11 @@ func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (Task, 
 	}
 	in.DueText = normalizeDueText(in.DueText, timezoneFromContext(ctx), s.nowFn())
 	in.DueDeadline = normalizeDeadline(in.DueDeadline, timezoneFromContext(ctx), s.nowFn())
+	normalizedReminder, reminderOK := normalizeReminderAt(in.ReminderAt, timezoneFromContext(ctx), s.nowFn())
+	if !reminderOK {
+		return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid reminder date/time"), "reminderAt")
+	}
+	in.ReminderAt = normalizedReminder
 	if in.Recurrence != nil {
 		if _, err := rrule.Parse(*in.Recurrence); err != nil {
 			return Task{}, apperrors.WithField(apperrors.New(apperrors.CodeValidationError, "invalid recurrence rule: "+err.Error()), "recurrenceRule")
@@ -224,6 +234,7 @@ func (s *Service) Close(ctx context.Context, id string) error {
 	}
 	nextDue := normalizeDueText(strPtr(nextDueText), timezoneFromContext(ctx), anchor)
 	nextDeadline := shiftRecurringDeadline(current.DueText, current.DueDeadline, nextDue, timezoneFromContext(ctx))
+	nextReminder := shiftRecurringReminder(current.DueText, current.ReminderAt, nextDue, timezoneFromContext(ctx))
 
 	return s.repo.CloseRecurringAndCreateNext(ctx, id, CreateInput{
 		Content:       current.Content,
@@ -234,6 +245,7 @@ func (s *Service) Close(ctx context.Context, id string) error {
 		Priority:      current.Priority,
 		DueText:       nextDue,
 		DueDeadline:   nextDeadline,
+		ReminderAt:    nextReminder,
 		ScheduleInput: current.ScheduleInput,
 		Labels:        current.Labels,
 	})
@@ -270,6 +282,21 @@ func shiftRecurringDeadline(currentDue, currentDeadline, nextDue *string, timezo
 		return currentDeadline
 	}
 	shifted := nextDueTime.Add(currentDeadlineTime.Sub(currentDueTime)).In(loc)
+	return strPtr(shifted.Format(time.RFC3339))
+}
+
+func shiftRecurringReminder(currentDue, currentReminder, nextDue *string, timezone string) *string {
+	if currentReminder == nil || currentDue == nil || nextDue == nil {
+		return nil
+	}
+	loc := locationFromTimezone(timezone)
+	currentDueTime, dueOK := parseDueAnchor(*currentDue, loc)
+	currentReminderTime, reminderOK := parseDueAnchor(*currentReminder, loc)
+	nextDueTime, nextDueOK := parseDueAnchor(*nextDue, loc)
+	if !dueOK || !reminderOK || !nextDueOK {
+		return nil
+	}
+	shifted := nextDueTime.Add(currentReminderTime.Sub(currentDueTime)).In(loc)
 	return strPtr(shifted.Format(time.RFC3339))
 }
 
@@ -326,6 +353,9 @@ func (s *Service) normalizeTaskTemporalFields(ctx context.Context, item *Task) {
 	}
 	item.DueText = normalizeDueText(item.DueText, timezoneFromContext(ctx), s.deadlineAnchor(*item))
 	item.DueDeadline = normalizeDeadline(item.DueDeadline, timezoneFromContext(ctx), s.deadlineAnchor(*item))
+	if reminder, ok := normalizeReminderAt(item.ReminderAt, timezoneFromContext(ctx), s.deadlineAnchor(*item)); ok {
+		item.ReminderAt = reminder
+	}
 }
 
 func (s *Service) deadlineAnchor(item Task) time.Time {

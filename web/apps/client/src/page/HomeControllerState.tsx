@@ -52,6 +52,7 @@ export function createHomeControllerState() {
   const [detailPriority, setDetailPriority] = createSignal(4);
   const [detailDueText, setDetailDueText] = createSignal("");
   const [detailDeadline, setDetailDeadline] = createSignal("");
+  const [detailReminderAt, setDetailReminderAt] = createSignal("");
   const [detailProjectId, setDetailProjectId] = createSignal("");
   const [detailTags, setDetailTags] = createSignal("");
   const [detailScheduleOriginal, setDetailScheduleOriginal] = createSignal("");
@@ -354,6 +355,8 @@ export function createHomeControllerState() {
     setDetailDueText,
     detailDeadline,
     setDetailDeadline,
+    detailReminderAt,
+    setDetailReminderAt,
     detailProjectId,
     setDetailProjectId,
     detailTags,

@@ -62,6 +62,8 @@ export function createHomeController() {
     setDetailDueText,
     detailDeadline,
     setDetailDeadline,
+    detailReminderAt,
+    setDetailReminderAt,
     detailProjectId,
     setDetailProjectId,
     detailTags,
@@ -478,6 +480,7 @@ export function createHomeController() {
     setDetailPriority(item.priority || 4);
     setDetailDueText(item.dueText || "");
     setDetailDeadline(item.dueDeadline || "");
+    setDetailReminderAt(item.reminderAt || "");
     setDetailProjectId(detailProject);
     setDetailTags(formatLabelsInput(item.labels));
     setDetailScheduleOriginal(item.scheduleInput || "");
@@ -618,6 +621,7 @@ export function createHomeController() {
         priority: parsed?.priority ?? detailPriority(),
         dueText: detailDueText() || parsed?.dueText,
         dueDeadline: detailDeadline() || parsed?.deadline,
+        reminderAt: detailReminderAt(),
       });
 
       setTasks((current) =>

@@ -33,6 +33,7 @@ export default function HomeTaskCreateModal() {
   const [priority, setPriority] = createSignal(4);
   const [due, setDue] = createSignal("");
   const [deadline, setDeadline] = createSignal("");
+  const [reminder, setReminder] = createSignal("");
   const [recurrence, setRecurrence] = createSignal("");
   const [parsedPreview, setParsedPreview] = createSignal<QuickAddParsed | null>(null);
   const [saving, setSaving] = createSignal(false);
@@ -64,6 +65,7 @@ export default function HomeTaskCreateModal() {
     setPriority(4);
     setDue("");
     setDeadline("");
+    setReminder("");
     setRecurrence("");
     setParsedPreview(null);
     setSaving(false);
@@ -155,6 +157,7 @@ export default function HomeTaskCreateModal() {
         labels: labels(),
         dueText: due() ? fromDatetimeLocalValue(due()) : undefined,
         dueDeadline: deadline() ? fromDatetimeLocalValue(deadline()) : undefined,
+        reminderAt: reminder() ? fromDatetimeLocalValue(reminder()) : undefined,
         recurrenceRule: recurrence().trim() || undefined,
         scheduleInput: preview && (preview.dueText || preview.deadline || preview.recurrenceRule) ? title().trim() : undefined,
       });
@@ -277,6 +280,17 @@ export default function HomeTaskCreateModal() {
                 onInput={(event) => setDeadline(event.currentTarget.value)}
               />
 
+              <label class={fieldLabel} for="task-create-reminder">Reminder · Notify me at</label>
+              <input
+                id="task-create-reminder"
+                data-testid="task-create-reminder"
+                type="datetime-local"
+                class={textInput}
+                value={reminder()}
+                onInput={(event) => setReminder(event.currentTarget.value)}
+              />
+              <p class={helper}>Absolute reminder time in your current timezone. Quick Add reminder syntax is not part of M3 v1.</p>
+
               <label class={fieldLabel} for="task-create-recurrence">Recurrence rule (RRULE)</label>
               <input
                 id="task-create-recurrence"
@@ -323,6 +337,7 @@ const textarea = css`
   background:rgba(255,255,255,.035); color:var(--text-main); outline:none;
   &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
 `;
+const helper = css`margin:0; color:var(--text-dim); font-size:.75rem; line-height:1.4;`;
 const parsedChipsStyle = css`display:flex; flex-wrap:wrap; gap:.4rem;`;
 const parsedChip = css`border:1px solid var(--border-soft); border-radius:.5rem; padding:.25rem .45rem; background:var(--panel-soft); color:var(--text-soft); font-size:.72rem;`;
 const footer = css`display:flex; justify-content:flex-end; gap:1rem; padding:1rem 1.5rem; border-top:1px solid var(--border-strong);`;

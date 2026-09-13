@@ -194,4 +194,62 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await expect(row).toContainText(/Due /i);
     await expect(row).toContainText(/Deadline /i);
   });
+
+  test("[M3] Set reminder", async ({ page }) => {
+    await addQuickTask(page, "m3 reminder set");
+    const expected = localDateTime(1, 8, 30);
+    let modal = await openDetail(page, "m3 reminder set");
+    await modal.getByTestId("task-detail-reminder").fill(expected);
+    await modal.getByTestId("task-detail-save").click();
+    await page.reload();
+    modal = await openDetail(page, "m3 reminder set");
+    await expect(modal.getByTestId("task-detail-reminder")).toHaveValue(expected);
+  });
+
+  test("[M3] Edit reminder", async ({ page }) => {
+    await addQuickTask(page, "m3 reminder edit");
+    let modal = await openDetail(page, "m3 reminder edit");
+    await modal.getByTestId("task-detail-reminder").fill(localDateTime(1, 8, 0));
+    await modal.getByTestId("task-detail-save").click();
+    modal = await openDetail(page, "m3 reminder edit");
+    const changed = localDateTime(2, 10, 15);
+    await modal.getByTestId("task-detail-reminder").fill(changed);
+    await modal.getByTestId("task-detail-save").click();
+    await page.reload();
+    modal = await openDetail(page, "m3 reminder edit");
+    await expect(modal.getByTestId("task-detail-reminder")).toHaveValue(changed);
+  });
+
+  test("[M3] Clear reminder", async ({ page }) => {
+    await addQuickTask(page, "m3 reminder clear");
+    let modal = await openDetail(page, "m3 reminder clear");
+    await modal.getByTestId("task-detail-reminder").fill(localDateTime(1, 8, 0));
+    await modal.getByTestId("task-detail-save").click();
+    modal = await openDetail(page, "m3 reminder clear");
+    await modal.getByRole("button", { name: "Clear reminder" }).click();
+    await modal.getByTestId("task-detail-save").click();
+    await page.reload();
+    modal = await openDetail(page, "m3 reminder clear");
+    await expect(modal.getByTestId("task-detail-reminder")).toHaveValue("");
+  });
+
+  test("[M3] Recurring reminder follows next occurrence", async ({ page }) => {
+    await addQuickTask(page, "m3 recurring reminder every day at 9am");
+    let modal = await openDetail(page, "m3 recurring reminder");
+    const due = localDateTime(1, 9, 0);
+    const reminder = localDateTime(1, 8, 0);
+    await modal.getByTestId("task-detail-due").fill(due);
+    await modal.getByTestId("task-detail-reminder").fill(reminder);
+    await modal.getByTestId("task-detail-save").click();
+    modal = await openDetail(page, "m3 recurring reminder");
+    await modal.getByTestId("task-detail-mark-done").click();
+    await page.reload();
+    modal = await openDetail(page, "m3 recurring reminder");
+    const nextDue = await modal.getByTestId("task-detail-due").inputValue();
+    const nextReminder = await modal.getByTestId("task-detail-reminder").inputValue();
+    expect(nextDue).not.toBe("");
+    expect(nextReminder).not.toBe("");
+    expect(new Date(nextDue).getTime() - new Date(nextReminder).getTime()).toBe(60 * 60 * 1000);
+  });
+
 });
