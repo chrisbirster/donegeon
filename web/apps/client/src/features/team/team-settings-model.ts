@@ -1,3 +1,5 @@
+import { css } from "@linaria/core";
+
 export function parseInviteEmails(raw: string): string[] {
   return raw
     .split(/[\n,;]+/g)
@@ -25,18 +27,24 @@ export function formatDate(value: string): string {
   return dateFormatter.format(parsed);
 }
 
+const ownerBadge = css`border-color:rgba(80,110,196,.28); background:rgba(80,110,196,.12); color:var(--text-soft);`;
+const adminBadge = css`border-color:rgba(72,133,166,.28); background:rgba(72,133,166,.12); color:var(--text-soft);`;
+const editorBadge = css`border-color:rgba(71,138,91,.28); background:rgba(71,138,91,.12); color:var(--text-soft);`;
+const readerBadge = css`border-color:rgba(123,112,168,.28); background:rgba(123,112,168,.12); color:var(--text-soft);`;
+const defaultBadge = css`border-color:var(--border-strong); background:var(--panel-soft); color:var(--text-soft);`;
+
 export function roleBadgeClass(role: string): string {
   switch (role) {
     case "owner":
-      return "border-[rgba(80,110,196,0.28)] bg-[rgba(80,110,196,0.12)] text-[var(--text-soft)]";
+      return ownerBadge;
     case "admin":
-      return "border-[rgba(72,133,166,0.28)] bg-[rgba(72,133,166,0.12)] text-[var(--text-soft)]";
+      return adminBadge;
     case "editor":
     case "member":
-      return "border-[rgba(71,138,91,0.28)] bg-[rgba(71,138,91,0.12)] text-[var(--text-soft)]";
+      return editorBadge;
     case "reader":
-      return "border-[rgba(123,112,168,0.28)] bg-[rgba(123,112,168,0.12)] text-[var(--text-soft)]";
+      return readerBadge;
     default:
-      return "border-[var(--border-strong)] bg-[var(--panel-soft)] text-[var(--text-soft)]";
+      return defaultBadge;
   }
 }

@@ -1,3 +1,4 @@
+import { css } from "@linaria/core";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createSignal, createTrackedEffect, onCleanup, onSettled, untrack } from "solid-js";
 
@@ -259,24 +260,25 @@ export function tokenizeQuickAdd(value: string): TokenPiece[] {
   return pieces;
 }
 
+const boardTokenProject = css`border-radius:.28rem; background:#7f1d1d; color:#ffd2d2;`;
+const boardTokenLabel = css`border-radius:.28rem; background:#6b214d; color:#ffdff5;`;
+const boardTokenAssignee = css`border-radius:.28rem; background:#5b2470; color:#fbe2ff;`;
+const boardTokenPriority = css`border-radius:.28rem; background:#9a3412; color:#ffe5d5;`;
+const boardTokenDeadline = css`border-radius:.28rem; background:#4338ca; color:#e3dcff;`;
+const boardTokenRecurrence = css`border-radius:.28rem; background:#14532d; color:#d8ffd4;`;
+const boardTokenDue = css`border-radius:.28rem; background:#92400e; color:#ffe6cc;`;
+const boardTokenText = css`color:var(--text-main);`;
+
 export function tokenClass(kind: TokenKind): string {
   switch (kind) {
-    case "project":
-      return "text-[#ffd2d2] bg-[#7f1d1d]";
-    case "label":
-      return "text-[#ffdff5] bg-[#6b214d]";
-    case "assignee":
-      return "text-[#fbe2ff] bg-[#5b2470]";
-    case "priority":
-      return "text-[#ffe5d5] bg-[#9a3412]";
-    case "deadline":
-      return "text-[#e3dcff] bg-[#4338ca]";
-    case "recurrence":
-      return "text-[#d8ffd4] bg-[#14532d]";
-    case "due":
-      return "text-[#ffe6cc] bg-[#92400e]";
-    default:
-      return "text-[var(--text-main)]";
+    case "project": return boardTokenProject;
+    case "label": return boardTokenLabel;
+    case "assignee": return boardTokenAssignee;
+    case "priority": return boardTokenPriority;
+    case "deadline": return boardTokenDeadline;
+    case "recurrence": return boardTokenRecurrence;
+    case "due": return boardTokenDue;
+    default: return boardTokenText;
   }
 }
 
@@ -387,14 +389,15 @@ export function taskCompletionToastMessage(patch: unknown): string {
   return parts.join(" ");
 }
 
+const notificationSuccess = css`border-color:rgba(70,140,98,.34); background:var(--success-bg); color:var(--success);`;
+const notificationError = css`border-color:rgba(196,98,91,.28); background:var(--danger-bg); color:var(--danger);`;
+const notificationInfo = css`border-color:var(--border-strong); background:var(--panel-soft); color:var(--text-main);`;
+
 export function notificationToneClass(tone: string | undefined): string {
   switch ((tone ?? "").trim().toLowerCase()) {
-    case "success":
-      return "border-[rgba(70,140,98,0.34)] bg-[var(--success-bg)] text-[var(--success)]";
-    case "error":
-      return "border-[rgba(196,98,91,0.28)] bg-[var(--danger-bg)] text-[var(--danger)]";
-    default:
-      return "border-[var(--border-strong)] bg-[var(--panel-soft)] text-[var(--text-main)]";
+    case "success": return notificationSuccess;
+    case "error": return notificationError;
+    default: return notificationInfo;
   }
 }
 

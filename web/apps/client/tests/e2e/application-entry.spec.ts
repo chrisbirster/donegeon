@@ -45,6 +45,13 @@ const realAuthEnabled = process.env.PW_REAL_AUTH === "true";
 test.describe("application entry with real auth", () => {
   test.skip(!realAuthEnabled, "run with PW_REAL_AUTH=true so auth is not bypassed");
 
+  test.beforeEach(async ({ page }) => {
+    page.on("pageerror", (error) => console.error(`[browser pageerror] ${error.stack || error.message}`));
+    page.on("console", (message) => {
+      if (message.type() === "error") console.error(`[browser console] ${message.text()}`);
+    });
+  });
+
   test("fresh user signs in, completes onboarding, and reaches Inbox", async ({ page }) => {
     const email = `entry-${Date.now()}@example.com`;
 

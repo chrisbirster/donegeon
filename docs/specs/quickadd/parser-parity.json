@@ -110,5 +110,105 @@
       "labels": [],
       "description": ""
     }
+  },
+  {
+    "name": "metadata after description delimiter",
+    "input": "m1 task @chore @15-min // description due tomorrow",
+    "expected": {
+      "content": "m1 task",
+      "labels": ["chore", "15-min"],
+      "dueText": "tomorrow",
+      "description": "description"
+    }
+  },
+  {
+    "name": "all metadata may follow description prose",
+    "input": "Buy milk // get oat milk #home @errands +alex p2 {friday} due tomorrow at 8pm",
+    "expected": {
+      "content": "Buy milk",
+      "project": "home",
+      "labels": ["errands"],
+      "assignee": "alex",
+      "priority": 2,
+      "deadline": "friday",
+      "dueText": "tomorrow at 8pm",
+      "description": "get oat milk"
+    }
+  },
+  {
+    "name": "recurrence after description delimiter",
+    "input": "Weekly review // include metrics every monday at 9am",
+    "expected": {
+      "content": "Weekly review",
+      "labels": [],
+      "recurrenceRule": "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;BYHOUR=9;BYMINUTE=0",
+      "description": "include metrics"
+    }
+  },
+  {
+    "name": "metadata split across title and description",
+    "input": "Deploy #work p3 // coordinate @ops p1 due thursday at 5pm",
+    "expected": {
+      "content": "Deploy",
+      "project": "work",
+      "labels": ["ops"],
+      "priority": 1,
+      "dueText": "thursday at 5pm",
+      "description": "coordinate"
+    }
+  },
+  {
+    "name": "deadline after description delimiter",
+    "input": "Write proposal // include budget {in 3 days}",
+    "expected": {
+      "content": "Write proposal",
+      "labels": [],
+      "deadline": "in 3 days",
+      "description": "include budget"
+    }
+  },
+  {
+    "name": "timed tomorrow remains one due phrase",
+    "input": "adding a task here @home @chore #task due tomorrow at 8pm",
+    "expected": {
+      "content": "adding a task here",
+      "project": "task",
+      "labels": ["home", "chore"],
+      "dueText": "tomorrow at 8pm",
+      "description": ""
+    }
+  },
+  {
+    "name": "recognized due syntax inside description remains syntax",
+    "input": "Call Bob // ask whether the report is due tomorrow",
+    "expected": {
+      "content": "Call Bob",
+      "labels": [],
+      "dueText": "tomorrow",
+      "description": "ask whether the report is"
+    }
+  },
+  {
+    "name": "plain description stays plain",
+    "input": "Read chapter // capture the three key ideas",
+    "expected": {
+      "content": "Read chapter",
+      "labels": [],
+      "description": "capture the three key ideas"
+    }
+  },
+  {
+    "name": "mixed recurrence deadline and due after delimiter",
+    "input": "Plan launch // coordinate rollout #work @urgent p1 {in 2 days} every monday at 9am due tomorrow at 8pm",
+    "expected": {
+      "content": "Plan launch",
+      "project": "work",
+      "labels": ["urgent"],
+      "priority": 1,
+      "deadline": "in 2 days",
+      "dueText": "tomorrow at 8pm",
+      "recurrenceRule": "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;BYHOUR=9;BYMINUTE=0",
+      "description": "coordinate rollout"
+    }
   }
 ]
