@@ -1,110 +1,26 @@
-import {
-  For,
-  Show,
-  createTrackedEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  onSettled,
-} from "solid-js";
+import { createTrackedEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { createQuery } from "@tanstack/solid-query";
 
-import {
-  type Project,
-  type QuickAddParsed,
-  type Task,
-} from "../server/api";
+import type { Project, QuickAddParsed, Task } from "../server/api";
 import { useApi } from "../context/ApiContext";
 import { useToast } from "../context/ToastContext";
 import { queryClient } from "../lib/queryClient";
-import { mergeNormalizedLabels } from "../lib/quickAddLabels";
-import { isAbortError, shouldPreviewQuickAdd } from "../lib/quickAddPreview";
-import AppShell from "../components/AppShell";
-import SidebarAccountCard from "../components/SidebarAccountCard";
-import TaskQuickAddComposer from "../components/task/TaskQuickAddComposer";
-import TaskViewHeader from "../components/task/TaskViewHeader";
-
 import {
-  TokenKind,
-  TokenPiece,
-  TaskActivationCoinRequirement,
-  TaskActivationModifierRequirement,
-  TaskActivationPreview,
-  QUICK_ADD_TOKEN_PATTERN,
-  RECURRENCE_TOKEN_PATTERN,
-  classifyToken,
+  type TaskActivationPreview,
   tokenizeQuickAdd,
-  tokenClass,
-  sidebarCardClass,
-  sidebarItemBaseClass,
-  sidebarItemActiveClass,
-  sidebarItemIdleClass,
-  searchButtonClass,
-  panelActionButtonClass,
-  smallActionButtonClass,
-  listActionButtonClass,
-  successActionButtonClass,
-  dangerActionButtonClass,
-  formFieldClass,
-  iconMutedClass,
-  iconActiveClass,
-  teamBadgeClass,
-  dueBadgeClass,
-  deadlineBadgeClass,
-  warningBadgeClass,
-  boardDraftBadgeClass,
-  boardLiveBadgeClass,
-  tagBadgeClass,
-  emptyStateClass,
-  errorBannerClass,
-  warningBannerClass,
-  successBannerClass,
-  taskRowBaseClass,
-  taskRowDropClass,
-  taskRowNextActionClass,
-  taskRowDefaultClass,
-  completedTaskRowClass,
-  dateTimeFormatter,
-  formatScheduleDateTime,
-  scheduleTokenFromInput,
-  scheduleBadgeLabel,
-  parseScheduleInstant,
-  scheduleValidationWarning,
-  formatLabelsInput,
-  parseLabelsInput,
-  toDatetimeLocalValue,
-  fromDatetimeLocalValue,
-  slugifyProjectID,
-  addChip,
   sortTasks,
   sortCompletedTasks,
   prettifyLabel,
-  normalizeLabelToken,
-  isBoardLiveLabel,
-  isBoardLiveTask,
-  projectSlug,
   isBoardProject,
-  isTeamBoardProject,
-  boardIDForProject,
-  projectQuickAddAlias,
-  hasExplicitProjectToken,
-  projectAliasFromProjectID,
-  visibleTaskLabels,
-  formatModifierRequirementName,
-  toNumber,
-  toString,
+  formatScheduleDateTime,
+  scheduleTokenFromInput,
+  parseScheduleInstant,
+  addChip,
 } from "../features/tasks/home-model";
 import {
-  parseTaskActivationPreview,
-  isNextActionLabel,
-  isNextActionTask,
-  TaskView,
-  ViewState,
   parseTaskView,
   startOfLocalDay,
-  shiftDays,
-  parseTaskDateValue,
   taskDueDate,
   DEFAULT_SIDEBAR_PROJECTS,
 } from "../features/tasks/home-rules";
@@ -164,30 +80,19 @@ export function createHomeControllerState() {
 
   const mergedProjects = createMemo(() => {
     const byID = new Map<string, Project>();
-    for (const project of DEFAULT_SIDEBAR_PROJECTS) {
-      byID.set(project.id, project);
-    }
-    for (const project of projects()) {
-      byID.set(project.id, project);
-    }
+    for (const project of DEFAULT_SIDEBAR_PROJECTS) byID.set(project.id, project);
+    for (const project of projects()) byID.set(project.id, project);
     return [...byID.values()];
   });
 
   const projectMap = createMemo(() => {
     const byID = new Map<string, Project>();
-    for (const project of mergedProjects()) {
-      byID.set(project.id, project);
-    }
+    for (const project of mergedProjects()) byID.set(project.id, project);
     return byID;
   });
 
-  const openTasks = createMemo(() =>
-    sortTasks(tasks().filter((task) => !task.checked && !task.isDeleted)),
-  );
-
-  const completedTasks = createMemo(() =>
-    sortCompletedTasks(tasks().filter((task) => task.checked && !task.isDeleted)),
-  );
+  const openTasks = createMemo(() => sortTasks(tasks().filter((task) => !task.checked && !task.isDeleted)));
+  const completedTasks = createMemo(() => sortCompletedTasks(tasks().filter((task) => task.checked && !task.isDeleted)));
 
   const openTaskCountByProjectID = createMemo(() => {
     const counts = new Map<string, number>();
@@ -206,9 +111,7 @@ export function createHomeControllerState() {
     return !!project?.isInboxProject;
   }
 
-  const inboxCount = createMemo(() =>
-    openTasks().filter((task) => isInboxTask(task)).length,
-  );
+  const inboxCount = createMemo(() => openTasks().filter((task) => isInboxTask(task)).length);
 
   const todayCount = createMemo(() => {
     const today = startOfLocalDay(new Date());
@@ -227,15 +130,11 @@ export function createHomeControllerState() {
   });
 
   const favoriteProjects = createMemo(() =>
-    mergedProjects()
-      .filter((project) => project.isFavorite && !project.isArchived)
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    mergedProjects().filter((project) => project.isFavorite && !project.isArchived).sort((a, b) => a.name.localeCompare(b.name)),
   );
 
   const sidebarProjects = createMemo(() =>
-    mergedProjects()
-      .filter((project) => !project.isArchived)
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    mergedProjects().filter((project) => !project.isArchived).sort((a, b) => a.name.localeCompare(b.name)),
   );
 
   const selectedProject = createMemo(() => {
@@ -249,8 +148,8 @@ export function createHomeControllerState() {
     switch (view.kind) {
       case "today":
         return "Today";
-      case "upcomming":
-        return "Upcomming";
+      case "upcoming":
+        return "Upcoming";
       case "project":
         return selectedProject()?.name ?? prettifyLabel(view.projectId ?? "Project");
       default:
@@ -267,7 +166,7 @@ export function createHomeControllerState() {
         return due?.getTime() === today.getTime();
       });
     }
-    if (view.kind === "upcomming") {
+    if (view.kind === "upcoming") {
       const today = startOfLocalDay(new Date());
       return taskList.filter((task) => {
         const due = taskDueDate(task);
@@ -277,9 +176,7 @@ export function createHomeControllerState() {
     if (view.kind === "project") {
       const projectID = view.projectId?.trim();
       if (!projectID) return [] as Task[];
-      if (projectMap().get(projectID)?.isInboxProject) {
-        return taskList.filter((task) => isInboxTask(task));
-      }
+      if (projectMap().get(projectID)?.isInboxProject) return taskList.filter((task) => isInboxTask(task));
       return taskList.filter((task) => task.projectId?.trim() === projectID);
     }
     return taskList.filter((task) => isInboxTask(task));
@@ -338,11 +235,7 @@ export function createHomeControllerState() {
     if (!query) return [] as Task[];
     return openTasks().filter((task) => {
       const projectName = task.projectId ? projectMap().get(task.projectId)?.name ?? task.projectId : "";
-      return (
-        task.content.toLowerCase().includes(query) ||
-        task.description.toLowerCase().includes(query) ||
-        projectName.toLowerCase().includes(query)
-      );
+      return task.content.toLowerCase().includes(query) || task.description.toLowerCase().includes(query) || projectName.toLowerCase().includes(query);
     });
   });
 
@@ -366,9 +259,7 @@ export function createHomeControllerState() {
       return;
     }
     const projectErr = projectsQuery.error;
-    if (projectErr) {
-      setError(projectErr instanceof Error ? projectErr.message : "Failed to load projects");
-    }
+    if (projectErr) setError(projectErr instanceof Error ? projectErr.message : "Failed to load projects");
   });
 
   function projectNameByID(projectID?: string): string | null {
@@ -384,10 +275,7 @@ export function createHomeControllerState() {
 
   async function refreshData() {
     try {
-      const [taskResult, projectResult] = await Promise.all([
-        tasksQuery.refetch(),
-        projectsQuery.refetch(),
-      ]);
+      const [taskResult, projectResult] = await Promise.all([tasksQuery.refetch(), projectsQuery.refetch()]);
       if (taskResult.data) setTasks(sortTasks(taskResult.data.items));
       if (projectResult.data) setProjects(projectResult.data.items);
       setError("");
@@ -402,9 +290,7 @@ export function createHomeControllerState() {
 
   async function persistOrder(orderedOpenTasks: Task[]) {
     try {
-      await Promise.all(
-        orderedOpenTasks.map((item, index) => api.tasks.update(item.id, { sortOrder: index + 1 })),
-      );
+      await Promise.all(orderedOpenTasks.map((item, index) => api.tasks.update(item.id, { sortOrder: index + 1 })));
     } catch (err) {
       setError((err as Error).message);
       await refreshData();
