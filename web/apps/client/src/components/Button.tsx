@@ -4,13 +4,22 @@ import type { JSX } from "@solidjs/web";
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "warning";
 export type ButtonSize = "sm" | "md" | "lg";
 
-export type ButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  block?: boolean;
-  iconOnly?: boolean;
-  unstyled?: boolean;
+type BooleanAriaValue = boolean | "true" | "false";
+type ButtonAriaOverrides = {
+  "aria-expanded"?: BooleanAriaValue;
+  "aria-pressed"?: BooleanAriaValue | "mixed";
+  "aria-selected"?: BooleanAriaValue;
+  "aria-disabled"?: BooleanAriaValue;
 };
+
+export type ButtonProps = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, keyof ButtonAriaOverrides> &
+  ButtonAriaOverrides & {
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+    block?: boolean;
+    iconOnly?: boolean;
+    unstyled?: boolean;
+  };
 
 const variants: Record<ButtonVariant, string> = {
   primary: css`
