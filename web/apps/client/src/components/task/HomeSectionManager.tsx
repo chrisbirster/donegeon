@@ -1,9 +1,11 @@
 import { css } from "@linaria/core";
-import { For, Show, createEffect, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 
 import { organizationApi, type OrganizationSection } from "../../lib/organizationApi";
 import { useHome } from "../../page/HomeContext";
 import Button from "../Button";
+import ActionMenu from "../ui/ActionMenu";
+import Dialog from "../ui/Dialog";
 
 type DialogMode =
   | { kind: "create" }
@@ -16,13 +18,23 @@ type ActiveDialogMode = Exclude<DialogMode, null>;
 const deletableSection = (mode: ActiveDialogMode) => mode.kind === "delete" ? mode.section : undefined;
 
 export default function HomeSectionManager() {
-  const { currentView, selectedProject, refreshData, toast, setError } = useHome();
+  const { currentView, selectedProject, tasks, refreshData, toast, setError } = useHome();
   const [sections, setSections] = createSignal<OrganizationSection[]>([]);
   const [dialogMode, setDialogMode] = createSignal<DialogMode>(null);
-  const [menuSection, setMenuSection] = createSignal<OrganizationSection | null>(null);
   const [name, setName] = createSignal("");
   const [sectionError, setSectionError] = createSignal("");
   let loadedProjectId = "";
+
+  const counts = createMemo(() => {
+    const result = new Map<string, number>();
+    const projectId = selectedProject()?.id;
+    if (!projectId) return result;
+    for (const task of tasks()) {
+      if (task.isDeleted || task.checked || task.projectId !== projectId || !task.sectionId) continue;
+      result.set(task.sectionId, (result.get(task.sectionId) ?? 0) + 1);
+    }
+    return result;
+  });
 
   async function load(projectId: string) {
     if (!projectId) {
@@ -47,21 +59,27 @@ export default function HomeSectionManager() {
       if (projectId === loadedProjectId) return;
       loadedProjectId = projectId;
       setDialogMode(null);
-      setMenuSection(null);
       if (projectId) void load(projectId);
       else setSections([]);
     },
   );
 
+  onSettled(() => {
+    const changed = (event: Event) => {
+      const projectId = (event as CustomEvent<{ projectId?: string }>).detail?.projectId;
+      if (projectId && projectId === selectedProject()?.id) void load(projectId);
+    };
+    window.addEventListener("donegeon:sections-changed", changed);
+    return () => window.removeEventListener("donegeon:sections-changed", changed);
+  });
+
   function beginCreate() {
     setName("");
-    setMenuSection(null);
     setDialogMode({ kind: "create" });
   }
 
   function beginRename(section: OrganizationSection) {
     setName(section.name);
-    setMenuSection(null);
     setDialogMode({ kind: "rename", section });
   }
 
@@ -87,6 +105,7 @@ export default function HomeSectionManager() {
       setName("");
       setError("");
       await load(project.id);
+      window.dispatchEvent(new CustomEvent("donegeon:sections-changed", { detail: { projectId: project.id } }));
     } catch (err) {
       const message = (err as Error).message;
       setSectionError(message);
@@ -101,10 +120,10 @@ export default function HomeSectionManager() {
     try {
       await organizationApi.sections.remove(section.id);
       setDialogMode(null);
-      setMenuSection(null);
       setError("");
-      toast.info(`Section ${section.name} deleted.`);
+      toast.info(`Section ${section.name} deleted. Its tasks remain in ${project.name} with no section.`);
       await Promise.all([load(project.id), refreshData()]);
+      window.dispatchEvent(new CustomEvent("donegeon:sections-changed", { detail: { projectId: project.id } }));
     } catch (err) {
       const message = (err as Error).message;
       setSectionError(message);
@@ -115,47 +134,35 @@ export default function HomeSectionManager() {
 
   return (
     <Show when={currentView().kind === "project" && selectedProject() && !selectedProject()?.isInboxProject}>
-      <section class={wrapper} aria-label="Project sections">
+      <section class={wrapper} aria-labelledby="project-sections-heading">
         <div class={topRow}>
           <div>
-            <p class={eyebrow}>Sections</p>
-            <p class={helper}>Group tasks inside {selectedProject()?.name}.</p>
+            <p class={eyebrow} id="project-sections-heading">Sections</p>
+            <p class={helper}>
+              Optional groups inside {selectedProject()?.name}. A task can stay in the project without a section; sections never cross projects.
+            </p>
           </div>
-          <Button type="button" class={addButton} onClick={beginCreate}>Add section</Button>
+          <Button type="button" onClick={beginCreate}>Add section</Button>
         </div>
 
-        <Show when={sectionError()}><p class={errorText}>{sectionError()}</p></Show>
+        <Show when={sectionError()}><p class={errorText} role="alert">{sectionError()}</p></Show>
 
-        <Show when={sections().length > 0}>
+        <Show when={sections().length > 0} fallback={<p class={empty}>No sections yet. Add one when this project needs another layer of organization.</p>}>
           <div class={sectionList}>
             <For each={sections()}>
               {(section) => (
                 <div class={sectionCard}>
-                  <h3 class={sectionName}>{section.name}</h3>
-                  <div class={actionWrap}>
-                    <Button
-                      type="button"
-                      class={actionButton}
-                      aria-label={`Section actions ${section.name}`}
-                      aria-haspopup="menu"
-                      onClick={() => setMenuSection(menuSection()?.id === section.id ? null : section)}
-                    >
-                      •••
-                    </Button>
-                    <Show when={menuSection()?.id === section.id}>
-                      <div class={menu} role="menu">
-                        <Button type="button" role="menuitem" class={menuItem} onClick={() => beginRename(section)}>Rename</Button>
-                        <Button
-                          type="button"
-                          role="menuitem"
-                          class={menuItemDanger}
-                          onClick={() => { setMenuSection(null); setDialogMode({ kind: "delete", section }); }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </Show>
+                  <div class={sectionIdentity}>
+                    <h3 class={sectionName}>{section.name}</h3>
+                    <span class={sectionCount}>{counts().get(section.id) ?? 0} open</span>
                   </div>
+                  <ActionMenu
+                    ariaLabel={`Section actions ${section.name}`}
+                    items={[
+                      { label: "Rename", onSelect: () => beginRename(section) },
+                      { label: "Delete", danger: true, onSelect: () => setDialogMode({ kind: "delete", section }) },
+                    ]}
+                  />
                 </div>
               )}
             </For>
@@ -165,14 +172,12 @@ export default function HomeSectionManager() {
 
       <Show when={dialogMode()}>
         {(mode) => (
-          <div class={backdrop} onClick={() => setDialogMode(null)}>
-            <section
-              class={dialog}
-              role="dialog"
-              aria-modal="true"
-              aria-label={mode().kind === "rename" ? "Rename section" : mode().kind === "delete" ? "Delete section" : "Create section"}
-              onClick={(event) => event.stopPropagation()}
-            >
+          <Dialog
+            ariaLabel={mode().kind === "rename" ? "Rename section" : mode().kind === "delete" ? "Delete section" : "Create section"}
+            onClose={() => setDialogMode(null)}
+            class={dialog}
+          >
+            <div class={dialogBody}>
               <h2 class={dialogTitle}>
                 {mode().kind === "rename" ? "Rename section" : mode().kind === "delete" ? "Delete section" : "Create section"}
               </h2>
@@ -181,14 +186,13 @@ export default function HomeSectionManager() {
                 when={mode().kind !== "delete"}
                 fallback={
                   <p class={dialogCopy}>
-                    Delete <strong>{deletableSection(mode())?.name ?? "this section"}</strong>? Tasks stay in the project and lose only this section placement.
+                    Delete <strong>{deletableSection(mode())?.name ?? "this section"}</strong>? Tasks stay in {selectedProject()?.name} and move to the unsectioned group.
                   </p>
                 }
               >
                 <label class={fieldLabel} for="section-dialog-name">Section name</label>
                 <input
                   id="section-dialog-name"
-                  aria-label="Section name"
                   class={input}
                   value={name()}
                   autofocus
@@ -205,15 +209,11 @@ export default function HomeSectionManager() {
               <div class={dialogActions}>
                 <Show
                   when={mode().kind === "delete"}
-                  fallback={
-                    <Button type="button" class={primaryButton} onClick={() => void saveSection()}>
-                      {mode().kind === "rename" ? "Save" : "Create"}
-                    </Button>
-                  }
+                  fallback={<Button type="button" variant="primary" onClick={() => void saveSection()}>{mode().kind === "rename" ? "Save" : "Create"}</Button>}
                 >
                   <Button
                     type="button"
-                    class={dangerButton}
+                    variant="danger"
                     onClick={() => {
                       const section = deletableSection(mode());
                       if (section) void deleteSection(section);
@@ -222,37 +222,34 @@ export default function HomeSectionManager() {
                     Delete
                   </Button>
                 </Show>
-                <Button type="button" class={secondaryButton} onClick={() => setDialogMode(null)}>Cancel</Button>
+                <Button type="button" onClick={() => setDialogMode(null)}>Cancel</Button>
               </div>
-            </section>
-          </div>
+            </div>
+          </Dialog>
         )}
       </Show>
     </Show>
   );
 }
 
-const wrapper = css`margin:.8rem 0 .25rem; padding:.8rem .9rem; border:1px solid var(--border-soft); border-radius:.8rem; background:rgba(255,255,255,.015);`;
-const topRow = css`display:flex; align-items:center; justify-content:space-between; gap:1rem;`;
+const wrapper = css`margin:.8rem 0 .25rem; padding:.85rem .95rem; border:1px solid var(--border-soft); border-radius:.8rem; background:rgba(255,255,255,.015);`;
+const topRow = css`display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;`;
 const eyebrow = css`margin:0; font-size:.7rem; font-weight:750; letter-spacing:.12em; text-transform:uppercase; color:var(--text-dim);`;
-const helper = css`margin:.2rem 0 0; font-size:.76rem; color:var(--text-dim);`;
-const addButton = css`border:1px solid var(--border-strong); border-radius:.6rem; padding:.5rem .7rem; background:var(--panel-soft); color:var(--text-main);`;
-const sectionList = css`display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.75rem;`;
-const sectionCard = css`display:flex; align-items:center; gap:.45rem; border:1px solid var(--border-soft); border-radius:.65rem; padding:.4rem .4rem .4rem .65rem; background:rgba(255,255,255,.025);`;
-const sectionName = css`margin:0; font-size:.84rem; font-weight:650;`;
-const actionWrap = css`position:relative;`;
-const actionButton = css`border:0; border-radius:.45rem; padding:.25rem .4rem; background:transparent; color:var(--text-dim);`;
-const menu = css`position:absolute; z-index:20; top:calc(100% + .25rem); right:0; min-width:8rem; display:flex; flex-direction:column; padding:.3rem; border:1px solid var(--border-strong); border-radius:.6rem; background:var(--panel); box-shadow:var(--shadow-elevated);`;
-const menuItem = css`border:0; border-radius:.4rem; padding:.48rem .6rem; background:transparent; color:var(--text-main); text-align:left;`;
-const menuItemDanger = css`border:0; border-radius:.4rem; padding:.48rem .6rem; background:transparent; color:var(--danger); text-align:left;`;
+const helper = css`margin:.25rem 0 0; max-width:42rem; font-size:.76rem; line-height:1.45; color:var(--text-dim);`;
+const sectionList = css`display:flex; flex-wrap:wrap; gap:.55rem; margin-top:.75rem;`;
+const sectionCard = css`display:grid; grid-template-columns:minmax(0,1fr) 2.5rem; gap:.45rem; align-items:stretch; min-width:11rem; border:1px solid var(--border-soft); border-radius:.65rem; padding:.4rem; background:rgba(255,255,255,.025);`;
+const sectionIdentity = css`display:flex; flex-direction:column; justify-content:center; min-width:0; padding:.1rem .3rem;`;
+const sectionName = css`margin:0; font-size:.84rem; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
+const sectionCount = css`color:var(--text-dim); font-size:.68rem;`;
 const errorText = css`margin:.65rem 0 0; color:var(--danger); font-size:.8rem;`;
-const backdrop = css`position:fixed; inset:0; z-index:80; display:flex; align-items:flex-start; justify-content:center; padding:3rem 1rem; background:rgba(0,0,0,.72); backdrop-filter:blur(8px);`;
-const dialog = css`width:min(30rem,100%); border:1px solid var(--border-strong); border-radius:.9rem; padding:1.2rem; background:var(--panel); color:var(--text-main); box-shadow:var(--shadow-elevated);`;
+const empty = css`margin:.7rem 0 0; color:var(--text-dim); font-size:.78rem;`;
+const dialog = css`width:min(30rem,100%);`;
+const dialogBody = css`padding:1.2rem;`;
 const dialogTitle = css`margin:0 0 1rem; font-size:1.1rem;`;
 const dialogCopy = css`margin:0 0 1rem; color:var(--text-dim); line-height:1.5;`;
 const fieldLabel = css`display:block; margin-bottom:.4rem; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
-const input = css`width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.68rem .75rem; background:rgba(255,255,255,.035); color:var(--text-main); outline:none; &:focus{border-color:var(--accent);}`;
+const input = css`
+  width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.68rem .75rem; background:rgba(255,255,255,.035); color:var(--text-main); outline:none;
+  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+`;
 const dialogActions = css`display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem;`;
-const primaryButton = css`border:0; border-radius:.6rem; padding:.55rem .75rem; background:var(--accent); color:#1d1108; font-weight:700;`;
-const secondaryButton = css`border:1px solid var(--border-strong); border-radius:.6rem; padding:.5rem .7rem; background:var(--panel-soft); color:var(--text-main);`;
-const dangerButton = css`border:1px solid color-mix(in srgb,var(--danger) 45%,transparent); border-radius:.6rem; padding:.5rem .75rem; background:rgba(255,70,90,.08); color:var(--danger);`;
