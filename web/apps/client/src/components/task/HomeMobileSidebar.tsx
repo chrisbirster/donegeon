@@ -24,9 +24,9 @@ export default function HomeMobileSidebar() {
   } = useHome();
 
   const views = [
-    { activeKey: "inbox" as const, route: "inbox" as const, label: "Inbox", count: inboxCount },
-    { activeKey: "today" as const, route: "today" as const, label: "Today", count: todayCount },
-    { activeKey: "upcomming" as const, route: "upcoming" as const, label: "Upcoming", count: upcomingCount },
+    { key: "inbox" as const, label: "Inbox", count: inboxCount },
+    { key: "today" as const, label: "Today", count: todayCount },
+    { key: "upcoming" as const, label: "Upcoming", count: upcomingCount },
   ];
 
   return (
@@ -47,7 +47,7 @@ export default function HomeMobileSidebar() {
         <div class={list}>
           <For each={views}>
             {(view) => (
-              <Button type="button" class={`${row} ${isViewActive(view.activeKey) ? activeRow : ""}`} onClick={() => navigateToView(view.route)}>
+              <Button type="button" class={`${row} ${isViewActive(view.key) ? activeRow : ""}`} onClick={() => navigateToView(view.key)}>
                 <span>{view.label}</span><span class={muted}>{view.count()}</span>
               </Button>
             )}
