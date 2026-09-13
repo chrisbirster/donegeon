@@ -1,5 +1,4 @@
 import { css } from "@linaria/core";
-import { splitProps } from "solid-js";
 import type { JSX } from "@solidjs/web";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "warning";
@@ -79,17 +78,31 @@ const buttonBase = css`
 
 const blockClass = css`width: 100%;`;
 const iconClass = css`aspect-ratio: 1; padding-inline: 0;`;
+const internalProps = new Set(["variant", "size", "block", "iconOnly", "unstyled", "class"]);
+
+function reactiveDomProps(props: ButtonProps): JSX.ButtonHTMLAttributes<HTMLButtonElement> {
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(props)) {
+    if (internalProps.has(key)) continue;
+    Object.defineProperty(result, key, {
+      configurable: true,
+      enumerable: true,
+      get: () => (props as Record<string, unknown>)[key],
+    });
+  }
+  return result as JSX.ButtonHTMLAttributes<HTMLButtonElement>;
+}
 
 export default function Button(props: ButtonProps) {
-  const [local, rest] = splitProps(props, ["variant", "size", "block", "iconOnly", "unstyled", "class"]);
+  const domProps = reactiveDomProps(props);
   const className = () => [
-    local.unstyled ? "" : buttonBase,
-    local.unstyled ? "" : variants[local.variant ?? "secondary"],
-    local.unstyled ? "" : sizes[local.size ?? "md"],
-    local.block ? blockClass : "",
-    local.iconOnly ? iconClass : "",
-    local.class ?? "",
+    props.unstyled ? "" : buttonBase,
+    props.unstyled ? "" : variants[props.variant ?? "secondary"],
+    props.unstyled ? "" : sizes[props.size ?? "md"],
+    props.block ? blockClass : "",
+    props.iconOnly ? iconClass : "",
+    props.class ?? "",
   ].filter(Boolean).join(" ");
 
-  return <button {...rest} class={className()} />;
+  return <button {...domProps} class={className()} />;
 }
