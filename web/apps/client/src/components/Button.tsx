@@ -87,7 +87,10 @@ function reactiveDomProps(props: ButtonProps): JSX.ButtonHTMLAttributes<HTMLButt
     Object.defineProperty(result, key, {
       configurable: true,
       enumerable: true,
-      get: () => (props as Record<string, unknown>)[key],
+      get: () => {
+        const value = (props as unknown as Record<string, unknown>)[key];
+        return key.startsWith("aria-") && typeof value === "boolean" ? String(value) : value;
+      },
     });
   }
   return result as JSX.ButtonHTMLAttributes<HTMLButtonElement>;
