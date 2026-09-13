@@ -72,7 +72,7 @@ export default function BoardNotificationHistory() {
                       <p class={toneLabel}>{notificationToneLabel(entry.tone)}</p>
                       <p class={message}>{entry.message}</p>
                     </div>
-                    <time class={timestamp} dateTime={entry.createdAt}>
+                    <time class={timestamp} datetime={new Date(entry.createdAt).toISOString()}>
                       {formatNotificationTime(entry.createdAt)}
                     </time>
                   </div>
