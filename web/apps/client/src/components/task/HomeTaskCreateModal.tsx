@@ -86,7 +86,7 @@ export default function HomeTaskCreateModal() {
     return sidebarProjects().find((project) =>
       project.id.toLowerCase() === normalized ||
       project.name.trim().toLowerCase() === normalized ||
-      projectQuickAddAlias(project).toLowerCase() === normalized,
+      (projectQuickAddAlias(project) ?? "").toLowerCase() === normalized,
     );
   }
 
