@@ -9,6 +9,7 @@ import {
 } from "../../features/tasks/home-model";
 import { useHome } from "../../page/HomeContext";
 import Button from "../Button";
+import Dialog from "../ui/Dialog";
 
 export default function HomeSearchModal() {
   const {
@@ -30,90 +31,91 @@ export default function HomeSearchModal() {
 
   return (
     <Show when={isSearchOpen()}>
-      <div class={overlay} onClick={closeSearchModal}>
-        <section class={palette} onClick={(event) => event.stopPropagation()} aria-label="Task search">
-          <div class={searchHeader}>
-            <span class={searchGlyph} aria-hidden="true">⌕</span>
-            <input
-              ref={setSearchInputRef}
-              value={searchText()}
-              onInput={(event) => setSearchText(event.currentTarget.value)}
-              placeholder="Search the dungeon..."
-              aria-label="Search tasks"
-              data-testid="search-input"
-              class={searchInput}
-            />
-            <kbd class={shortcut}>⌘K</kbd>
-          </div>
+      <Dialog ariaLabel="Task search" onClose={closeSearchModal} class={palette} testId="task-search-dialog">
+        <div class={searchHeader}>
+          <span class={searchGlyph} aria-hidden="true">⌕</span>
+          <input
+            ref={setSearchInputRef}
+            value={searchText()}
+            onInput={(event) => setSearchText(event.currentTarget.value)}
+            placeholder="Search the dungeon..."
+            aria-label="Search tasks"
+            data-testid="search-input"
+            class={searchInput}
+            autofocus
+          />
+          <kbd class={shortcut}>⌘K</kbd>
+        </div>
+        <div class={subheader}>
           <p class={searchHint}>Search task titles, descriptions, projects, and tags.</p>
+          <Button type="button" variant="ghost" size="sm" onClick={closeSearchModal}>Close</Button>
+        </div>
 
-          <div class={results}>
+        <div class={results}>
+          <Show
+            when={searchText().trim().length > 0}
+            fallback={
+              <div class={emptyState}>
+                <span class={emptyGlyph} aria-hidden="true">⌕</span>
+                <p>Start typing to find an open task.</p>
+              </div>
+            }
+          >
             <Show
-              when={searchText().trim().length > 0}
-              fallback={
-                <div class={emptyState}>
-                  <span class={emptyGlyph}>⌕</span>
-                  <p>Start typing to find an open task.</p>
-                </div>
-              }
+              when={searchResults().length > 0}
+              fallback={<p class={emptyState}>No matching open tasks.</p>}
             >
-              <Show
-                when={searchResults().length > 0}
-                fallback={<p class={emptyState}>No matching open tasks.</p>}
-              >
-                <p class={resultHeading}>{searchResults().length} result(s)</p>
-                <div class={resultList}>
-                  <For each={searchResults()}>
-                    {(item) => {
-                      const token = () => projectToken(item.projectId);
-                      return (
-                        <Button
-                          type="button"
-                          class={resultButton}
-                          onClick={() => {
-                            closeSearchModal();
-                            openDetailModal(item);
-                          }}
-                        >
-                          <span class={resultMain}>
-                            <span class={resultTitle}>{item.content}</span>
-                            <Show when={item.description?.trim()}>
-                              <span class={resultDescription}>{item.description.trim()}</span>
+              <p class={resultHeading} aria-live="polite">{searchResults().length} result(s)</p>
+              <div class={resultList} aria-label="Task search results">
+                <For each={searchResults()}>
+                  {(item) => {
+                    const token = () => projectToken(item.projectId);
+                    return (
+                      <Button
+                        type="button"
+                        class={resultButton}
+                        data-testid="search-result"
+                        onClick={() => {
+                          closeSearchModal();
+                          openDetailModal(item);
+                        }}
+                      >
+                        <span class={resultMain}>
+                          <span class={resultTitle}>{item.content}</span>
+                          <Show when={item.description?.trim()}>
+                            <span class={resultDescription}>{item.description.trim()}</span>
+                          </Show>
+                          <span class={metadata}>
+                            <Show when={token()}>{(value) => <span class={projectBadge}>#{value()}</span>}</Show>
+                            <Show when={scheduleBadgeLabel(item, "due")}>
+                              {(label) => <span class={metadataBadge}>{label()}</span>}
                             </Show>
-                            <span class={metadata}>
-                              <Show when={token()}>{(value) => <span class={projectBadge}>#{value()}</span>}</Show>
-                              <Show when={scheduleBadgeLabel(item, "due")}>
-                                {(label) => <span class={metadataBadge}>{label()}</span>}
-                              </Show>
-                              <Show when={scheduleBadgeLabel(item, "deadline")}>
-                                {(label) => <span class={metadataBadge}>{label()}</span>}
-                              </Show>
-                              <For each={visibleTaskLabels(item.labels)}>
-                                {(label) => <span class={metadataBadge}>@{label}</span>}
-                              </For>
-                            </span>
+                            <Show when={scheduleBadgeLabel(item, "deadline")}>
+                              {(label) => <span class={metadataBadge}>{label()}</span>}
+                            </Show>
+                            <For each={visibleTaskLabels(item.labels)}>
+                              {(label) => <span class={metadataBadge}>@{label}</span>}
+                            </For>
                           </span>
-                          <span class={openHint}>Details ↗</span>
-                        </Button>
-                      );
-                    }}
-                  </For>
-                </div>
-              </Show>
+                        </span>
+                        <span class={openHint}>Details ↗</span>
+                      </Button>
+                    );
+                  }}
+                </For>
+              </div>
             </Show>
-          </div>
-        </section>
-      </div>
+          </Show>
+        </div>
+      </Dialog>
     </Show>
   );
 }
 
-const overlay = css`
-  position:fixed; inset:0; z-index:60; display:flex; align-items:flex-start; justify-content:center;
-  padding:clamp(1rem,6vh,4.5rem) 1rem 1rem; background:rgba(0,0,0,.7); backdrop-filter:blur(9px);
-`;
 const palette = css`
-  width:min(760px,100%); overflow:hidden; border:1px solid rgba(196,69,255,.46); border-radius:1.25rem;
+  width:min(760px,100%);
+  overflow:hidden;
+  border-color:rgba(196,69,255,.46);
   background:linear-gradient(180deg, rgba(11,14,25,.985), rgba(8,10,19,.985));
   box-shadow:0 28px 90px rgba(0,0,0,.7), 0 0 42px rgba(196,69,255,.12);
 `;
@@ -126,25 +128,27 @@ const searchInput = css`
   width:100%; border:0; outline:0; background:transparent; color:var(--text-main);
   font:500 1.12rem/1.4 "Space Grotesk","IBM Plex Sans",sans-serif;
   &::placeholder { color:var(--text-dim); }
+  &:focus-visible { outline:2px solid #00e0ff; outline-offset:4px; border-radius:.25rem; }
 `;
 const shortcut = css`
   border:1px solid var(--border-strong); border-bottom-color:rgba(196,69,255,.4); border-radius:.45rem;
   padding:.22rem .42rem; background:rgba(255,255,255,.035); color:var(--text-dim); font-size:.68rem;
 `;
-const searchHint = css`padding:0 1.1rem 1rem 3.25rem; border-bottom:1px solid var(--border-strong); color:var(--text-dim); font-size:.78rem;`;
+const subheader = css`display:flex; align-items:center; justify-content:space-between; gap:.8rem; padding:0 1.1rem .8rem; border-bottom:1px solid var(--border-strong);`;
+const searchHint = css`margin:0; color:var(--text-dim); font-size:.78rem;`;
 const results = css`max-height:min(62vh,540px); overflow-y:auto; padding:.75rem;`;
 const emptyState = css`
-  display:flex; align-items:center; justify-content:center; gap:.6rem; min-height:7rem; padding:1rem;
+  display:flex; align-items:center; justify-content:center; gap:.6rem; min-height:7rem; margin:0; padding:1rem;
   color:var(--text-dim); font-size:.9rem; text-align:center;
 `;
 const emptyGlyph = css`font-size:1.2rem; color:rgba(229,156,255,.72);`;
-const resultHeading = css`padding:.2rem .45rem .55rem; color:var(--text-dim); font-size:.68rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;`;
+const resultHeading = css`margin:0; padding:.2rem .45rem .55rem; color:var(--text-dim); font-size:.68rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;`;
 const resultList = css`display:flex; flex-direction:column; gap:.4rem;`;
 const resultButton = css`
   display:flex; align-items:center; justify-content:space-between; gap:1rem; width:100%;
   border:1px solid transparent; border-radius:.85rem; padding:.8rem .9rem;
   background:rgba(255,255,255,.018); color:var(--text-main); text-align:left;
-  &:hover, &:focus-visible { border-color:rgba(196,69,255,.34); background:rgba(196,69,255,.075); outline:none; }
+  &:hover, &:focus-visible { border-color:rgba(196,69,255,.34); background:rgba(196,69,255,.075); outline:2px solid #00e0ff; outline-offset:2px; }
 `;
 const resultMain = css`display:flex; min-width:0; flex:1; flex-direction:column; gap:.2rem;`;
 const resultTitle = css`overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.98rem; font-weight:650;`;
