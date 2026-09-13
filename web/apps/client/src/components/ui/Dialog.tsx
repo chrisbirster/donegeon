@@ -19,20 +19,67 @@ const focusableSelector = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
+const dialogStack: HTMLDivElement[] = [];
+
+type BackgroundState = {
+  element: HTMLElement;
+  inert: string | null;
+  ariaHidden: string | null;
+};
+
+function makeBackgroundInert(backdrop: HTMLElement): BackgroundState[] {
+  const changed: BackgroundState[] = [];
+  let current: HTMLElement | null = backdrop;
+
+  while (current?.parentElement && current.parentElement !== document.documentElement) {
+    const parent = current.parentElement;
+    for (const sibling of Array.from(parent.children)) {
+      if (!(sibling instanceof HTMLElement) || sibling === current) continue;
+      changed.push({
+        element: sibling,
+        inert: sibling.getAttribute("inert"),
+        ariaHidden: sibling.getAttribute("aria-hidden"),
+      });
+      sibling.setAttribute("inert", "");
+      sibling.setAttribute("aria-hidden", "true");
+    }
+    if (parent === document.body) break;
+    current = parent;
+  }
+
+  return changed;
+}
+
+function restoreBackground(states: BackgroundState[]) {
+  for (const state of states.reverse()) {
+    if (state.inert === null) state.element.removeAttribute("inert");
+    else state.element.setAttribute("inert", state.inert);
+
+    if (state.ariaHidden === null) state.element.removeAttribute("aria-hidden");
+    else state.element.setAttribute("aria-hidden", state.ariaHidden);
+  }
+}
+
 export default function Dialog(props: DialogProps): JSX.Element {
+  let backdropElement!: HTMLDivElement;
   let panel!: HTMLDivElement;
   let previousFocus: HTMLElement | null = null;
 
   onSettled(() => {
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const backgroundState = makeBackgroundInert(backdropElement);
+    dialogStack.push(panel);
 
     const focusInitial = () => {
+      if (dialogStack.at(-1) !== panel) return;
       const autofocus = panel.querySelector<HTMLElement>("[autofocus]");
       const first = panel.querySelector<HTMLElement>(focusableSelector);
       (autofocus ?? first ?? panel).focus();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (dialogStack.at(-1) !== panel) return;
+
       if (event.key === "Escape") {
         event.preventDefault();
         props.onClose();
@@ -66,12 +113,16 @@ export default function Dialog(props: DialogProps): JSX.Element {
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus();
+      const index = dialogStack.lastIndexOf(panel);
+      if (index >= 0) dialogStack.splice(index, 1);
+      restoreBackground(backgroundState);
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
   });
 
   return (
     <div
+      ref={backdropElement}
       class={backdrop}
       onMouseDown={(event) => {
         if (props.closeOnBackdrop === false) return;
