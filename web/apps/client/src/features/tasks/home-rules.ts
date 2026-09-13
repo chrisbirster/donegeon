@@ -93,7 +93,9 @@ export function isNextActionTask(task: Task): boolean {
   return (task.labels ?? []).some((label) => isNextActionLabel(label));
 }
 
-export type TaskView = "inbox" | "today" | "upcomming" | "project";
+// `upcomming` remains an internal compatibility value while callers migrate.
+// New navigation must generate the correctly spelled `/task/upcoming` URL.
+export type TaskView = "inbox" | "today" | "upcoming" | "upcomming" | "project";
 
 export type ViewState = {
   kind: TaskView;
