@@ -77,8 +77,8 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     modal = await openDetail(page, "m3 deadline task");
     await expect(modal.getByTestId("task-detail-due")).toHaveValue(due);
     await expect(modal.getByTestId("task-detail-deadline")).toHaveValue(deadline);
-    await expect(modal.getByText("Due", { exact: true })).toBeVisible();
-    await expect(modal.getByText("Deadline", { exact: true })).toBeVisible();
+    await expect(modal.getByText("Due · Scheduled for", { exact: true })).toBeVisible();
+    await expect(modal.getByText("Deadline · Must be finished by", { exact: true })).toBeVisible();
   });
 
   test("[M3] Clear due date", async ({ page }) => {
