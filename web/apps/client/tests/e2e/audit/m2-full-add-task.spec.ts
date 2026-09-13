@@ -15,6 +15,7 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     await expect(quickAdd, "Inline Quick Add remains the separate fast-capture path.").toBeVisible();
 
     const addTaskButton = page.getByRole("button", { name: /^Add Task$/i });
+    await expect(addTaskButton, "Visual uppercase styling must not turn Add into a screen-reader acronym.").toHaveAttribute("aria-label", "Add Task");
     await addTaskButton.click();
     const modal = page.getByTestId("task-create-modal");
     await expect(modal).toBeVisible();
