@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	stderrors "errors"
 	"testing"
 	"time"
 
@@ -107,7 +108,7 @@ func TestReminderContractRejectsInvalidAndIsolatesTenants(t *testing.T) {
 
 	if _, err := service.Create(ownerCtx, CreateInput{
 		Content: "Invalid reminder", Priority: 4, ReminderAt: strPtr("not-a-date"),
-	}); err == nil || !apperrors.IsCode(err, apperrors.CodeValidationError) {
+	}); err == nil || !hasReminderAppCode(err, apperrors.CodeValidationError) {
 		t.Fatalf("invalid reminder should be validation error: %v", err)
 	}
 
@@ -117,10 +118,15 @@ func TestReminderContractRejectsInvalidAndIsolatesTenants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create tenant reminder: %v", err)
 	}
-	if _, err := service.Get(otherCtx, created.ID); err == nil || !apperrors.IsCode(err, apperrors.CodeNotFound) {
+	if _, err := service.Get(otherCtx, created.ID); err == nil || !hasReminderAppCode(err, apperrors.CodeNotFound) {
 		t.Fatalf("cross-tenant reminder read should be not found: %v", err)
 	}
-	if _, err := service.Update(otherCtx, created.ID, UpdateInput{ReminderAt: strPtr("2026-09-16T10:00:00Z")}); err == nil || !apperrors.IsCode(err, apperrors.CodeNotFound) {
+	if _, err := service.Update(otherCtx, created.ID, UpdateInput{ReminderAt: strPtr("2026-09-16T10:00:00Z")}); err == nil || !hasReminderAppCode(err, apperrors.CodeNotFound) {
 		t.Fatalf("cross-tenant reminder update should be not found: %v", err)
 	}
+}
+
+func hasReminderAppCode(err error, code apperrors.Code) bool {
+	var appErr *apperrors.AppError
+	return stderrors.As(err, &appErr) && appErr.Code == code
 }
