@@ -13,13 +13,26 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     const quickAdd = page.getByTestId("add-task-input");
     await expect(quickAdd, "Inline Quick Add remains the separate fast-capture path.").toBeVisible();
 
-    await page.getByRole("button", { name: /^Add Task$/i }).click();
+    const addTaskButton = page.getByRole("button", { name: /^Add Task$/i });
+    await addTaskButton.click();
     const modal = page.getByTestId("task-create-modal");
     await expect(modal).toBeVisible();
-    await expect(modal.getByTestId("task-create-title")).toHaveValue("");
+    const titleInput = modal.getByTestId("task-create-title");
+    await expect(titleInput).toHaveValue("");
+    await expect(titleInput, "Opening a modal should move focus into its first task field.").toBeFocused();
+
+    // Shared pickers expose combobox state and work from the keyboard.
+    const projectPicker = modal.getByTestId("task-create-project");
+    await projectPicker.focus();
+    await projectPicker.press("ArrowDown");
+    await expect(projectPicker).toHaveAttribute("aria-expanded", "true");
+    await expect(modal.getByRole("listbox", { name: "Project" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(projectPicker).toHaveAttribute("aria-expanded", "false");
+    await expect(projectPicker).toBeFocused();
 
     // Full Add Task supports the same smart title grammar as Quick Add.
-    await modal.getByTestId("task-create-title").fill(
+    await titleInput.fill(
       "m2 full smart due tomorrow at 8pm {Friday at 8am} @m2-created-label p2 // smart description",
     );
     await expect(modal).toContainText("Label: m2-created-label");
@@ -31,11 +44,11 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     await expect(modal.getByTestId("task-create-priority")).toContainText("P2");
 
     // Projects can be created and selected without leaving the full task flow.
-    await modal.getByTestId("task-create-project").click();
+    await projectPicker.click();
     await modal.getByRole("button", { name: /Create project/i }).click();
     await modal.getByRole("textbox", { name: /New project name/i }).fill("M2 Created In Task");
     await modal.getByRole("button", { name: /^Create$/i }).click();
-    await expect(modal.getByTestId("task-create-project")).toContainText("M2 Created In Task");
+    await expect(projectPicker).toContainText("M2 Created In Task");
 
     // Sections can be created inside the selected project and become selected immediately.
     await modal.getByTestId("task-create-section").click();
@@ -77,5 +90,12 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     await detail.getByRole("button", { name: /^Close$/i }).click();
     await page.getByRole("button", { name: /^Inbox\b/i }).first().click();
     await expect(quickAdd).toBeVisible();
+
+    // Escape closes the shared dialog and restores focus to its trigger.
+    await addTaskButton.click();
+    await expect(page.getByTestId("task-create-modal")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("task-create-modal")).toHaveCount(0);
+    await expect(addTaskButton).toBeFocused();
   });
 });
