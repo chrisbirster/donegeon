@@ -217,8 +217,8 @@ test.describe("M2 — organization mirrors the human verification sheet", () => 
     await dialog.getByRole("button", { name: /^Add label$/i }).click();
     await dialog.getByRole("textbox", { name: /label name/i }).fill("m2-test");
     await dialog.getByRole("button", { name: /^Create$/i }).click();
-    await expect(dialog.getByText("@m2-test", { exact: true })).toBeVisible();
-    await expect(dialog.getByText(/0 open · 0 total tasks/i)).toBeVisible();
+    const labelInfo = dialog.getByText("@m2-test", { exact: true }).locator("..");
+    await expect(labelInfo).toContainText("0 open · 0 total tasks");
     await page.reload();
     const reopened = await openLabelsManager(page);
     await expect(reopened.getByText("@m2-test", { exact: true })).toBeVisible();
