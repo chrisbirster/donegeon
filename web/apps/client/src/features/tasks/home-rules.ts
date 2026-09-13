@@ -16,19 +16,14 @@ export {
 } from "./home-scheduling";
 
 export function parseTaskActivationPreview(patch: unknown): TaskActivationPreview | null {
-  if (!patch || typeof patch !== "object") {
-    return null;
-  }
+  if (!patch || typeof patch !== "object") return null;
   const payload = patch as Record<string, unknown>;
   const taskId = toString(payload.taskId).trim();
-  if (!taskId) {
-    return null;
-  }
+  if (!taskId) return null;
 
-  const requirementsPayload =
-    payload.requirements && typeof payload.requirements === "object"
-      ? (payload.requirements as Record<string, unknown>)
-      : {};
+  const requirementsPayload = payload.requirements && typeof payload.requirements === "object"
+    ? (payload.requirements as Record<string, unknown>)
+    : {};
 
   let coin: TaskActivationCoinRequirement | undefined;
   if (requirementsPayload.coin && typeof requirementsPayload.coin === "object") {
@@ -41,9 +36,7 @@ export function parseTaskActivationPreview(patch: unknown): TaskActivationPrevie
     };
   }
 
-  const modifiersRaw = Array.isArray(requirementsPayload.modifiers)
-    ? requirementsPayload.modifiers
-    : [];
+  const modifiersRaw = Array.isArray(requirementsPayload.modifiers) ? requirementsPayload.modifiers : [];
   const modifiers: TaskActivationModifierRequirement[] = [];
   for (const item of modifiersRaw) {
     if (!item || typeof item !== "object") continue;
@@ -72,20 +65,13 @@ export function parseTaskActivationPreview(patch: unknown): TaskActivationPrevie
     alreadyLive: payload.alreadyLive === true,
     activated: payload.activated === true,
     canActivate: payload.canActivate === true,
-    requirements: {
-      coin,
-      modifiers,
-    },
+    requirements: { coin, modifiers },
     inventory,
   };
 }
 
 export function isNextActionLabel(value: string): boolean {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, "")
-    .replace(/[_\-\s]+/g, "");
+  const normalized = value.trim().toLowerCase().replace(/^@/, "").replace(/[_\-\s]+/g, "");
   return normalized === "nextaction";
 }
 
@@ -93,9 +79,7 @@ export function isNextActionTask(task: Task): boolean {
   return (task.labels ?? []).some((label) => isNextActionLabel(label));
 }
 
-// `upcomming` remains an internal compatibility value while callers migrate.
-// New navigation must generate the correctly spelled `/task/upcoming` URL.
-export type TaskView = "inbox" | "today" | "upcoming" | "upcomming" | "project";
+export type TaskView = "inbox" | "today" | "upcoming" | "project";
 
 export type ViewState = {
   kind: TaskView;
@@ -105,21 +89,13 @@ export type ViewState = {
 export function parseTaskView(pathname: string): ViewState {
   const clean = pathname.replace(/^\/+|\/+$/g, "");
   const parts = clean.length > 0 ? clean.split("/") : [];
-
-  if (parts.length < 2 || parts[0] !== "task") {
-    return { kind: "inbox" };
-  }
+  if (parts.length < 2 || parts[0] !== "task") return { kind: "inbox" };
 
   const view = parts[1]?.toLowerCase() ?? "";
-  if (view === "today") {
-    return { kind: "today" };
-  }
-  if (view === "upcomming" || view === "upcoming") {
-    return { kind: "upcomming" };
-  }
-  if (view === "project" && parts[2]) {
-    return { kind: "project", projectId: decodeURIComponent(parts[2]) };
-  }
+  if (view === "today") return { kind: "today" };
+  // Accept the historical typo as an inbound alias, but never expose it as state.
+  if (view === "upcomming" || view === "upcoming") return { kind: "upcoming" };
+  if (view === "project" && parts[2]) return { kind: "project", projectId: decodeURIComponent(parts[2]) };
   return { kind: "inbox" };
 }
 
