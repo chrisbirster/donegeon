@@ -217,7 +217,7 @@ export default function HomeDesktopSidebar() {
           <Button type="button" class={`${navButton} ${isViewActive("today") ? navButtonActive : ""}`} onClick={() => navigateToView("today")}>
             <span class={navLabel}><span aria-hidden="true">◫</span> Today</span><span class={count}>{todayCount()}</span>
           </Button>
-          <Button type="button" class={`${navButton} ${isViewActive("upcomming") ? navButtonActive : ""}`} onClick={() => navigateToView("upcoming")}>
+          <Button type="button" class={`${navButton} ${isViewActive("upcoming") ? navButtonActive : ""}`} onClick={() => navigateToView("upcoming")}>
             <span class={navLabel}><span aria-hidden="true">☷</span> Upcoming</span><span class={count}>{upcomingCount()}</span>
           </Button>
         </nav>
