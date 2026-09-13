@@ -7,6 +7,8 @@ import { useHome } from "../../page/HomeContext";
 import type { Project } from "../../server/api";
 import Button from "../Button";
 import SidebarAccountCard from "../SidebarAccountCard";
+import ActionMenu from "../ui/ActionMenu";
+import Dialog, { dialogEyebrow, dialogHeader, dialogTitle } from "../ui/Dialog";
 
 type ProjectDialog =
   | { kind: "create" }
@@ -43,7 +45,6 @@ export default function HomeDesktopSidebar() {
 
   const [dialog, setDialog] = createSignal<ProjectDialog>(null);
   const [projectNameInput, setProjectNameInput] = createSignal("");
-  const [menuProject, setMenuProject] = createSignal<Project | null>(null);
   const [projectEditing, setProjectEditing] = createSignal(false);
   const [archivedOpen, setArchivedOpen] = createSignal(false);
   const [archivedProjects, setArchivedProjects] = createSignal<Project[]>([]);
@@ -62,21 +63,17 @@ export default function HomeDesktopSidebar() {
     `${projectLine} ${projectEditing() && !isProtectedProject(project) ? projectLineEditing : ""}`;
 
   function toggleProjectEditing() {
-    const next = !projectEditing();
-    setProjectEditing(next);
-    if (!next) setMenuProject(null);
+    setProjectEditing((value) => !value);
   }
 
   function beginCreateProject() {
     setProjectNameInput("");
-    setMenuProject(null);
     setProjectError("");
     setDialog({ kind: "create" });
   }
 
   function beginRenameProject(project: Project) {
     setProjectNameInput(project.name);
-    setMenuProject(null);
     setProjectError("");
     setDialog({ kind: "rename", project });
   }
@@ -117,7 +114,6 @@ export default function HomeDesktopSidebar() {
     setBusy(true);
     try {
       await organizationApi.projects.archive(project.id);
-      setMenuProject(null);
       setError("");
       if (isProjectActive(project.id)) navigateToView("inbox");
       await refreshData();
@@ -134,7 +130,6 @@ export default function HomeDesktopSidebar() {
 
   async function openArchivedProjects() {
     setArchivedOpen(true);
-    setMenuProject(null);
     setProjectError("");
     try {
       const page = await organizationApi.projects.archived();
@@ -150,7 +145,6 @@ export default function HomeDesktopSidebar() {
       await organizationApi.projects.unarchive(project.id);
       const page = await organizationApi.projects.archived();
       setArchivedProjects(page.items ?? []);
-      setMenuProject(null);
       setError("");
       await refreshData();
       toast.success(`Project ${project.name} restored.`);
@@ -169,7 +163,6 @@ export default function HomeDesktopSidebar() {
     try {
       await organizationApi.projects.remove(project.id);
       setDialog(null);
-      setMenuProject(null);
       setError("");
       if (isProjectActive(project.id)) navigateToView("inbox");
       await refreshData();
@@ -184,40 +177,25 @@ export default function HomeDesktopSidebar() {
     }
   }
 
-  const projectActions = (project: Project, archived = false) => (
-    <Show when={!isProtectedProject(project)}>
-      <div class={actionWrap}>
-        <Button
-          type="button"
-          class={projectActionsButton}
-          aria-label={`Project actions ${project.name}`}
-          aria-haspopup="menu"
-          aria-expanded={menuProject()?.id === project.id}
-          onClick={() => setMenuProject(menuProject()?.id === project.id ? null : project)}
-        >
-          <span aria-hidden="true">•••</span>
-        </Button>
-        <Show when={menuProject()?.id === project.id}>
-          <div class={menu} role="menu">
-            <Show when={!archived}>
-              <Button type="button" class={menuItem} role="menuitem" onClick={() => beginRenameProject(project)}>Rename</Button>
-              <Button type="button" class={menuItem} role="menuitem" onClick={() => void archiveProject(project)}>Archive</Button>
-            </Show>
-            <Show when={archived}>
-              <Button type="button" class={menuItem} role="menuitem" onClick={() => void unarchiveProject(project)}>Unarchive</Button>
-            </Show>
-            <Button
-              type="button"
-              class={menuItemDanger}
-              role="menuitem"
-              onClick={() => { setMenuProject(null); setDialog({ kind: "delete", project }); }}
-            >
-              Delete
-            </Button>
-          </div>
-        </Show>
-      </div>
-    </Show>
+  const activeProjectActions = (project: Project) => (
+    <ActionMenu
+      ariaLabel={`Project actions ${project.name}`}
+      items={[
+        { label: "Rename", onSelect: () => beginRenameProject(project) },
+        { label: "Archive", onSelect: () => void archiveProject(project) },
+        { label: "Delete", danger: true, onSelect: () => setDialog({ kind: "delete", project }) },
+      ]}
+    />
+  );
+
+  const archivedProjectActions = (project: Project) => (
+    <ActionMenu
+      ariaLabel={`Project actions ${project.name}`}
+      items={[
+        { label: "Unarchive", onSelect: () => void unarchiveProject(project) },
+        { label: "Delete", danger: true, onSelect: () => setDialog({ kind: "delete", project }) },
+      ]}
+    />
   );
 
   return (
@@ -239,7 +217,7 @@ export default function HomeDesktopSidebar() {
           <Button type="button" class={`${navButton} ${isViewActive("today") ? navButtonActive : ""}`} onClick={() => navigateToView("today")}>
             <span class={navLabel}><span aria-hidden="true">◫</span> Today</span><span class={count}>{todayCount()}</span>
           </Button>
-          <Button type="button" class={`${navButton} ${isViewActive("upcomming") ? navButtonActive : ""}`} onClick={() => navigateToView("upcomming")}>
+          <Button type="button" class={`${navButton} ${isViewActive("upcomming") ? navButtonActive : ""}`} onClick={() => navigateToView("upcoming")}>
             <span class={navLabel}><span aria-hidden="true">☷</span> Upcoming</span><span class={count}>{upcomingCount()}</span>
           </Button>
         </nav>
@@ -250,8 +228,8 @@ export default function HomeDesktopSidebar() {
         </div>
 
         <div class={projectScroller}>
-          <section>
-            <p class={sectionLabel}>Favorites</p>
+          <section aria-labelledby="favorites-heading">
+            <p class={sectionLabel} id="favorites-heading">Favorites</p>
             <div class={projectList}>
               <Show when={favoriteProjects().length > 0} fallback={<p class={emptyCopy}>No favorite projects yet.</p>}>
                 <For each={favoriteProjects()}>
@@ -280,9 +258,9 @@ export default function HomeDesktopSidebar() {
             </div>
           </section>
 
-          <section class={projectsSection}>
+          <section class={projectsSection} aria-labelledby="projects-heading">
             <div class={sectionHeadingRow}>
-              <p class={sectionLabel}>My Projects</p>
+              <p class={sectionLabel} id="projects-heading">My Projects</p>
               <div class={sectionHeadingActions}>
                 <Button type="button" class={smallManagerButton} onClick={beginCreateProject}>Add project</Button>
                 <Button
@@ -317,7 +295,7 @@ export default function HomeDesktopSidebar() {
                         <span aria-hidden="true">★</span>
                       </Button>
                       <Show when={projectEditing() && !isProtectedProject(project)}>
-                        {projectActions(project)}
+                        {activeProjectActions(project)}
                       </Show>
                     </div>
                   )}
@@ -331,40 +309,38 @@ export default function HomeDesktopSidebar() {
       </div>
 
       <Show when={archivedOpen()}>
-        <div class={backdrop} onClick={() => { setArchivedOpen(false); setMenuProject(null); }}>
-          <section class={wideDialog} role="dialog" aria-modal="true" aria-label="Archived projects" onClick={(event) => event.stopPropagation()}>
-            <div class={dialogHeader}>
-              <div><p class={dialogEyebrow}>Projects</p><h2 class={dialogTitle}>Archived projects</h2></div>
-              <Button type="button" class={managerButton} onClick={() => { setArchivedOpen(false); setMenuProject(null); }}>Close</Button>
-            </div>
+        <Dialog ariaLabel="Archived projects" onClose={() => setArchivedOpen(false)} class={wideDialog}>
+          <header class={dialogHeader}>
+            <div><p class={dialogEyebrow}>Projects</p><h2 class={dialogTitle}>Archived projects</h2></div>
+            <Button type="button" onClick={() => setArchivedOpen(false)}>Close</Button>
+          </header>
+          <div class={archivedBody}>
             <Show when={archivedProjects().length > 0} fallback={<p class={emptyDialog}>No archived projects.</p>}>
               <div class={archivedList}>
                 <For each={archivedProjects()}>
                   {(project) => (
                     <div class={archivedRow}>
-                      <Button type="button" class={archivedNameButton}>{project.name}</Button>
-                      {projectActions(project, true)}
+                      <span class={archivedName}>{project.name}</span>
+                      {archivedProjectActions(project)}
                     </div>
                   )}
                 </For>
               </div>
             </Show>
-            <Show when={projectError()}><p class={errorText}>{projectError()}</p></Show>
-          </section>
-        </div>
+            <Show when={projectError()}><p class={errorText} role="alert">{projectError()}</p></Show>
+          </div>
+        </Dialog>
       </Show>
 
       <Show when={dialog()}>
         {(activeDialog) => (
-          <div class={backdrop} onClick={() => setDialog(null)}>
-            <section
-              class={dialogCard}
-              role="dialog"
-              aria-modal="true"
-              aria-label={activeDialog().kind === "rename" ? "Rename project" : activeDialog().kind === "delete" ? "Delete project" : "Create project"}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <h2 class={dialogTitle}>
+          <Dialog
+            ariaLabel={activeDialog().kind === "rename" ? "Rename project" : activeDialog().kind === "delete" ? "Delete project" : "Create project"}
+            onClose={() => setDialog(null)}
+            class={projectDialog}
+          >
+            <div class={projectDialogBody}>
+              <h2 class={projectDialogTitle}>
                 {activeDialog().kind === "rename" ? "Rename project" : activeDialog().kind === "delete" ? "Delete project" : "Create project"}
               </h2>
               <Show
@@ -378,7 +354,6 @@ export default function HomeDesktopSidebar() {
                 <label class={fieldLabel} for="project-dialog-name">Project name</label>
                 <input
                   id="project-dialog-name"
-                  aria-label="Project name"
                   class={dialogInput}
                   value={projectNameInput()}
                   autofocus
@@ -388,15 +363,15 @@ export default function HomeDesktopSidebar() {
                   }}
                 />
               </Show>
-              <Show when={projectError()}><p class={errorText}>{projectError()}</p></Show>
+              <Show when={projectError()}><p class={errorText} role="alert">{projectError()}</p></Show>
               <div class={dialogActions}>
                 <Show
                   when={activeDialog().kind === "delete"}
-                  fallback={<Button type="button" class={primaryButton} disabled={busy()} onClick={() => void saveProject()}>{activeDialog().kind === "rename" ? "Save" : "Create"}</Button>}
+                  fallback={<Button type="button" variant="primary" disabled={busy()} onClick={() => void saveProject()}>{activeDialog().kind === "rename" ? "Save" : "Create"}</Button>}
                 >
                   <Button
                     type="button"
-                    class={dangerButton}
+                    variant="danger"
                     disabled={busy()}
                     onClick={() => {
                       const project = deletableProject(activeDialog());
@@ -406,10 +381,10 @@ export default function HomeDesktopSidebar() {
                     Delete
                   </Button>
                 </Show>
-                <Button type="button" class={managerButton} onClick={() => setDialog(null)}>Cancel</Button>
+                <Button type="button" onClick={() => setDialog(null)}>Cancel</Button>
               </div>
-            </section>
-          </div>
+            </div>
+          </Dialog>
         )}
       </Show>
     </aside>
@@ -433,9 +408,9 @@ const projectScroller = css`flex:1; min-height:0; overflow-y:auto; margin-top:1.
 const sectionHeadingRow = css`display:flex; align-items:center; justify-content:space-between; gap:.5rem;`;
 const sectionHeadingActions = css`display:flex; align-items:stretch; gap:.35rem;`;
 const sectionLabel = css`margin:0; padding:0 .45rem; font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-dim);`;
-const smallManagerButton = css`border:0; border-radius:.45rem; padding:.3rem .45rem; background:transparent; color:var(--accent-text); font-size:.72rem;`;
-const editProjectsButton = css`width:2.35rem; min-height:2.35rem; border:1px solid var(--border-strong); border-radius:.6rem; background:var(--panel-soft); color:var(--text-dim); font-size:1rem; &:hover{border-color:var(--border-hover); color:var(--text-main);}`;
-const editProjectsButtonActive = css`border-color:rgba(196,69,255,.48); background:var(--accent-wash); color:var(--accent-text);`;
+const smallManagerButton = css`border:1px solid transparent; border-radius:.5rem; padding:.35rem .55rem; background:transparent; color:var(--accent-text); font-size:.72rem; &:hover{border-color:var(--border-soft); background:rgba(255,255,255,.035);}`;
+const editProjectsButton = css`width:2.2rem; min-width:2.2rem; padding:0; border:1px solid var(--border-strong); border-radius:.5rem; background:var(--panel-soft); color:var(--text-dim);`;
+const editProjectsButtonActive = css`border-color:var(--accent); color:var(--accent-text); background:var(--accent-wash);`;
 const projectList = css`display:flex; flex-direction:column; gap:.42rem; margin-top:.65rem;`;
 const emptyCopy = css`padding:.4rem .45rem; font-size:.82rem; color:var(--text-dim);`;
 const projectsSection = css`margin-top:1.5rem;`;
@@ -445,32 +420,24 @@ const favoriteLine = css`display:grid; grid-template-columns:minmax(0,1fr) 2.35r
 const projectButton = css`display:flex; align-items:center; justify-content:space-between; gap:.6rem; min-width:0; width:100%; border:1px solid var(--border-soft); border-radius:.75rem; padding:.68rem .75rem; background:rgba(255,255,255,.018); color:var(--text-main); text-align:left; &:hover{border-color:var(--border-hover); background:rgba(255,255,255,.045);}`;
 const projectButtonActive = css`border-color:rgba(196,69,255,.4); background:var(--accent-wash);`;
 const teamBoardButton = css`border-color:rgba(218,67,255,.45); background:linear-gradient(110deg,rgba(82,22,112,.52),rgba(255,32,114,.08)); box-shadow:inset 0 0 22px rgba(196,69,255,.07),0 0 18px rgba(196,69,255,.06);`;
-const projectIdentity = css`display:flex; align-items:center; gap:.5rem; min-width:0; flex-wrap:wrap;`;
+const projectIdentity = css`display:flex; align-items:center; gap:.5rem; min-width:0; overflow:hidden;`;
 const projectName = css`overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.9rem; font-weight:650;`;
-const teamBoardChip = css`border:1px solid rgba(218,67,255,.38); border-radius:999px; padding:.12rem .4rem; background:rgba(196,69,255,.12); color:#f1c8ff; font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap;`;
+const teamBoardChip = css`flex:0 0 auto; border:1px solid rgba(218,67,255,.38); border-radius:999px; padding:.12rem .4rem; background:rgba(196,69,255,.12); color:#f1c8ff; font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap;`;
 const favoriteGlyph = css`color:#ffd4a1;`;
 const favoriteButton = css`border:1px solid var(--border-strong); border-radius:.7rem; background:var(--panel-soft); color:var(--text-dim); &:hover{border-color:var(--border-hover); color:#ffd4a1;}`;
 const favoriteButtonActive = css`color:#ffd4a1; border-color:rgba(255,212,161,.32);`;
-const actionWrap = css`position:relative;`;
-const projectActionsButton = css`width:100%; height:100%; border:1px solid var(--border-strong); border-radius:.7rem; background:var(--panel-soft); color:var(--text-dim);`;
-const menu = css`position:absolute; z-index:90; top:calc(100% + .25rem); right:0; min-width:8.5rem; display:flex; flex-direction:column; padding:.3rem; border:1px solid var(--border-strong); border-radius:.6rem; background:var(--panel); box-shadow:var(--shadow-elevated);`;
-const menuItem = css`border:0; border-radius:.42rem; padding:.5rem .65rem; background:transparent; color:var(--text-main); text-align:left; &:hover{background:rgba(255,255,255,.06);}`;
-const menuItemDanger = css`border:0; border-radius:.42rem; padding:.5rem .65rem; background:transparent; color:var(--danger); text-align:left; &:hover{background:rgba(255,255,255,.06);}`;
 const accountArea = css`margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border-strong);`;
-const backdrop = css`position:fixed; inset:0; z-index:85; display:flex; align-items:flex-start; justify-content:center; padding:3rem 1rem; overflow:auto; background:rgba(0,0,0,.72); backdrop-filter:blur(8px);`;
-const dialogCard = css`width:min(30rem,100%); border:1px solid var(--border-strong); border-radius:.9rem; padding:1.2rem; background:var(--panel); color:var(--text-main); box-shadow:var(--shadow-elevated);`;
-const wideDialog = css`width:min(36rem,100%); border:1px solid var(--border-strong); border-radius:.9rem; padding:1.2rem; background:var(--panel); color:var(--text-main); box-shadow:var(--shadow-elevated);`;
-const dialogHeader = css`display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;`;
-const dialogEyebrow = css`margin:0; font-size:.68rem; letter-spacing:.13em; text-transform:uppercase; color:var(--text-dim);`;
-const dialogTitle = css`margin:.15rem 0 1rem; font-size:1.15rem;`;
+const wideDialog = css`width:min(36rem,100%);`;
+const archivedBody = css`padding:1rem 1.2rem 1.2rem;`;
+const archivedList = css`display:flex; flex-direction:column; gap:.5rem;`;
+const archivedRow = css`display:grid; grid-template-columns:minmax(0,1fr) 2.5rem; gap:.5rem; align-items:stretch; border:1px solid var(--border-soft); border-radius:.7rem; padding:.45rem;`;
+const archivedName = css`display:flex; align-items:center; padding:.35rem .45rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
+const emptyDialog = css`margin:.5rem 0; color:var(--text-dim);`;
+const projectDialog = css`width:min(30rem,100%);`;
+const projectDialogBody = css`padding:1.2rem;`;
+const projectDialogTitle = css`margin:0 0 1rem; font-size:1.15rem;`;
 const dialogCopy = css`margin:0 0 1rem; color:var(--text-dim); line-height:1.5;`;
 const fieldLabel = css`display:block; margin-bottom:.4rem; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
-const dialogInput = css`width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.68rem .75rem; background:rgba(255,255,255,.035); color:var(--text-main); outline:none; &:focus{border-color:var(--accent);}`;
+const dialogInput = css`width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.68rem .75rem; background:rgba(255,255,255,.035); color:var(--text-main); outline:none; &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}`;
 const dialogActions = css`display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem;`;
-const primaryButton = css`border:0; border-radius:.6rem; padding:.55rem .8rem; background:var(--accent); color:#1d1108; font-weight:700;`;
-const dangerButton = css`border:1px solid color-mix(in srgb,var(--danger) 45%,transparent); border-radius:.6rem; padding:.55rem .8rem; background:rgba(255,70,90,.08); color:var(--danger);`;
-const archivedList = css`display:flex; flex-direction:column; gap:.5rem;`;
-const archivedRow = css`display:grid; grid-template-columns:minmax(0,1fr) 2.5rem; gap:.5rem;`;
-const archivedNameButton = css`border:1px solid var(--border-soft); border-radius:.7rem; padding:.65rem .75rem; background:rgba(255,255,255,.02); color:var(--text-main); text-align:left;`;
-const emptyDialog = css`margin:.5rem 0; color:var(--text-dim);`;
 const errorText = css`margin:.75rem 0 0; color:var(--danger); font-size:.82rem;`;
