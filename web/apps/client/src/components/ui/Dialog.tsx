@@ -32,8 +32,8 @@ function makeBackgroundInert(backdrop: HTMLElement): BackgroundState[] {
   let current: HTMLElement | null = backdrop;
 
   while (current?.parentElement && current.parentElement !== document.documentElement) {
-    const parent = current.parentElement;
-    for (const sibling of Array.from(parent.children)) {
+    const container: HTMLElement = current.parentElement;
+    for (const sibling of Array.from(container.children)) {
       if (!(sibling instanceof HTMLElement) || sibling === current) continue;
       changed.push({
         element: sibling,
@@ -43,8 +43,8 @@ function makeBackgroundInert(backdrop: HTMLElement): BackgroundState[] {
       sibling.setAttribute("inert", "");
       sibling.setAttribute("aria-hidden", "true");
     }
-    if (parent === document.body) break;
-    current = parent;
+    if (container === document.body) break;
+    current = container;
   }
 
   return changed;
@@ -182,17 +182,13 @@ const backdrop = css`
 `;
 
 const panelBase = css`
-  width: min(36rem, 100%);
-  max-height: calc(100vh - 2rem);
+  position: relative;
+  max-height: min(92vh, 58rem);
   overflow: auto;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-2xl);
-  background: var(--panel);
+  background: linear-gradient(180deg, var(--panel-strong-start), var(--panel-strong-end));
   color: var(--text-main);
   box-shadow: var(--shadow-elevated);
-  outline: none;
-  &:focus-visible {
-    outline: 2px solid #00e0ff;
-    outline-offset: 3px;
-  }
+  &:focus { outline: none; }
 `;
