@@ -317,14 +317,25 @@ export default function HomeTaskDetailModal() {
   );
 }
 
-const dialog = css`width:min(58rem,100%); overflow:hidden;`;
+const dialog = css`
+  width:min(58rem,100%);
+  height:min(92vh,58rem);
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  overflow:hidden;
+`;
 const header = css`display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.3rem; border-bottom:1px solid var(--border-strong);`;
 const eyebrow = css`margin:0; color:var(--text-dim); font-size:.68rem; letter-spacing:.13em; text-transform:uppercase;`;
 const heading = css`margin:.15rem 0 0; font-size:1.2rem;`;
-const body = css`display:grid; min-height:0; @media (width >= 48rem){grid-template-columns:1.05fr .95fr;}`;
-const mainColumn = css`display:flex; flex-direction:column; gap:.55rem; padding:1.3rem;`;
+const body = css`
+  display:grid;
+  min-height:0;
+  overflow:auto;
+  @media (width >= 48rem){grid-template-columns:1.05fr .95fr;}
+`;
+const mainColumn = css`display:flex; flex-direction:column; gap:.55rem; padding:1.3rem; min-width:0;`;
 const metadataColumn = css`
-  display:flex; flex-direction:column; gap:.75rem; padding:1.3rem; overflow:auto; border-top:1px solid var(--border-strong);
+  display:flex; flex-direction:column; gap:.75rem; padding:1.3rem; min-width:0; border-top:1px solid var(--border-strong);
   @media (width >= 48rem){border-top:0; border-left:1px solid var(--border-strong);}
 `;
 const fieldLabel = css`font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
@@ -349,4 +360,12 @@ const boardActivationHeader = css`display:flex; align-items:center; justify-cont
 const successBadge = css`border-radius:.4rem; padding:.2rem .4rem; background:var(--success-bg); color:var(--success); font-size:.7rem;`;
 const requirements = css`display:flex; flex-direction:column; gap:.35rem;`;
 const requirementLine = css`display:flex; justify-content:space-between; gap:.75rem; margin:0; font-size:.76rem; color:var(--text-soft);`;
-const footer = css`display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:1rem 1.3rem; border-top:1px solid var(--border-strong);`;
+const footer = css`
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
+  padding:1rem 1.3rem;
+  border-top:1px solid var(--border-strong);
+  background:var(--panel-strong-end);
+`;
