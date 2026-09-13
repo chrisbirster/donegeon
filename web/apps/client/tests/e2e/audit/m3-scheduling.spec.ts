@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { addQuickTask, listTasks, resetTasks, taskRowByContent } from "../support/api";
 
@@ -20,16 +20,21 @@ async function openDetail(page: Page, content: string) {
   return modal;
 }
 
+async function saveDetail(page: Page, modal: Locator) {
+  await modal.getByTestId("task-detail-save").click();
+  await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
+}
+
 async function setDue(page: Page, content: string, value: string) {
   const modal = await openDetail(page, content);
   await modal.getByTestId("task-detail-due").fill(value);
-  await modal.getByTestId("task-detail-save").click();
+  await saveDetail(page, modal);
 }
 
 async function setRecurrence(page: Page, content: string, rule: string) {
   const modal = await openDetail(page, content);
   await modal.getByTestId("task-detail-recurrence").fill(rule);
-  await modal.getByTestId("task-detail-save").click();
+  await saveDetail(page, modal);
 }
 
 test.describe("M3 — scheduling mirrors the human verification sheet", () => {
@@ -45,6 +50,7 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await expect(modal.getByTestId("task-detail-due")).not.toHaveValue("");
     const before = await modal.getByTestId("task-detail-due").inputValue();
     await modal.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
     await page.reload();
     const reopened = await openDetail(page, "m3 date only");
     await expect(reopened.getByTestId("task-detail-due")).toHaveValue(before);
@@ -66,7 +72,7 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     let modal = await openDetail(page, "m3 deadline task");
     await modal.getByTestId("task-detail-due").fill(due);
     await modal.getByTestId("task-detail-deadline").fill(deadline);
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     await page.reload();
     modal = await openDetail(page, "m3 deadline task");
     await expect(modal.getByTestId("task-detail-due")).toHaveValue(due);
@@ -79,8 +85,8 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await addQuickTask(page, "m3 clear due");
     await setDue(page, "m3 clear due", localDateTime(1, 9, 0));
     let modal = await openDetail(page, "m3 clear due");
-    await modal.getByTitle("Clear due date").click();
-    await modal.getByTestId("task-detail-save").click();
+    await modal.getByRole("button", { name: "Clear due date" }).click();
+    await saveDetail(page, modal);
     await page.reload();
     modal = await openDetail(page, "m3 clear due");
     await expect(modal.getByTestId("task-detail-due")).toHaveValue("");
@@ -90,10 +96,10 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await addQuickTask(page, "m3 clear deadline");
     let modal = await openDetail(page, "m3 clear deadline");
     await modal.getByTestId("task-detail-deadline").fill(localDateTime(2, 17, 0));
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     modal = await openDetail(page, "m3 clear deadline");
-    await modal.getByTitle("Clear deadline").click();
-    await modal.getByTestId("task-detail-save").click();
+    await modal.getByRole("button", { name: "Clear deadline" }).click();
+    await saveDetail(page, modal);
     await page.reload();
     modal = await openDetail(page, "m3 clear deadline");
     await expect(modal.getByTestId("task-detail-deadline")).toHaveValue("");
@@ -121,9 +127,13 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await addQuickTask(page, "m3 recurring complete every day at 9am");
     const modal = await openDetail(page, "m3 recurring complete");
     await modal.getByTestId("task-detail-mark-done").click();
+    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
+    await expect.poll(async () => {
+      const tasks = await listTasks(request, { limit: 50 });
+      return tasks.items.filter((item) => item.content === "m3 recurring complete").length;
+    }).toBe(2);
     const tasks = await listTasks(request, { limit: 50 });
     const matching = tasks.items.filter((item) => item.content === "m3 recurring complete");
-    expect(matching).toHaveLength(2);
     expect(matching.filter((item) => item.checked)).toHaveLength(1);
     expect(matching.filter((item) => !item.checked)).toHaveLength(1);
   });
@@ -132,6 +142,7 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await addQuickTask(page, "m3 recurring reload every day at 9am");
     const modal = await openDetail(page, "m3 recurring reload");
     await modal.getByTestId("task-detail-mark-done").click();
+    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
     await page.reload();
     await expect(taskRowByContent(page, "m3 recurring reload")).toBeVisible();
     await expect(page.getByTestId("completed-task-row").filter({ hasText: "m3 recurring reload" })).toBeVisible();
@@ -143,6 +154,11 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await setRecurrence(page, "m3 recurrence edit", "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO");
     const modal = await openDetail(page, "m3 recurrence edit");
     await modal.getByTestId("task-detail-mark-done").click();
+    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
+    await expect.poll(async () => {
+      const tasks = await listTasks(request, { limit: 50 });
+      return tasks.items.some((item) => item.content === "m3 recurrence edit" && !item.checked);
+    }).toBe(true);
     const tasks = await listTasks(request, { limit: 50 });
     const next = tasks.items.find((item) => item.content === "m3 recurrence edit" && !item.checked);
     expect(next?.recurrenceRule).toMatch(/FREQ=WEEKLY/i);
@@ -152,9 +168,10 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await addQuickTask(page, "m3 recurrence clear every day at 9am");
     let modal = await openDetail(page, "m3 recurrence clear");
     await modal.getByTestId("task-detail-recurrence").fill("");
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     modal = await openDetail(page, "m3 recurrence clear");
     await modal.getByTestId("task-detail-mark-done").click();
+    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
     const tasks = await listTasks(request, { limit: 50 });
     expect(tasks.items.filter((item) => item.content === "m3 recurrence clear")).toHaveLength(1);
   });
@@ -184,10 +201,10 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
 
   test("[M3] Due + deadline together", async ({ page }) => {
     await addQuickTask(page, "m3 due deadline together");
-    let modal = await openDetail(page, "m3 due deadline together");
+    const modal = await openDetail(page, "m3 due deadline together");
     await modal.getByTestId("task-detail-due").fill(localDateTime(0, 10, 0));
     await modal.getByTestId("task-detail-deadline").fill(localDateTime(2, 18, 0));
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     await page.getByRole("button", { name: /^Today\b/i }).click();
     const row = taskRowByContent(page, "m3 due deadline together");
     await expect(row).toBeVisible();
@@ -200,7 +217,7 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     const expected = localDateTime(1, 8, 30);
     let modal = await openDetail(page, "m3 reminder set");
     await modal.getByTestId("task-detail-reminder").fill(expected);
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     await page.reload();
     modal = await openDetail(page, "m3 reminder set");
     await expect(modal.getByTestId("task-detail-reminder")).toHaveValue(expected);
@@ -210,11 +227,11 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await addQuickTask(page, "m3 reminder edit");
     let modal = await openDetail(page, "m3 reminder edit");
     await modal.getByTestId("task-detail-reminder").fill(localDateTime(1, 8, 0));
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     modal = await openDetail(page, "m3 reminder edit");
     const changed = localDateTime(2, 10, 15);
     await modal.getByTestId("task-detail-reminder").fill(changed);
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     await page.reload();
     modal = await openDetail(page, "m3 reminder edit");
     await expect(modal.getByTestId("task-detail-reminder")).toHaveValue(changed);
@@ -224,10 +241,10 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     await addQuickTask(page, "m3 reminder clear");
     let modal = await openDetail(page, "m3 reminder clear");
     await modal.getByTestId("task-detail-reminder").fill(localDateTime(1, 8, 0));
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     modal = await openDetail(page, "m3 reminder clear");
     await modal.getByRole("button", { name: "Clear reminder" }).click();
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     await page.reload();
     modal = await openDetail(page, "m3 reminder clear");
     await expect(modal.getByTestId("task-detail-reminder")).toHaveValue("");
@@ -240,9 +257,10 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     const reminder = localDateTime(1, 8, 0);
     await modal.getByTestId("task-detail-due").fill(due);
     await modal.getByTestId("task-detail-reminder").fill(reminder);
-    await modal.getByTestId("task-detail-save").click();
+    await saveDetail(page, modal);
     modal = await openDetail(page, "m3 recurring reminder");
     await modal.getByTestId("task-detail-mark-done").click();
+    await expect(page.getByTestId("task-detail-modal")).toHaveCount(0);
     await page.reload();
     modal = await openDetail(page, "m3 recurring reminder");
     const nextDue = await modal.getByTestId("task-detail-due").inputValue();
@@ -251,5 +269,4 @@ test.describe("M3 — scheduling mirrors the human verification sheet", () => {
     expect(nextReminder).not.toBe("");
     expect(new Date(nextDue).getTime() - new Date(nextReminder).getTime()).toBe(60 * 60 * 1000);
   });
-
 });
