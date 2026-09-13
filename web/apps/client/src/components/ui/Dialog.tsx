@@ -1,5 +1,6 @@
 import { css } from "@linaria/core";
-import { onSettled, type JSX, type ParentProps } from "solid-js";
+import { onSettled, type ParentProps } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 export type DialogProps = ParentProps<{
   ariaLabel: string;
