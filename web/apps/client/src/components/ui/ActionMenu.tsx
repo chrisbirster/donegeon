@@ -17,6 +17,15 @@ export type ActionMenuProps = {
   class?: string;
 };
 
+const tabbableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
 export default function ActionMenu(props: ActionMenuProps) {
   const [open, setOpen] = createSignal(false);
   let root!: HTMLDivElement;
@@ -41,6 +50,19 @@ export default function ActionMenu(props: ActionMenuProps) {
   const openAndFocus = (offset: number) => {
     setOpen(true);
     focusItem(offset);
+  };
+
+  const leaveMenuWithTab = (backward: boolean) => {
+    setOpen(false);
+    queueMicrotask(() => {
+      const items = Array.from(document.querySelectorAll<HTMLElement>(tabbableSelector)).filter(
+        (element) => element.offsetParent !== null && !element.closest("[inert]"),
+      );
+      const triggerIndex = items.indexOf(trigger);
+      if (triggerIndex < 0) return;
+      const next = items[triggerIndex + (backward ? -1 : 1)];
+      next?.focus();
+    });
   };
 
   onSettled(() => {
@@ -103,7 +125,10 @@ export default function ActionMenu(props: ActionMenuProps) {
           role="menu"
           aria-label={props.ariaLabel}
           onKeyDown={(event) => {
-            if (event.key === "ArrowDown") {
+            if (event.key === "Tab") {
+              event.preventDefault();
+              leaveMenuWithTab(event.shiftKey);
+            } else if (event.key === "ArrowDown") {
               event.preventDefault();
               focusItem(1);
             } else if (event.key === "ArrowUp") {
