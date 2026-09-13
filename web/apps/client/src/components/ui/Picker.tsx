@@ -51,6 +51,7 @@ export default function Picker(props: PickerProps) {
   };
 
   const close = () => setOpen(false);
+  const focusTrigger = () => root.querySelector<HTMLElement>("[role='combobox']")?.focus();
 
   onSettled(() => {
     const outside = (event: PointerEvent) => {
@@ -58,17 +59,20 @@ export default function Picker(props: PickerProps) {
       if (event.target instanceof Node && !root.contains(event.target)) close();
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && open()) {
-        event.preventDefault();
-        close();
-        root.querySelector<HTMLElement>("[role='combobox']")?.focus();
-      }
+      if (event.key !== "Escape" || !open()) return;
+      // A picker nested in a Dialog owns the first Escape press. Capture it before
+      // the parent dialog's document-level handler so the listbox closes without
+      // dismissing the entire modal.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      close();
+      focusTrigger();
     };
     document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
+    document.addEventListener("keydown", escape, true);
     return () => {
       document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
+      document.removeEventListener("keydown", escape, true);
     };
   });
 
@@ -127,6 +131,12 @@ export default function Picker(props: PickerProps) {
               event.preventDefault();
               const options = popup.querySelectorAll<HTMLElement>("[role='option']:not([aria-disabled='true'])");
               options[options.length - 1]?.focus();
+            } else if (event.key === "Enter" || event.key === " ") {
+              const active = document.activeElement;
+              if (active instanceof HTMLButtonElement && active.getAttribute("role") === "option") {
+                event.preventDefault();
+                active.click();
+              }
             }
           }}
         >
@@ -144,6 +154,7 @@ export default function Picker(props: PickerProps) {
                   if (option.disabled) return;
                   void props.onChange(option.value);
                   close();
+                  focusTrigger();
                 }}
               >
                 <span>{option.label}</span>
