@@ -1,28 +1,4 @@
-import {
-  For,
-  Show,
-  createTrackedEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  onSettled,
-} from "solid-js";
-import { useLocation, useNavigate } from "@solidjs/router";
-import { createQuery } from "@tanstack/solid-query";
-
-import {
-  type Project,
-  type QuickAddParsed,
-  type Task,
-} from "../../server/api";
-import { useApi } from "../../context/ApiContext";
-import { useToast } from "../../context/ToastContext";
-import { mergeNormalizedLabels } from "../../lib/quickAddLabels";
-import { isAbortError, shouldPreviewQuickAdd } from "../../lib/quickAddPreview";
-import AppShell from "../../components/AppShell";
-import SidebarAccountCard from "../../components/SidebarAccountCard";
-import TaskQuickAddComposer from "../../components/task/TaskQuickAddComposer";
-import TaskViewHeader from "../../components/task/TaskViewHeader";
+import type { Project, Task } from "../../server/api";
 
 export type TokenKind =
   | "project"
@@ -87,99 +63,20 @@ export function tokenizeQuickAdd(value: string): TokenPiece[] {
 
   const pieces: TokenPiece[] = [];
   let cursor = 0;
-
   QUICK_ADD_TOKEN_PATTERN.lastIndex = 0;
+
   for (let match = QUICK_ADD_TOKEN_PATTERN.exec(value); match !== null; match = QUICK_ADD_TOKEN_PATTERN.exec(value)) {
     const token = match[0];
     const start = match.index;
     const end = start + token.length;
-
-    if (start > cursor) {
-      pieces.push({
-        value: value.slice(cursor, start),
-        kind: "text",
-      });
-    }
-
-    pieces.push({
-      value: token,
-      kind: classifyToken(token),
-    });
-
+    if (start > cursor) pieces.push({ value: value.slice(cursor, start), kind: "text" });
+    pieces.push({ value: token, kind: classifyToken(token) });
     cursor = end;
   }
 
-  if (cursor < value.length) {
-    pieces.push({
-      value: value.slice(cursor),
-      kind: "text",
-    });
-  }
-
+  if (cursor < value.length) pieces.push({ value: value.slice(cursor), kind: "text" });
   return pieces;
 }
-
-export function tokenClass(kind: TokenKind): string {
-  switch (kind) {
-    case "project":
-      return "bg-[rgba(120,37,34,0.36)] text-[#ffd4cf]";
-    case "label":
-      return "bg-[rgba(97,76,132,0.3)] text-[#edd8ff]";
-    case "assignee":
-      return "bg-[rgba(26,78,95,0.34)] text-[#d2f4ff]";
-    case "priority":
-      return "bg-[rgba(255,139,80,0.22)] text-[#ffd7b7]";
-    case "deadline":
-      return "bg-[rgba(74,78,156,0.35)] text-[#ddd9ff]";
-    case "recurrence":
-      return "bg-[rgba(24,88,57,0.33)] text-[#c7f6d4]";
-    case "due":
-      return "bg-[rgba(110,78,21,0.34)] text-[#ffd4a1]";
-    default:
-      return "text-[var(--text-main)]";
-  }
-}
-
-export const sidebarCardClass = "app-panel rounded-xl p-3";
-export const sidebarItemBaseClass =
-  "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition";
-export const sidebarItemActiveClass = "bg-[var(--accent-wash)] text-[var(--accent-text)]";
-export const sidebarItemIdleClass = "text-[var(--text-main)] hover:bg-[rgba(255,255,255,0.04)]";
-export const searchButtonClass =
-  "app-input-surface mt-3 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition hover:border-[var(--border-hover)] hover:bg-[var(--panel-soft)]";
-export const panelActionButtonClass = "app-button-secondary rounded-lg px-3 py-1.5 text-sm";
-export const smallActionButtonClass = "app-button-secondary rounded-lg px-2 py-1 text-xs";
-export const listActionButtonClass = "app-button-secondary rounded-md px-2 py-1 text-xs";
-export const successActionButtonClass =
-  "rounded-md border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] px-2 py-1 text-xs text-[var(--success)] transition hover:border-[rgba(92,173,131,0.48)] disabled:cursor-not-allowed disabled:opacity-60";
-export const dangerActionButtonClass =
-  "rounded-md border border-[rgba(255,181,173,0.32)] bg-[var(--danger-bg)] px-2 py-1 text-xs text-[var(--danger)] transition hover:border-[var(--accent)]";
-export const formFieldClass = "app-input-surface w-full rounded-lg px-3 py-2 text-sm";
-export const iconMutedClass = "text-[var(--text-muted)]";
-export const iconActiveClass = "text-[#ffd7b7]";
-export const teamBadgeClass =
-  "rounded border border-[rgba(126,141,214,0.45)] bg-[rgba(84,95,168,0.22)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[#d8e1ff]";
-export const dueBadgeClass = "rounded-md bg-[rgba(110,78,21,0.34)] px-2 py-0.5 text-[#ffd4a1]";
-export const deadlineBadgeClass = "rounded-md bg-[rgba(74,78,156,0.35)] px-2 py-0.5 text-[#ddd9ff]";
-export const warningBadgeClass = "rounded-md bg-[rgba(129,61,28,0.35)] px-2 py-0.5 text-[#ffd4b5]";
-export const boardDraftBadgeClass = "rounded-md bg-[rgba(97,76,132,0.26)] px-2 py-0.5 text-[#d9c6ff]";
-export const boardLiveBadgeClass = "rounded-md bg-[rgba(24,88,57,0.33)] px-2 py-0.5 text-[#c7f6d4]";
-export const tagBadgeClass = "rounded-md bg-[rgba(84,95,168,0.22)] px-2 py-0.5 text-[#e0d8ff]";
-export const emptyStateClass =
-  "rounded-xl border border-[var(--border-soft)] bg-[rgba(255,255,255,0.02)] px-4 py-6 text-sm text-[var(--text-dim)]";
-export const errorBannerClass =
-  "rounded-lg border border-[rgba(255,181,173,0.35)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]";
-export const warningBannerClass =
-  "rounded-md border border-[rgba(255,212,161,0.3)] bg-[var(--warning-bg)] px-2.5 py-1.5 text-xs text-[var(--warning)]";
-export const successBannerClass =
-  "rounded-md border border-[rgba(49,122,86,0.42)] bg-[var(--success-bg)] px-2 py-1 text-xs text-[var(--success)]";
-export const taskRowBaseClass = "group flex items-center gap-3 rounded-xl border px-3 py-3 transition";
-export const taskRowDropClass = "border-[var(--accent)] bg-[rgba(255,139,80,0.08)]";
-export const taskRowNextActionClass = "border-[rgba(255,139,80,0.28)] bg-[rgba(255,139,80,0.08)] hover:border-[#ffb27f]";
-export const taskRowDefaultClass =
-  "border-[rgba(119,155,187,0.18)] bg-[var(--panel-soft)] hover:border-[rgba(119,155,187,0.32)]";
-export const completedTaskRowClass =
-  "group flex items-center gap-3 rounded-xl border border-[rgba(119,155,187,0.16)] bg-[var(--panel-soft)] px-3 py-3 text-[var(--text-muted)] transition hover:border-[rgba(119,155,187,0.28)]";
 
 export const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -201,20 +98,14 @@ export function formatScheduleDateTime(value: string | undefined): string | unde
   }
 
   const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return raw;
-  }
+  if (Number.isNaN(parsed.getTime())) return raw;
   return dateTimeFormatter.format(parsed);
 }
 
-export function scheduleTokenFromInput(
-  scheduleInput: string | undefined,
-  kind: "due" | "deadline",
-): string | undefined {
+export function scheduleTokenFromInput(scheduleInput: string | undefined, kind: "due" | "deadline"): string | undefined {
   const source = (scheduleInput ?? "").trim();
   if (!source) return undefined;
-  const tokens = tokenizeQuickAdd(source);
-  const token = tokens.find((item) => item.kind === kind)?.value?.trim();
+  const token = tokenizeQuickAdd(source).find((item) => item.kind === kind)?.value?.trim();
   if (!token) return undefined;
   if (kind === "deadline" && token.startsWith("{") && token.endsWith("}")) {
     const inner = token.slice(1, -1).trim();
@@ -226,19 +117,8 @@ export function scheduleTokenFromInput(
 export function scheduleBadgeLabel(task: Task, kind: "due" | "deadline"): string | null {
   const storedRaw = kind === "due" ? task.dueText : task.dueDeadline;
   const storedFormatted = formatScheduleDateTime(storedRaw) ?? storedRaw?.trim();
-  const inputToken = scheduleTokenFromInput(task.scheduleInput, kind);
-  if (!storedFormatted && !inputToken) return null;
-
-  const prefix = kind === "due" ? "Due" : "Deadline";
-  const inputLabel = inputToken?.replace(
-    kind === "due" ? /^due\s+(?:on\s+)?/i : /^deadline\s+(?:on\s+)?/i,
-    "",
-  ).trim();
-  if (storedFormatted && inputLabel && storedFormatted.toLowerCase() !== inputLabel.toLowerCase()) {
-    return `${prefix} ${inputLabel} → ${storedFormatted}`;
-  }
-
-  return `${prefix} ${storedFormatted || inputLabel}`;
+  if (!storedFormatted) return null;
+  return `${kind === "due" ? "Due" : "Deadline"} ${storedFormatted}`;
 }
 
 export function parseScheduleInstant(value: string | undefined): Date | null {
@@ -247,9 +127,7 @@ export function parseScheduleInstant(value: string | undefined): Date | null {
   if (!raw) return null;
 
   const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-  if (ymd) {
-    return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
-  }
+  if (ymd) return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 0, 0, 0, 0);
 
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return null;
@@ -285,17 +163,13 @@ export function parseLabelsInput(value: string): string[] {
     seen.add(normalized);
     labels.push(normalized);
   }
-
   return labels;
 }
 
-/** Convert stored date value (ISO-8601 / YYYY-MM-DD) to the format required by <input type="datetime-local">. */
 export function toDatetimeLocalValue(value: string | undefined): string {
   if (!value) return "";
   const raw = value.trim();
   if (!raw) return "";
-
-  // YYYY-MM-DD -> default to midnight
   const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
   if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}T00:00`;
 
@@ -305,7 +179,6 @@ export function toDatetimeLocalValue(value: string | undefined): string {
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
 }
 
-/** Convert a datetime-local value (YYYY-MM-DDTHH:mm) back to a storable ISO string. */
 export function fromDatetimeLocalValue(value: string): string {
   if (!value) return "";
   const d = new Date(value);
@@ -314,11 +187,7 @@ export function fromDatetimeLocalValue(value: string): string {
 }
 
 export function slugifyProjectID(value: string): string {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return normalized || "project";
 }
 
@@ -339,19 +208,11 @@ export function sortCompletedTasks(list: Task[]): Task[] {
 }
 
 export function prettifyLabel(value: string): string {
-  return value
-    .split(/[\s_-]+/)
-    .filter((part) => part.length > 0)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join(" ");
+  return value.split(/[\s_-]+/).filter((part) => part.length > 0).map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 }
 
 export function normalizeLabelToken(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, "")
-    .replace(/[_\-\s]+/g, "");
+  return value.trim().toLowerCase().replace(/^@/, "").replace(/[_\-\s]+/g, "");
 }
 
 export function isBoardLiveLabel(value: string): boolean {
@@ -398,9 +259,7 @@ export function projectQuickAddAlias(project: Project): string | null {
     if (boardAlias) return boardAlias;
   }
   const nameAlias = slugifyProjectID(project.name);
-  if (nameAlias && nameAlias !== "project") {
-    return nameAlias;
-  }
+  if (nameAlias && nameAlias !== "project") return nameAlias;
   return slug;
 }
 
@@ -440,6 +299,5 @@ export function toNumber(value: unknown, fallback = 0): number {
 }
 
 export function toString(value: unknown): string {
-  if (typeof value === "string") return value;
-  return "";
+  return typeof value === "string" ? value : "";
 }
