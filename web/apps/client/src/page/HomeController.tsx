@@ -616,11 +616,11 @@ export function createHomeController() {
         description: parsed?.description || detailDescription(),
         projectId: resolvedProjectID ?? "",
         labels,
-        recurrenceRule: detailRecurrence().trim() || parsed?.recurrenceRule || undefined,
+        recurrenceRule: detailRecurrence().trim() || parsed?.recurrenceRule || "",
         scheduleInput: hasParsedSchedule(parsed) ? rawContent : undefined,
         priority: parsed?.priority ?? detailPriority(),
-        dueText: detailDueText() || parsed?.dueText,
-        dueDeadline: detailDeadline() || parsed?.deadline,
+        dueText: detailDueText() || parsed?.dueText || "",
+        dueDeadline: detailDeadline() || parsed?.deadline || "",
         reminderAt: detailReminderAt(),
       });
 
