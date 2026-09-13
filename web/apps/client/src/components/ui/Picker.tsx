@@ -14,7 +14,7 @@ export type PickerProps = {
   label: string;
   value: string;
   options: PickerOption[];
-  onChange: (value: string) => void | Promise<void>;
+  onChange: (value: string) => unknown;
   placeholder?: string;
   description?: string;
   disabled?: boolean;
