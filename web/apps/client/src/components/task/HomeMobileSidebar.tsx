@@ -23,6 +23,12 @@ export default function HomeMobileSidebar() {
     upcomingCount,
   } = useHome();
 
+  const views = [
+    { activeKey: "inbox" as const, route: "inbox" as const, label: "Inbox", count: inboxCount },
+    { activeKey: "today" as const, route: "today" as const, label: "Today", count: todayCount },
+    { activeKey: "upcomming" as const, route: "upcoming" as const, label: "Upcoming", count: upcomingCount },
+  ];
+
   return (
     <div class={stack}>
       <section class={card}>
@@ -39,15 +45,13 @@ export default function HomeMobileSidebar() {
       <section class={card}>
         <p class={sectionLabel}>Views</p>
         <div class={list}>
-          {(["inbox", "today", "upcomming"] as const).map((view) => {
-            const label = view === "upcomming" ? "Upcoming" : view[0].toUpperCase() + view.slice(1);
-            const count = view === "inbox" ? inboxCount : view === "today" ? todayCount : upcomingCount;
-            return (
-              <Button type="button" class={`${row} ${isViewActive(view) ? activeRow : ""}`} onClick={() => navigateToView(view)}>
-                <span>{label}</span><span class={muted}>{count()}</span>
+          <For each={views}>
+            {(view) => (
+              <Button type="button" class={`${row} ${isViewActive(view.activeKey) ? activeRow : ""}`} onClick={() => navigateToView(view.route)}>
+                <span>{view.label}</span><span class={muted}>{view.count()}</span>
               </Button>
-            );
-          })}
+            )}
+          </For>
         </div>
       </section>
 
