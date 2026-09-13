@@ -45,8 +45,10 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
     const modal = await openDetail(page, "m1 detail");
     await expect(modal.getByTestId("task-detail-title")).toHaveValue("m1 detail");
     await expect(modal.getByTestId("task-detail-description")).toHaveValue("detail description");
-    await expect(modal.getByTestId("task-detail-tags")).toHaveValue("@focus");
-    await expect(modal.getByTestId("task-detail-priority")).toHaveValue("2");
+    await expect(modal.getByTestId("task-detail-tags")).toHaveAttribute("role", "combobox");
+    await expect(modal.getByTestId("task-detail-tags")).toContainText("@focus");
+    await expect(modal.getByTestId("task-detail-priority")).toHaveAttribute("role", "combobox");
+    await expect(modal.getByTestId("task-detail-priority")).toContainText("P2");
   });
 
   test("[M1] Edit title", async ({ page }) => {
@@ -79,10 +81,10 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
     const row = taskRowByContent(page, "m1 cancel original");
     await row.hover();
     await row.getByTestId("edit-task-inline").click({ force: true });
-    const input = page.locator('[data-testid="task-row"] input').first();
+    const input = page.getByRole("textbox", { name: "Edit task title" });
     await expect(input).toBeVisible();
     await input.fill("m1 cancel should not save");
-    await page.getByRole("button", { name: "Cancel" }).first().click();
+    await input.locator("..").getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(taskRowByContent(page, "m1 cancel original")).toBeVisible();
     await page.reload();
     await expect(taskRowByContent(page, "m1 cancel original")).toBeVisible();
@@ -91,14 +93,18 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
 
   test("[M1] Complete task", async ({ page }) => {
     await addQuickTask(page, "m1 complete task");
-    await taskRowByContent(page, "m1 complete task").getByRole("button", { name: "Complete task" }).click();
+    await taskRowByContent(page, "m1 complete task")
+      .getByRole("button", { name: "Complete m1 complete task", exact: true })
+      .click();
     await expect(taskRowByContent(page, "m1 complete task")).toHaveCount(0);
     await expect(page.getByTestId("completed-task-row").filter({ hasText: "m1 complete task" })).toBeVisible();
   });
 
   test("[M1] Reload after complete", async ({ page }) => {
     await addQuickTask(page, "m1 durable complete");
-    await taskRowByContent(page, "m1 durable complete").getByRole("button", { name: "Complete task" }).click();
+    await taskRowByContent(page, "m1 durable complete")
+      .getByRole("button", { name: "Complete m1 durable complete", exact: true })
+      .click();
     await page.reload();
     await expect(taskRowByContent(page, "m1 durable complete")).toHaveCount(0);
     await expect(page.getByTestId("completed-task-row").filter({ hasText: "m1 durable complete" })).toBeVisible();
@@ -106,15 +112,17 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
 
   test("[M1] Reopen task", async ({ page }) => {
     await addQuickTask(page, "m1 reopen task @focus p2 // preserve me");
-    await taskRowByContent(page, "m1 reopen task").getByRole("button", { name: "Complete task" }).click();
+    await taskRowByContent(page, "m1 reopen task")
+      .getByRole("button", { name: "Complete m1 reopen task", exact: true })
+      .click();
     const completed = page.getByTestId("completed-task-row").filter({ hasText: "m1 reopen task" });
     await completed.getByTestId("reopen-task").click();
     await expect(taskRowByContent(page, "m1 reopen task")).toBeVisible();
     await page.reload();
     const modal = await openDetail(page, "m1 reopen task");
     await expect(modal.getByTestId("task-detail-description")).toHaveValue("preserve me");
-    await expect(modal.getByTestId("task-detail-tags")).toHaveValue("@focus");
-    await expect(modal.getByTestId("task-detail-priority")).toHaveValue("2");
+    await expect(modal.getByTestId("task-detail-tags")).toContainText("@focus");
+    await expect(modal.getByTestId("task-detail-priority")).toContainText("P2");
   });
 
   test("[M1] Delete task", async ({ page }) => {
@@ -147,7 +155,7 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
 
     const source = taskRowByContent(page, "m1 order one");
     const target = taskRowByContent(page, "m1 order three");
-    await source.getByRole("button", { name: "Drag to reorder" }).dragTo(target);
+    await source.getByRole("button", { name: "Drag m1 order one to reorder", exact: true }).dragTo(target);
     await expect.poll(() => openTaskTitles(page)).toEqual(["m1 order one", "m1 order three", "m1 order two"]);
   });
 
@@ -163,7 +171,7 @@ test.describe("M1 — core lifecycle mirrors the human verification sheet", () =
 
     const source = taskRowByContent(page, "m1 reload order one");
     const target = taskRowByContent(page, "m1 reload order three");
-    await source.getByRole("button", { name: "Drag to reorder" }).dragTo(target);
+    await source.getByRole("button", { name: "Drag m1 reload order one to reorder", exact: true }).dragTo(target);
     const expected = ["m1 reload order one", "m1 reload order three", "m1 reload order two"];
     await expect.poll(() => openTaskTitles(page)).toEqual(expected);
     await page.reload();
