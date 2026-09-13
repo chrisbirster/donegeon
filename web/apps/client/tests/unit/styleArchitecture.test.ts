@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { describe, it } from "node:test";
 
 const arbitraryUtility = /(?:^|[\s`'"{])(?:bg|text|border|rounded|shadow|ring|outline|tracking|leading|w|h|min-w|max-w|min-h|max-h|p[trblxy]?|m[trblxy]?|gap|grid-cols|z|inset)-\[[^\]]+\]/g;
 const tailwindDirective = /@(?:tailwind|apply|config|plugin)\b/;
@@ -36,7 +37,11 @@ describe("client styling architecture", () => {
       }
     }
 
-    expect(violations, `Runtime styling must stay semantic Linaria/WyW:\n${violations.join("\n")}`).toEqual([]);
+    assert.deepEqual(
+      violations,
+      [],
+      `Runtime styling must stay semantic Linaria/WyW:\n${violations.join("\n")}`,
+    );
   });
 
   it("does not depend on Tailwind packages in the client workspace", () => {
@@ -48,6 +53,6 @@ describe("client styling architecture", () => {
     const forbidden = Object.keys(dependencies).filter(
       (name) => name === "tailwindcss" || name.startsWith("@tailwindcss/"),
     );
-    expect(forbidden).toEqual([]);
+    assert.deepEqual(forbidden, []);
   });
 });
