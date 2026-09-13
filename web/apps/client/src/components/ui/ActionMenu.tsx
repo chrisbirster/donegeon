@@ -7,7 +7,7 @@ export type ActionMenuItem = {
   label: string;
   danger?: boolean;
   disabled?: boolean;
-  onSelect: () => void | Promise<void>;
+  onSelect: () => unknown;
 };
 
 export type ActionMenuProps = {
