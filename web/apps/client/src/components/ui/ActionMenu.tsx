@@ -38,6 +38,11 @@ export default function ActionMenu(props: ActionMenuProps) {
     });
   };
 
+  const openAndFocus = (offset: number) => {
+    setOpen(true);
+    focusItem(offset);
+  };
+
   onSettled(() => {
     const outside = (event: PointerEvent) => {
       if (!open()) return;
@@ -58,7 +63,15 @@ export default function ActionMenu(props: ActionMenuProps) {
   });
 
   return (
-    <div class={`${rootStyle} ${props.class ?? ""}`} ref={root}>
+    <div
+      class={`${rootStyle} ${props.class ?? ""}`}
+      ref={root}
+      onFocusOut={(event) => {
+        if (!open()) return;
+        const next = event.relatedTarget;
+        if (!(next instanceof Node) || !root.contains(next)) close();
+      }}
+    >
       <Button
         ref={trigger}
         type="button"
@@ -67,16 +80,17 @@ export default function ActionMenu(props: ActionMenuProps) {
         aria-label={props.ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open()}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (open()) close(true);
+          else openAndFocus(1);
+        }}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
             event.preventDefault();
-            setOpen(true);
-            focusItem(1);
+            openAndFocus(1);
           } else if (event.key === "ArrowUp") {
             event.preventDefault();
-            setOpen(true);
-            focusItem(-1);
+            openAndFocus(-1);
           }
         }}
       >
