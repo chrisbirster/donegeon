@@ -4,13 +4,22 @@ import type { JSX } from "@solidjs/web";
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "warning";
 export type ButtonSize = "sm" | "md" | "lg";
 
-export type ButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  block?: boolean;
-  iconOnly?: boolean;
-  unstyled?: boolean;
+type BooleanAriaValue = boolean | "true" | "false";
+type ButtonAriaOverrides = {
+  "aria-expanded"?: BooleanAriaValue;
+  "aria-pressed"?: BooleanAriaValue | "mixed";
+  "aria-selected"?: BooleanAriaValue;
+  "aria-disabled"?: BooleanAriaValue;
 };
+
+export type ButtonProps = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, keyof ButtonAriaOverrides> &
+  ButtonAriaOverrides & {
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+    block?: boolean;
+    iconOnly?: boolean;
+    unstyled?: boolean;
+  };
 
 const variants: Record<ButtonVariant, string> = {
   primary: css`
@@ -78,34 +87,34 @@ const buttonBase = css`
 
 const blockClass = css`width: 100%;`;
 const iconClass = css`aspect-ratio: 1; padding-inline: 0;`;
+const internalProps = new Set(["variant", "size", "block", "iconOnly", "unstyled", "class"]);
+
+function reactiveDomProps(props: ButtonProps): JSX.ButtonHTMLAttributes<HTMLButtonElement> {
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(props)) {
+    if (internalProps.has(key)) continue;
+    Object.defineProperty(result, key, {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        const value = (props as unknown as Record<string, unknown>)[key];
+        return key.startsWith("aria-") && typeof value === "boolean" ? String(value) : value;
+      },
+    });
+  }
+  return result as JSX.ButtonHTMLAttributes<HTMLButtonElement>;
+}
 
 export default function Button(props: ButtonProps) {
-  const variant = () => props.variant ?? "secondary";
-  const size = () => props.size ?? "md";
-  const buttonProps = { ...props } as ButtonProps;
-  delete buttonProps.variant;
-  delete buttonProps.size;
-  delete buttonProps.block;
-  delete buttonProps.iconOnly;
-  delete buttonProps.unstyled;
-  delete buttonProps.class;
+  const domProps = reactiveDomProps(props);
   const className = () => [
     props.unstyled ? "" : buttonBase,
-    props.unstyled ? "" : variants[variant()],
-    props.unstyled ? "" : sizes[size()],
+    props.unstyled ? "" : variants[props.variant ?? "secondary"],
+    props.unstyled ? "" : sizes[props.size ?? "md"],
     props.block ? blockClass : "",
     props.iconOnly ? iconClass : "",
     props.class ?? "",
   ].filter(Boolean).join(" ");
 
-  return (
-    <button
-      {...buttonProps}
-      disabled={props.disabled}
-      aria-pressed={props["aria-pressed"]}
-      aria-expanded={props["aria-expanded"]}
-      aria-selected={props["aria-selected"]}
-      class={className()}
-    />
-  );
+  return <button {...domProps} class={className()} />;
 }

@@ -1,6 +1,6 @@
 import type { QuickAddParsed } from "../domain/contracts";
 
-const deadlinePattern = /\{([^{}]+)\}/;
+const deadlinePattern = /\{([^{}]+)\}/g;
 const projectPattern = /^#[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const labelPattern = /^@[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const assigneePattern = /^\+[A-Za-z][A-Za-z0-9_-]*$/;
@@ -126,46 +126,72 @@ function extractDue(value: string): { dueText?: string; content: string } {
   };
 }
 
-/** Fast, side-effect-free preview. The server remains authoritative on submission. */
-export function parseQuickAddLocally(text: string): QuickAddParsed {
-  let working = text.trim();
-  let description = "";
-  const descriptionIndex = working.indexOf("//");
-  if (descriptionIndex >= 0) {
-    description = working.slice(descriptionIndex + 2).trim();
-    working = working.slice(0, descriptionIndex).trim();
-  }
+type ParseAccumulator = {
+  project?: string;
+  labels: string[];
+  assignee?: string;
+  priority?: number;
+  deadline?: string;
+  dueText?: string;
+  recurrenceRule?: string;
+};
 
-  let deadline: string | undefined;
+function splitDescriptionRegions(text: string): { title: string; description: string; hasDescription: boolean } {
+  const working = text.trim();
+  const descriptionIndex = working.indexOf("//");
+  if (descriptionIndex < 0) {
+    return { title: working, description: "", hasDescription: false };
+  }
+  return {
+    title: working.slice(0, descriptionIndex).trim(),
+    description: working.slice(descriptionIndex + 2).trim(),
+    hasDescription: true,
+  };
+}
+
+function parseMetadataRegion(value: string, result: ParseAccumulator): string {
+  let working = value.trim();
+
   working = working.replace(deadlinePattern, (_match, inner: string) => {
-    deadline = inner.trim() || undefined;
+    if (!result.deadline) result.deadline = inner.trim() || undefined;
     return " ";
   });
 
-  let project: string | undefined;
-  let assignee: string | undefined;
-  let priority: number | undefined;
-  const labels: string[] = [];
   const contentParts: string[] = [];
   for (const part of working.split(/\s+/).filter(Boolean)) {
-    if (!project && projectPattern.test(part) && /[A-Za-z]/.test(part.slice(1))) project = part.slice(1);
-    else if (labelPattern.test(part)) labels.push(part.slice(1));
-    else if (!assignee && assigneePattern.test(part)) assignee = part.slice(1);
-    else if (priorityPattern.test(part)) priority = Number(part.slice(1));
+    if (!result.project && projectPattern.test(part) && /[A-Za-z]/.test(part.slice(1))) result.project = part.slice(1);
+    else if (labelPattern.test(part)) result.labels.push(part.slice(1));
+    else if (!result.assignee && assigneePattern.test(part)) result.assignee = part.slice(1);
+    else if (priorityPattern.test(part)) result.priority = Number(part.slice(1));
     else contentParts.push(part);
   }
 
   const recurrence = extractRecurrence(contentParts.join(" "));
+  if (!result.recurrenceRule && recurrence.rule) result.recurrenceRule = recurrence.rule;
+
   const due = extractDue(recurrence.content);
+  if (!result.dueText && due.dueText) result.dueText = due.dueText;
+
+  return due.content;
+}
+
+/** Fast, side-effect-free preview. The server remains authoritative on submission. */
+export function parseQuickAddLocally(text: string): QuickAddParsed {
+  const regions = splitDescriptionRegions(text);
+  const result: ParseAccumulator = { labels: [] };
+
+  const content = parseMetadataRegion(regions.title, result);
+  const description = regions.hasDescription ? parseMetadataRegion(regions.description, result) : "";
+
   return {
-    content: due.content,
-    project,
-    labels,
-    assignee,
-    priority,
-    deadline,
-    dueText: due.dueText,
-    recurrenceRule: recurrence.rule,
+    content,
+    project: result.project,
+    labels: result.labels,
+    assignee: result.assignee,
+    priority: result.priority,
+    deadline: result.deadline,
+    dueText: result.dueText,
+    recurrenceRule: result.recurrenceRule,
     description,
   };
 }
