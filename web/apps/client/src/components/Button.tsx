@@ -115,6 +115,12 @@ export default function Button(props: ButtonProps) {
     props.iconOnly ? iconClass : "",
     props.class ?? "",
   ].filter(Boolean).join(" ");
+  const accessibleLabel = () => {
+    const explicit = props["aria-label"];
+    if (explicit != null) return explicit;
+    if (!props.unstyled && typeof props.children === "string") return props.children;
+    return undefined;
+  };
 
-  return <button {...domProps} class={className()} />;
+  return <button {...domProps} aria-label={accessibleLabel()} class={className()} />;
 }
