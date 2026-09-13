@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { expectNoCriticalAccessibilityIssues } from "../support/accessibility";
 import { resetTasks, taskRowByContent } from "../support/api";
 
 test.describe("M2 — full task creation mirrors the human verification sheet", () => {
@@ -20,6 +21,7 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     const titleInput = modal.getByTestId("task-create-title");
     await expect(titleInput).toHaveValue("");
     await expect(titleInput, "Opening a modal should move focus into its first task field.").toBeFocused();
+    await expectNoCriticalAccessibilityIssues(page, "Full Add Task dialog");
 
     // Shared pickers expose combobox state and work from the keyboard.
     const projectPicker = modal.getByTestId("task-create-project");
@@ -27,6 +29,7 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     await projectPicker.press("ArrowDown");
     await expect(projectPicker).toHaveAttribute("aria-expanded", "true");
     await expect(modal.getByRole("listbox", { name: "Project" })).toBeVisible();
+    await expectNoCriticalAccessibilityIssues(page, "Open Project picker");
     await page.keyboard.press("Escape");
     await expect(projectPicker).toHaveAttribute("aria-expanded", "false");
     await expect(projectPicker).toBeFocused();
@@ -63,6 +66,7 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     await modal.getByRole("textbox", { name: /New label name/i }).fill("m2-created-label");
     await modal.getByRole("button", { name: /Create & select/i }).click();
     await expect(modal.getByTestId("task-create-tags")).toContainText("@m2-created-label");
+    await expectNoCriticalAccessibilityIssues(page, "Populated Full Add Task dialog");
 
     await modal.getByRole("button", { name: /^Create Task$/i }).click();
     await expect(modal).toHaveCount(0);
@@ -75,6 +79,7 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     // The assigned section is now a visible organization surface, not hidden metadata.
     const sectionGroup = page.getByTestId("task-section-group").filter({ has: page.getByRole("heading", { name: "M2 Created Section", exact: true }) });
     await expect(sectionGroup).toContainText("m2 full smart");
+    await expectNoCriticalAccessibilityIssues(page, "Grouped project task view");
 
     await row.getByTestId("open-task-details").click();
     const detail = page.getByTestId("task-detail-modal");
@@ -85,6 +90,7 @@ test.describe("M2 — full task creation mirrors the human verification sheet", 
     await expect(detail.getByTestId("task-detail-priority")).toContainText("P2");
     await expect(detail.getByTestId("task-detail-due")).not.toHaveValue("");
     await expect(detail.getByTestId("task-detail-deadline")).not.toHaveValue("");
+    await expectNoCriticalAccessibilityIssues(page, "Task Detail dialog");
 
     // The fast Quick Add path still exists underneath the full editor flow.
     await detail.getByRole("button", { name: /^Close$/i }).click();
