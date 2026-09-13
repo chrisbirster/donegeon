@@ -37,6 +37,11 @@ const tokenStyles: Record<Exclude<QuickAddTokenKind, "text">, string> = {
   recurrence: css`border-radius:.28rem; background:rgba(24,88,57,.33); color:#c7f6d4;`,
   due: css`border-radius:.28rem; background:rgba(110,78,21,.34); color:#ffd4a1;`,
 };
+const plainToken = css`color:var(--text-main);`;
+
+export function quickAddTokenClass(kind: QuickAddTokenKind): string {
+  return kind === "text" ? plainToken : tokenStyles[kind];
+}
 
 export default function QuickAddTokenInput(props: QuickAddTokenInputProps) {
   return (
@@ -44,9 +49,7 @@ export default function QuickAddTokenInput(props: QuickAddTokenInputProps) {
       <div class={highlightLayer} aria-hidden="true">
         <Show when={props.value.length > 0} fallback={<span class={placeholderStyle}>{props.placeholder ?? "Add task"}</span>}>
           <For each={props.tokens}>
-            {(token) => (
-              <span class={token.kind === "text" ? plainToken : tokenStyles[token.kind]}>{token.value}</span>
-            )}
+            {(token) => <span class={quickAddTokenClass(token.kind)}>{token.value}</span>}
           </For>
         </Show>
       </div>
@@ -87,7 +90,6 @@ const highlightLayer = css`
   backdrop-filter:blur(8px);
 `;
 const placeholderStyle = css`color:var(--text-dim);`;
-const plainToken = css`color:var(--text-main);`;
 const input = css`
   position:relative;
   width:100%;
