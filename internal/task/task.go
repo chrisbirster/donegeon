@@ -11,6 +11,7 @@ type Task struct {
 	Priority       int      `db:"priority" json:"priority"`
 	DueText        *string  `db:"due_text" json:"dueText,omitempty"`
 	DueDeadline    *string  `db:"due_deadline" json:"dueDeadline,omitempty"`
+	ReminderAt     *string  `db:"reminder_at" json:"reminderAt,omitempty"`
 	ScheduleInput  *string  `db:"schedule_input" json:"scheduleInput,omitempty"`
 	Labels         []string `db:"-" json:"labels"`
 	ProcessedCount int      `db:"processed_count" json:"processedCount"`
@@ -30,6 +31,7 @@ type CreateInput struct {
 	Priority      int
 	DueText       *string
 	DueDeadline   *string
+	ReminderAt    *string
 	ScheduleInput *string
 	Labels        []string
 }
@@ -47,6 +49,8 @@ type UpdateInput struct {
 	ClearDueText       bool
 	DueDeadline        *string
 	ClearDueDeadline   bool
+	ReminderAt         *string
+	ClearReminderAt    bool
 	ScheduleInput      *string
 	ClearScheduleInput bool
 	Labels             *[]string

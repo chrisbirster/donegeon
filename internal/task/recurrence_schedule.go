@@ -149,6 +149,25 @@ func normalizeDeadline(value *string, timezone string, now time.Time) *string {
 	return normalizeTemporalValue(value, timezone, now)
 }
 
+// normalizeReminderAt resolves a reminder into one concrete instant. Unlike
+// due/deadline text, reminder values are strict because a notification must not
+// silently retain an unparseable wall-clock expression.
+func normalizeReminderAt(value *string, timezone string, now time.Time) (*string, bool) {
+	if value == nil {
+		return nil, true
+	}
+	raw := strings.TrimSpace(*value)
+	if raw == "" {
+		return nil, true
+	}
+	loc := locationFromTimezone(timezone)
+	parsed, ok := resolveTemporalText(raw, loc, now.In(loc))
+	if !ok {
+		return nil, false
+	}
+	return strPtr(parsed.Format(time.RFC3339)), true
+}
+
 func normalizeTemporalValue(value *string, timezone string, anchor time.Time) *string {
 	if value == nil {
 		return nil

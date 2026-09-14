@@ -18,6 +18,10 @@ SET
         WHEN :clear_due_deadline = 1 THEN NULL
         ELSE COALESCE(:due_deadline, due_deadline)
     END,
+    reminder_at = CASE
+        WHEN :clear_reminder_at = 1 THEN NULL
+        ELSE COALESCE(:reminder_at, reminder_at)
+    END,
     schedule_input = CASE
         WHEN :clear_schedule_input = 1 THEN NULL
         ELSE COALESCE(:schedule_input, schedule_input)

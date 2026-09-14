@@ -15,6 +15,7 @@ export type Task = {
   isDeleted: boolean;
   dueText?: string;
   dueDeadline?: string;
+  reminderAt?: string;
 };
 
 export type Project = {
@@ -374,6 +375,7 @@ export type UpdateTaskPayload = {
   priority?: number;
   dueText?: string;
   dueDeadline?: string;
+  reminderAt?: string;
 };
 
 export type ParsedRRule = {

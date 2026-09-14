@@ -69,6 +69,9 @@ export default function HomeTaskRow(props: HomeTaskRowProps) {
       <Show when={formatScheduleDateTime(props.item.dueDeadline)}>
         {(value) => <span class={deadlineBadge}>Deadline {value()}</span>}
       </Show>
+      <Show when={formatScheduleDateTime(props.item.reminderAt)}>
+        {(value) => <span class={reminderBadge}>Reminder {value()}</span>}
+      </Show>
       <Show when={scheduleValidationWarning(props.item)}>
         {(warning) => <span class={warningBadge}>{warning()}</span>}
       </Show>
@@ -261,6 +264,7 @@ const description = css`margin:.2rem 0 0; color:var(--text-dim); font-size:.78re
 const metadataStyle = css`display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.4rem;`;
 const dueBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(110,78,21,.34); color:#ffd4a1;`;
 const deadlineBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(74,78,156,.35); color:#ddd9ff;`;
+const reminderBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(32,95,105,.34); color:#bff5ff;`;
 const warningBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(129,61,28,.35); color:#ffd4b5;`;
 const neutralBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(97,76,132,.26); color:#d9c6ff;`;
 const successBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(24,88,57,.33); color:#c7f6d4;`;

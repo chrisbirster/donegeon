@@ -62,6 +62,8 @@ export function createHomeController() {
     setDetailDueText,
     detailDeadline,
     setDetailDeadline,
+    detailReminderAt,
+    setDetailReminderAt,
     detailProjectId,
     setDetailProjectId,
     detailTags,
@@ -478,6 +480,7 @@ export function createHomeController() {
     setDetailPriority(item.priority || 4);
     setDetailDueText(item.dueText || "");
     setDetailDeadline(item.dueDeadline || "");
+    setDetailReminderAt(item.reminderAt || "");
     setDetailProjectId(detailProject);
     setDetailTags(formatLabelsInput(item.labels));
     setDetailScheduleOriginal(item.scheduleInput || "");
@@ -613,11 +616,12 @@ export function createHomeController() {
         description: parsed?.description || detailDescription(),
         projectId: resolvedProjectID ?? "",
         labels,
-        recurrenceRule: detailRecurrence().trim() || parsed?.recurrenceRule || undefined,
+        recurrenceRule: detailRecurrence().trim() || parsed?.recurrenceRule || "",
         scheduleInput: hasParsedSchedule(parsed) ? rawContent : undefined,
         priority: parsed?.priority ?? detailPriority(),
-        dueText: detailDueText() || parsed?.dueText,
-        dueDeadline: detailDeadline() || parsed?.deadline,
+        dueText: detailDueText() || parsed?.dueText || "",
+        dueDeadline: detailDeadline() || parsed?.deadline || "",
+        reminderAt: detailReminderAt(),
       });
 
       setTasks((current) =>

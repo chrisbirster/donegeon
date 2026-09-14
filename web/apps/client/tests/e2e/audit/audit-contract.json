@@ -52,7 +52,7 @@
       "defaultEvidence": "ci-structural"
     }
   },
-  "certifiedBrowserMilestones": ["M1", "M2"],
+  "certifiedBrowserMilestones": ["M1", "M2", "M3"],
   "notes": [
     "M0 is intentionally not a browser milestone; its document explicitly defines it as an inventory review.",
     "M7 is a truth-in-support review and M8 is a CI/release-structure review; Playwright is not allowed to masquerade as proof for those rows.",
