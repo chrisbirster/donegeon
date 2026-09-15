@@ -4,13 +4,45 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: m5-remediation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  migrate-theme:
+    name: One-time client theme color migration
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Migrate raw client colors into theme.css
+        run: node scripts/theme-color-migrate.mjs --write
+
+      - name: Commit migration when needed
+        run: |
+          if git diff --quiet; then
+            echo "Theme colors already migrated."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/apps/client/src
+          git commit -m "Migrate client raw colors to theme tokens"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   theme:
     name: Client theme token contract
     runs-on: ubuntu-latest
