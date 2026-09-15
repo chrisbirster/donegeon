@@ -51,7 +51,7 @@ export default function SettingsRoute() {
 
   return (
     <AppShell
-      activeView="profile"
+      activeView="settings"
       mobileSidebar={
         <div class={style1}>
           <section class={style2}>
