@@ -17,6 +17,13 @@ async function ensureTeamAdminEnabled(page: Page) {
   await expect(teamName).toBeEnabled();
 }
 
+async function expectLightTheme(page: Page) {
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect.poll(() =>
+    page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg-base").trim()),
+  ).toBe("#f4f6fa");
+}
+
 test.describe("M5 — deterministic collaboration browser surfaces", () => {
   test("[M5] Workspace owner/admin role behavior", async ({ page }) => {
     await ensureTeamAdminEnabled(page);
@@ -79,5 +86,20 @@ test.describe("M5 — deterministic collaboration browser surfaces", () => {
     await expect(calendarPanel).toContainText("Google Calendar");
     await expect(calendarPanel).toContainText("m5-calendar@example.com");
     await expect(calendarPanel).toContainText(/3 upcoming events fetched/i);
+  });
+
+  test("Light theme applies app-wide palette", async ({ page }) => {
+    await page.goto("/settings");
+    await page.getByTestId("theme-option-light").click();
+    await expectLightTheme(page);
+
+    await page.goto("/task/inbox");
+    await expectLightTheme(page);
+
+    await page.goto("/board");
+    await expectLightTheme(page);
+    await expect.poll(() =>
+      page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--board-chrome-bg").trim()),
+    ).toBe("rgba(255,255,255,.94)");
   });
 });
