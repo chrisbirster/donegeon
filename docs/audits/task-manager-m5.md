@@ -1,12 +1,12 @@
 # M5 — collaboration / integration gate
 
-Status: COMPLETE for the canonical task-manager collaboration boundary
+Status: SEMANTIC CONTRACT COMPLETE; human/live-provider certification pending
 
 ## Collaboration
 
 The supported collaboration boundary is `internal/account`, not the legacy task-manager compatibility workspace/invitation helpers.
 
-Semantic evidence now proves:
+Semantic evidence proves:
 
 - Pro workspace invitations are normalized and repeat invitations for the same email/role are idempotent.
 - Invitation acceptance creates the intended workspace membership.
@@ -25,23 +25,24 @@ Semantic evidence now proves:
 - OAuth state cannot be consumed by another user/workspace and can only be consumed once.
 - Token exchange and profile retrieval populate a tenant-owned calendar connection.
 - Calendar connections cannot be listed, fetched, or deleted by another tenant.
-- Calendar sync calls the provider boundary with the persisted access token, counts returned upcoming events, and persists `last_sync_at`.
+- Calendar fetch calls the provider boundary with the persisted access token, counts returned upcoming events, and persists `last_sync_at` as the last successful provider fetch time.
 - The owner can disconnect the connection.
 
-This is connection/upcoming-event sync evidence. Donegeon does not claim bidirectional task-to-calendar synchronization from this contract.
+This is connection + read-only upcoming-event fetch evidence. Donegeon does not claim task-to-calendar writes or bidirectional synchronization from this contract. A real Google OAuth consent round-trip remains a manual external-provider verification item before M5 certification.
 
 ## Explicit first-milestone scope decisions
 
 The following are not part of the first task-manager-complete contract because no canonical durable product model exists for them:
 
 - subtasks / parent-child tasks
-- durable task assignees (`+name` remains parser metadata)
-- reminders
+- durable task assignees (`+name` remains parser compatibility metadata and the current UI blocks it rather than implying assignment)
 - task attachments/uploads
 - activity log
-- bidirectional task/calendar synchronization
+- task-to-calendar writes / bidirectional task-calendar synchronization
 
-These must remain visibly `OUT_OF_SCOPE`, not `VERIFIED` or silently implied.
+Reminders are no longer in this out-of-scope list: the canonical reminder model and human/browser verification were completed and certified in M3.
+
+These unsupported capabilities must remain visibly `OUT_OF_SCOPE`, not `VERIFIED` or silently implied.
 
 ## Legacy compatibility collaboration actions
 
@@ -49,4 +50,4 @@ The compatibility layer still contains historical comment/workspace-invitation i
 
 ## Validation
 
-M5 is complete only after the final PR head passes the protected Go, web, infra, and full-history secret-scan checks.
+M5 certification requires the targeted semantic contracts, browser-observable M5 audit rows, protected CI, human collaboration/calendar review, keyboard/VoiceOver smoke checks, and the external real-Google connect check to pass on the audited product head before M5 is promoted into the certified browser set.

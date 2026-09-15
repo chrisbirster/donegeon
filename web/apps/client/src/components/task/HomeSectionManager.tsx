@@ -232,12 +232,12 @@ export default function HomeSectionManager() {
   );
 }
 
-const wrapper = css`margin:.8rem 0 .25rem; padding:.85rem .95rem; border:1px solid var(--border-soft); border-radius:.8rem; background:rgba(255,255,255,.015);`;
+const wrapper = css`margin:.8rem 0 .25rem; padding:.85rem .95rem; border:1px solid var(--border-soft); border-radius:.8rem; background:var(--palette-rgba-255-255-255-015-211235);`;
 const topRow = css`display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;`;
 const eyebrow = css`margin:0; font-size:.7rem; font-weight:750; letter-spacing:.12em; text-transform:uppercase; color:var(--text-dim);`;
 const helper = css`margin:.25rem 0 0; max-width:42rem; font-size:.76rem; line-height:1.45; color:var(--text-dim);`;
 const sectionList = css`display:flex; flex-wrap:wrap; gap:.55rem; margin-top:.75rem;`;
-const sectionCard = css`display:grid; grid-template-columns:minmax(0,1fr) 2.5rem; gap:.45rem; align-items:stretch; min-width:11rem; border:1px solid var(--border-soft); border-radius:.65rem; padding:.4rem; background:rgba(255,255,255,.025);`;
+const sectionCard = css`display:grid; grid-template-columns:minmax(0,1fr) 2.5rem; gap:.45rem; align-items:stretch; min-width:11rem; border:1px solid var(--border-soft); border-radius:.65rem; padding:.4rem; background:var(--palette-rgba-255-255-255-025-40fa64);`;
 const sectionIdentity = css`display:flex; flex-direction:column; justify-content:center; min-width:0; padding:.1rem .3rem;`;
 const sectionName = css`margin:0; font-size:.84rem; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
 const sectionCount = css`color:var(--text-dim); font-size:.68rem;`;
@@ -249,7 +249,7 @@ const dialogTitle = css`margin:0 0 1rem; font-size:1.1rem;`;
 const dialogCopy = css`margin:0 0 1rem; color:var(--text-dim); line-height:1.5;`;
 const fieldLabel = css`display:block; margin-bottom:.4rem; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
 const input = css`
-  width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.68rem .75rem; background:rgba(255,255,255,.035); color:var(--text-main); outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.68rem .75rem; background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-main); outline:none;
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const dialogActions = css`display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem;`;

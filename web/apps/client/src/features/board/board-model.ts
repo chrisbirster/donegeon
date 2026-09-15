@@ -260,13 +260,13 @@ export function tokenizeQuickAdd(value: string): TokenPiece[] {
   return pieces;
 }
 
-const boardTokenProject = css`border-radius:.28rem; background:#7f1d1d; color:#ffd2d2;`;
-const boardTokenLabel = css`border-radius:.28rem; background:#6b214d; color:#ffdff5;`;
-const boardTokenAssignee = css`border-radius:.28rem; background:#5b2470; color:#fbe2ff;`;
-const boardTokenPriority = css`border-radius:.28rem; background:#9a3412; color:#ffe5d5;`;
-const boardTokenDeadline = css`border-radius:.28rem; background:#4338ca; color:#e3dcff;`;
-const boardTokenRecurrence = css`border-radius:.28rem; background:#14532d; color:#d8ffd4;`;
-const boardTokenDue = css`border-radius:.28rem; background:#92400e; color:#ffe6cc;`;
+const boardTokenProject = css`border-radius:.28rem; background:var(--palette-hex-7f1d1d-de79fc); color:var(--palette-hex-ffd2d2-a85ba3);`;
+const boardTokenLabel = css`border-radius:.28rem; background:var(--palette-hex-6b214d-1dbaf9); color:var(--palette-hex-ffdff5-f6be91);`;
+const boardTokenAssignee = css`border-radius:.28rem; background:var(--palette-hex-5b2470-7a766f); color:var(--palette-hex-fbe2ff-ac1a5e);`;
+const boardTokenPriority = css`border-radius:.28rem; background:var(--palette-hex-9a3412-4abc9a); color:var(--palette-hex-ffe5d5-a25ea6);`;
+const boardTokenDeadline = css`border-radius:.28rem; background:var(--palette-hex-4338ca-08d051); color:var(--palette-hex-e3dcff-ca79a7);`;
+const boardTokenRecurrence = css`border-radius:.28rem; background:var(--palette-hex-14532d-4d35c2); color:var(--palette-hex-d8ffd4-1e8141);`;
+const boardTokenDue = css`border-radius:.28rem; background:var(--palette-hex-92400e-0c246f); color:var(--palette-hex-ffe6cc-c44ead);`;
 const boardTokenText = css`color:var(--text-main);`;
 
 export function tokenClass(kind: TokenKind): string {
@@ -389,8 +389,8 @@ export function taskCompletionToastMessage(patch: unknown): string {
   return parts.join(" ");
 }
 
-const notificationSuccess = css`border-color:rgba(70,140,98,.34); background:var(--success-bg); color:var(--success);`;
-const notificationError = css`border-color:rgba(196,98,91,.28); background:var(--danger-bg); color:var(--danger);`;
+const notificationSuccess = css`border-color:var(--palette-rgba-70-140-98-34-914b88); background:var(--success-bg); color:var(--success);`;
+const notificationError = css`border-color:var(--palette-rgba-196-98-91-28-b375a6); background:var(--danger-bg); color:var(--danger);`;
 const notificationInfo = css`border-color:var(--border-strong); background:var(--panel-soft); color:var(--text-main);`;
 
 export function notificationToneClass(tone: string | undefined): string {

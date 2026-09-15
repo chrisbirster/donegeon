@@ -416,7 +416,7 @@ export default function BoardMobileSidebar() {
   );
 }
 
-const mobileTagline = css`display: flex; justify-content: center; padding: .8rem .5rem 1rem; border-bottom: 1px solid rgba(255,32,114,.28);`;
+const mobileTagline = css`display: flex; justify-content: center; padding: .8rem .5rem 1rem; border-bottom: 1px solid var(--palette-rgba-255-32-114-28-ae32d8);`;
 
 
 const style1 = css`
@@ -483,11 +483,11 @@ color: var(--text-soft);
 `;
 
 const style10 = css`
-color: #ff8c8c;
+color: var(--palette-hex-ff8c8c-71b27a);
 `;
 
 const style11 = css`
-color: #7ddf98;
+color: var(--palette-hex-7ddf98-541a53);
 `;
 
 const style12 = css`
@@ -648,13 +648,13 @@ text-transform: uppercase;
 const style34 = css`
 margin-top: calc(var(--spacing) * 1);
 font-size: 11px;
-color: #b7c9e8;
+color: var(--palette-hex-b7c9e8-1b5be8);
 `;
 
 const style35 = css`
 margin-top: calc(var(--spacing) * 1);
 font-size: 11px;
-color: #9ec4b1;
+color: var(--palette-hex-9ec4b1-6cbc98);
 `;
 
 const style36 = css`
@@ -675,15 +675,15 @@ font-size: 11px;
 `;
 
 const style38 = css`
-color: #8be39f;
+color: var(--palette-hex-8be39f-791baf);
 `;
 
 const style39 = css`
-color: #cdd9ef;
+color: var(--palette-hex-cdd9ef-febb91);
 `;
 
 const style40 = css`
-color: #8ca4cf;
+color: var(--palette-hex-8ca4cf-59fe7d);
 `;
 
 const style41 = css`
@@ -697,13 +697,13 @@ margin-top: calc(var(--spacing) * 1);
 
 const style42 = css`
 font-size: 10px;
-color: #88a2c7;
+color: var(--palette-hex-88a2c7-042765);
 `;
 
 const style43 = css`
 margin-top: calc(var(--spacing) * 1);
 font-size: 11px;
-color: #f1d38e;
+color: var(--palette-hex-f1d38e-b3d242);
 `;
 
 const style44 = css`
@@ -711,14 +711,14 @@ margin-top: calc(var(--spacing) * 2);
 border-radius: var(--radius-md);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: #4b6d48;
-background-color: #12301f;
+border-color: var(--palette-hex-4b6d48-325c97);
+background-color: var(--palette-hex-12301f-852285);
 padding-inline: calc(var(--spacing) * 2);
 padding-block: calc(var(--spacing) * 1);
 font-size: 11px;
 --tw-font-weight: var(--font-weight-semibold);
   font-weight: var(--font-weight-semibold);
-color: #bff5cb;
+color: var(--palette-hex-bff5cb-7fbc84);
 &:disabled {
     opacity: 50%;
   }

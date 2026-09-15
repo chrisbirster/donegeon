@@ -28,7 +28,7 @@ font-size: var(--text-4xl);
   font-weight: var(--font-weight-semibold);
 --tw-tracking: -0.03em;
   letter-spacing: -0.03em;
-color: var(--color-white);
+color: var(--text-main);
 font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
 `;
 

@@ -1,0 +1,120 @@
+name: M5 Remediation Audit
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: m5-remediation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrate-theme:
+    name: One-time client theme color migration
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Migrate raw client colors into theme.css
+        run: node scripts/theme-color-migrate.mjs --write
+
+      - name: Commit migration when needed
+        run: |
+          if git diff --quiet; then
+            echo "Theme colors already migrated."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/apps/client/src
+          git commit -m "Migrate client raw colors to theme tokens"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+  theme:
+    name: Client theme token contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify centralized theme contract
+        working-directory: web/apps/client
+        run: node --test tests/unit/styleArchitecture.test.ts
+
+  semantic:
+    name: M5 collaboration/calendar semantic audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Collaboration authorization/invitation contract
+        run: go test ./internal/account -run '^TestCollaborationRolesAndInvitationsContract$' -count=1
+
+      - name: Calendar OAuth/sync/isolation contract
+        run: go test ./internal/calendar -run '^TestCalendarOAuthSyncAndTenantIsolationContract$' -count=1
+
+  browser:
+    name: M5 browser audit (non-certified)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: web/apps/client
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Run M5 collaboration browser audit without certifying M5
+        working-directory: web/apps/client
+        run: npm run test:audit:m5 -- --max-failures=1 --retries=0

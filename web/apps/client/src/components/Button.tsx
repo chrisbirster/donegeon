@@ -23,39 +23,39 @@ export type ButtonProps = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, keyo
 
 const variants: Record<ButtonVariant, string> = {
   primary: css`
-    border-color: #c445ff;
-    background: linear-gradient(180deg, #d04cff, #9a18dc);
-    color: #100713;
-    box-shadow: 0 3px 0 #5f137d, 0 0 18px rgba(196, 69, 255, .24);
-    &:hover:not(:disabled) { background: linear-gradient(180deg, #df6aff, #ad24ef); box-shadow: 0 3px 0 #6d168f, 0 0 24px rgba(196, 69, 255, .38); }
+    border-color: var(--palette-hex-c445ff-7a9c18);
+    background: linear-gradient(180deg, var(--palette-hex-d04cff-83a730), var(--palette-hex-9a18dc-8cee0f));
+    color: var(--palette-hex-100713-93c375);
+    box-shadow: 0 3px 0 var(--palette-hex-5f137d-1ed6b9), 0 0 18px var(--palette-rgba-196-69-255-24-899fe9);
+    &:hover:not(:disabled) { background: linear-gradient(180deg, var(--palette-hex-df6aff-45150a), var(--palette-hex-ad24ef-a6cf93)); box-shadow: 0 3px 0 var(--palette-hex-6d168f-83a32b), 0 0 24px var(--palette-rgba-196-69-255-38-4b7b18); }
   `,
   secondary: css`
-    border-color: #8a2be2;
-    background: linear-gradient(180deg, rgba(24, 28, 41, .98), rgba(10, 13, 22, .98));
-    color: #f7f0e7;
-    box-shadow: inset 0 0 0 1px rgba(0, 224, 255, .06);
-    &:hover:not(:disabled) { border-color: #c445ff; color: #fff; box-shadow: 0 0 18px rgba(196, 69, 255, .22); }
+    border-color: var(--palette-hex-8a2be2-2dbd0f);
+    background: linear-gradient(180deg, var(--palette-rgba-24-28-41-98-610ffa), var(--palette-rgba-10-13-22-98-edaeaa));
+    color: var(--palette-hex-f7f0e7-7eccec);
+    box-shadow: inset 0 0 0 1px var(--palette-rgba-0-224-255-06-54150d);
+    &:hover:not(:disabled) { border-color: var(--palette-hex-c445ff-7a9c18); color: var(--palette-hex-fff-d14f90); box-shadow: 0 0 18px var(--palette-rgba-196-69-255-22-7769cd); }
   `,
   ghost: css`
     border-color: transparent;
     background: transparent;
-    color: #b5afba;
+    color: var(--palette-hex-b5afba-eb564a);
     box-shadow: none;
-    &:hover:not(:disabled) { border-color: rgba(196, 69, 255, .42); background: rgba(196, 69, 255, .08); color: #fff; }
+    &:hover:not(:disabled) { border-color: var(--palette-rgba-196-69-255-42-dc5806); background: var(--palette-rgba-196-69-255-08-daca1e); color: var(--palette-hex-fff-d14f90); }
   `,
   danger: css`
-    border-color: rgba(239, 68, 68, .72);
-    background: rgba(68, 16, 24, .34);
-    color: #ff6767;
-    box-shadow: inset 0 0 0 1px rgba(239, 68, 68, .06);
-    &:hover:not(:disabled) { background: rgba(116, 20, 31, .56); border-color: #ef4444; box-shadow: 0 0 16px rgba(239, 68, 68, .2); }
+    border-color: var(--palette-rgba-239-68-68-72-3ba697);
+    background: var(--palette-rgba-68-16-24-34-3cd4f9);
+    color: var(--palette-hex-ff6767-83cda6);
+    box-shadow: inset 0 0 0 1px var(--palette-rgba-239-68-68-06-818ea6);
+    &:hover:not(:disabled) { background: var(--palette-rgba-116-20-31-56-5e48e5); border-color: var(--palette-hex-ef4444-a29305); box-shadow: 0 0 16px var(--palette-rgba-239-68-68-2-dc5f70); }
   `,
   warning: css`
-    border-color: rgba(255, 138, 0, .72);
-    background: rgba(78, 43, 5, .42);
-    color: #ffb13b;
-    box-shadow: inset 0 0 0 1px rgba(255, 138, 0, .07);
-    &:hover:not(:disabled) { background: rgba(116, 60, 3, .58); border-color: #ff8a00; box-shadow: 0 0 16px rgba(255, 138, 0, .2); }
+    border-color: var(--palette-rgba-255-138-0-72-5261e7);
+    background: var(--palette-rgba-78-43-5-42-dec542);
+    color: var(--palette-hex-ffb13b-a8378a);
+    box-shadow: inset 0 0 0 1px var(--palette-rgba-255-138-0-07-04bc05);
+    &:hover:not(:disabled) { background: var(--palette-rgba-116-60-3-58-9affca); border-color: var(--palette-hex-ff8a00-51eaff); box-shadow: 0 0 16px var(--palette-rgba-255-138-0-2-ccb2c7); }
   `,
 };
 
@@ -80,7 +80,7 @@ const buttonBase = css`
   cursor: pointer;
   transition: color 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
   &:active:not(:disabled) { transform: translateY(1px); }
-  &:focus-visible { outline: 2px solid #00e0ff; outline-offset: 3px; }
+  &:focus-visible { outline: 2px solid var(--palette-hex-00e0ff-93d32f); outline-offset: 3px; }
   &:disabled { cursor: not-allowed; opacity: .48; filter: saturate(.55); }
   @media (prefers-reduced-motion: reduce) { transition: none; }
 `;

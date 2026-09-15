@@ -99,7 +99,7 @@ const chip = css`
 `;
 const legend = css`
   margin-top:.55rem; border:1px solid var(--border-strong); border-radius:.7rem; padding:.8rem;
-  background:rgba(255,255,255,.025); color:var(--text-main);
+  background:var(--palette-rgba-255-255-255-025-40fa64); color:var(--text-main);
 `;
 const legendTitle = css`margin:0 0 .6rem; font-weight:700;`;
 const legendGrid = css`
@@ -110,12 +110,12 @@ const legendGrid = css`
   code{color:var(--accent-text);}
 `;
 const guidance = css`
-  margin:.5rem 0 0; border:1px solid rgba(49,122,86,.42); border-radius:.55rem; padding:.5rem .7rem;
+  margin:.5rem 0 0; border:1px solid var(--palette-rgba-49-122-86-42-c24687); border-radius:.55rem; padding:.5rem .7rem;
   background:var(--success-bg); color:var(--success); font-size:.75rem;
 `;
 const unsupported = css`
-  margin:.5rem 0 0; border:1px solid rgba(255,107,122,.48); border-radius:.55rem; padding:.5rem .7rem;
-  background:rgba(125,34,48,.2); color:#ffb7c0; font-size:.75rem;
+  margin:.5rem 0 0; border:1px solid var(--palette-rgba-255-107-122-48-27d271); border-radius:.55rem; padding:.5rem .7rem;
+  background:var(--palette-rgba-125-34-48-2-283bc2); color:var(--palette-hex-ffb7c0-2623f0); font-size:.75rem;
 `;
 const actions = css`display:flex; justify-content:flex-end; margin-top:.65rem;`;
 const srOnly = css`
