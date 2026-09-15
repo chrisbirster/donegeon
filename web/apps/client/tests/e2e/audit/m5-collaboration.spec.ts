@@ -34,9 +34,50 @@ test.describe("M5 — deterministic collaboration browser surfaces", () => {
     const email = `audit-invite-${Date.now()}@example.com`;
     await page.getByRole("textbox", { name: /Invite by email/i }).fill(email);
     await page.getByRole("button", { name: /^Send invite$/i }).click();
-    await expect(page.getByText(/Invitation sent as/i)).toBeVisible();
+    await expect(page.getByRole("main").getByText(/Invitation sent as/i)).toBeVisible();
     await expect(page.getByText(email, { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByText(email, { exact: true })).toBeVisible();
+  });
+
+  test("[M5] OAuth callback/failure", async ({ page }) => {
+    await page.goto("/profile?calendar=error&message=Provider%20denied%20access");
+    await expect(page.getByText("Provider denied access", { exact: true })).toBeVisible();
+
+    const connection = {
+      id: "CAL_M5_GOOGLE",
+      provider: "google",
+      externalAccountId: "google-account-m5",
+      email: "m5-calendar@example.com",
+      scope: "calendar.readonly",
+      calendarId: "primary",
+      lastSyncAt: "2026-09-15T12:00:00Z",
+      createdAt: "2026-09-15T11:00:00Z",
+      updatedAt: "2026-09-15T12:00:00Z",
+      hasRefreshToken: true,
+    };
+
+    await page.route("**/api/calendar/connections", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [connection] }),
+      });
+    });
+    await page.route("**/api/calendar/sync", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          results: [{ connectionId: connection.id, provider: "google", pulled: 3 }],
+        }),
+      });
+    });
+
+    await page.goto("/profile?calendar=connected&provider=google");
+    const calendarPanel = page.getByTestId("profile-calendar-connections");
+    await expect(calendarPanel).toContainText("Google Calendar");
+    await expect(calendarPanel).toContainText("m5-calendar@example.com");
+    await expect(calendarPanel).toContainText(/3 upcoming events fetched/i);
   });
 });
