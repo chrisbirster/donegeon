@@ -165,7 +165,7 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
 
   test("[M4] Search by project name", async ({ page }) => {
     await addQuickTask(page, "m4 project searchable #obsidian-vault");
-    await page.getByRole("button", { name: /^Inbox\b/i }).click();
+    await page.getByRole("button", { name: /^Inbox\b/i }).first().click();
     await search(page, "obsidian-vault");
     await expect(page.getByRole("button", { name: /m4 project searchable/i })).toBeVisible();
   });
