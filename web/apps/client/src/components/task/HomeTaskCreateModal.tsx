@@ -40,13 +40,14 @@ export default function HomeTaskCreateModal() {
   const [formError, setFormError] = createSignal("");
   let parseSequence = 0;
 
+  const unsupportedAssignee = createMemo(() => parsedPreview()?.assignee?.trim() ?? "");
+
   const parsedChips = createMemo(() => {
     const parsed = parsedPreview();
     if (!parsed) return [] as string[];
     const chips: string[] = [];
     if (parsed.project) chips.push(`Project: ${parsed.project}`);
     for (const label of parsed.labels ?? []) chips.push(`Label: ${label}`);
-    if (parsed.assignee) chips.push(`Assignee: ${parsed.assignee}`);
     if (parsed.priority) chips.push(`Priority: p${parsed.priority}`);
     if (parsed.dueText) chips.push(`Due: ${parsed.dueText}`);
     if (parsed.deadline) chips.push(`Deadline: ${parsed.deadline}`);
@@ -139,6 +140,10 @@ export default function HomeTaskCreateModal() {
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     const preview = parsedPreview();
+    if (preview?.assignee) {
+      setFormError(`Assignees are not supported yet. Remove +${preview.assignee} before creating this task.`);
+      return;
+    }
     const content = (preview?.content || title()).trim();
     if (!content) {
       setFormError("Task title is required.");
@@ -210,6 +215,14 @@ export default function HomeTaskCreateModal() {
                 <div class={parsedChipsStyle} aria-live="polite">
                   <For each={parsedChips()}>{(chip) => <span class={parsedChip}>{chip}</span>}</For>
                 </div>
+              </Show>
+
+              <Show when={unsupportedAssignee()}>
+                {(assignee) => (
+                  <p class={unsupported} role="alert" data-testid="task-create-unsupported-assignee">
+                    Assignees are not supported yet. Remove +{assignee()} before creating this task; Donegeon will not silently discard assignment metadata.
+                  </p>
+                )}
               </Show>
 
               <label class={fieldLabel} for="task-create-description">Description</label>
@@ -306,7 +319,7 @@ export default function HomeTaskCreateModal() {
           <Show when={formError()}><p class={errorText} role="alert">{formError()}</p></Show>
 
           <footer class={footer}>
-            <Button type="submit" variant="primary" disabled={saving()}>
+            <Button type="submit" variant="primary" disabled={saving() || !!unsupportedAssignee()}>
               {saving() ? "Creating…" : "Create Task"}
             </Button>
           </footer>
@@ -340,5 +353,9 @@ const textarea = css`
 const helper = css`margin:0; color:var(--text-dim); font-size:.75rem; line-height:1.4;`;
 const parsedChipsStyle = css`display:flex; flex-wrap:wrap; gap:.4rem;`;
 const parsedChip = css`border:1px solid var(--border-soft); border-radius:.5rem; padding:.25rem .45rem; background:var(--panel-soft); color:var(--text-soft); font-size:.72rem;`;
+const unsupported = css`
+  margin:.35rem 0 0; border:1px solid rgba(255,107,122,.48); border-radius:.55rem; padding:.5rem .7rem;
+  background:rgba(125,34,48,.2); color:#ffb7c0; font-size:.75rem;
+`;
 const footer = css`display:flex; justify-content:flex-end; gap:1rem; padding:1rem 1.5rem; border-top:1px solid var(--border-strong);`;
 const errorText = css`margin:0; padding:.75rem 1.5rem; color:var(--danger); border-top:1px solid var(--border-strong);`;

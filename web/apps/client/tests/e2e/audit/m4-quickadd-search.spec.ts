@@ -48,7 +48,7 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
     await expect(taskRowByContent(page, "m4 priority")).toContainText("p2");
     await page.reload();
     const modal = await openDetail(page, "m4 priority");
-    await expect(modal.getByTestId("task-detail-priority")).toHaveValue("2");
+    await expect(modal.getByTestId("task-detail-priority")).toContainText("P2");
   });
 
   test("[M4] Add project token", async ({ page }) => {
@@ -69,8 +69,8 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
     await expect(row).toContainText("@chore");
     await page.reload();
     const modal = await openDetail(page, "m4 labels");
-    await expect(modal.getByTestId("task-detail-tags")).toHaveValue(/@home/);
-    await expect(modal.getByTestId("task-detail-tags")).toHaveValue(/@chore/);
+    await expect(modal.getByTestId("task-detail-tags")).toContainText("@home");
+    await expect(modal.getByTestId("task-detail-tags")).toContainText("@chore");
   });
 
   test("[M4] Add due expression", async ({ page }) => {
@@ -111,9 +111,9 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
     const modal = await openDetail(page, "m4 combined");
     await expect(modal.getByTestId("task-detail-title")).toHaveValue("m4 combined");
     await expect(modal.getByTestId("task-detail-description")).toHaveValue("combined context");
-    await expect(modal.getByTestId("task-detail-priority")).toHaveValue("2");
-    await expect(modal.getByTestId("task-detail-tags")).toHaveValue(/@home/);
-    await expect(modal.getByTestId("task-detail-tags")).toHaveValue(/@chore/);
+    await expect(modal.getByTestId("task-detail-priority")).toContainText("P2");
+    await expect(modal.getByTestId("task-detail-tags")).toContainText("@home");
+    await expect(modal.getByTestId("task-detail-tags")).toContainText("@chore");
     await expect(modal.getByTestId("task-detail-due")).not.toHaveValue("");
     await expect(modal.getByTestId("task-detail-deadline")).not.toHaveValue("");
     await expect(modal.getByTestId("task-detail-recurrence")).not.toHaveValue("");
@@ -121,19 +121,34 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
 
   test("[M4] Upper/lower-case priority", async ({ page }) => {
     await addQuickTask(page, "m4 lower priority p2");
+    await expect(taskRowByContent(page, "m4 lower priority")).toBeVisible();
+
     await addQuickTask(page, "m4 upper priority P2");
+    await expect(taskRowByContent(page, "m4 upper priority")).toBeVisible();
+
     const lower = await openDetail(page, "m4 lower priority");
-    await expect(lower.getByTestId("task-detail-priority")).toHaveValue("2");
+    await expect(lower.getByTestId("task-detail-priority")).toContainText("P2");
     await lower.getByRole("button", { name: "Close" }).click();
     const upper = await openDetail(page, "m4 upper priority");
-    await expect(upper.getByTestId("task-detail-priority")).toHaveValue("2");
+    await expect(upper.getByTestId("task-detail-priority")).toContainText("P2");
   });
 
   test("[M4] Assignee-looking token", async ({ page }) => {
-    await addQuickTask(page, "m4 assignee-looking +alex");
-    const modal = await openDetail(page, "m4 assignee-looking");
-    await expect(modal.getByText(/Assignee/i)).toHaveCount(0);
-    await expect(modal.locator('[data-testid*="assignee"]')).toHaveCount(0);
+    const input = page.getByTestId("add-task-input");
+    await input.fill("m4 assignee-looking +alex");
+    const warning = page.getByTestId("quick-add-unsupported-assignee");
+    await expect(warning).toContainText(/assignees are not supported yet/i);
+    await expect(warning).toContainText("+alex");
+    await expect(page.getByTestId("add-task-submit")).toBeDisabled();
+    await expect(page.getByText(/Assignee: alex/i)).toHaveCount(0);
+    await expect(taskRowByContent(page, "m4 assignee-looking")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /^Add Task$/i }).click();
+    const modal = page.getByTestId("task-create-modal");
+    await modal.getByTestId("task-create-title").fill("m4 full assignee +alex");
+    await expect(modal.getByTestId("task-create-unsupported-assignee")).toContainText(/assignees are not supported yet/i);
+    await expect(modal.getByRole("button", { name: /^Create Task$/i })).toBeDisabled();
+    await expect(modal.getByText(/Assignee: alex/i)).toHaveCount(0);
   });
 
   test("[M4] Search by title", async ({ page }) => {
@@ -150,7 +165,7 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
 
   test("[M4] Search by project name", async ({ page }) => {
     await addQuickTask(page, "m4 project searchable #obsidian-vault");
-    await page.getByRole("button", { name: /^Inbox\b/i }).click();
+    await page.getByRole("button", { name: /^Inbox\b/i }).first().click();
     await search(page, "obsidian-vault");
     await expect(page.getByRole("button", { name: /m4 project searchable/i })).toBeVisible();
   });
@@ -164,7 +179,7 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
 
   test("[M4] No-match search", async ({ page }) => {
     await search(page, "definitely-no-task-matches-this-phrase");
-    await expect(page.getByRole("region", { name: "Task search" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Task search" })).toBeVisible();
     await expect(page.getByRole("button", { name: /definitely-no-task/i })).toHaveCount(0);
     await expect(page.getByText(/no .*task|nothing .*found|no match/i).first()).toBeVisible();
   });

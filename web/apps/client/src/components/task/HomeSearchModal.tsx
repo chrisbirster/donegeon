@@ -47,7 +47,7 @@ export default function HomeSearchModal() {
           <kbd class={shortcut}>⌘K</kbd>
         </div>
         <div class={subheader}>
-          <p class={searchHint}>Search task titles, descriptions, projects, and tags.</p>
+          <p class={searchHint}>Search open task titles, descriptions, and projects.</p>
           <Button type="button" variant="ghost" size="sm" onClick={closeSearchModal}>Close</Button>
         </div>
 
