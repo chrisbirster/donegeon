@@ -1,6 +1,6 @@
 ---
-title: Calendar sync and recurring schedules
-description: Donegeon combines human-friendly scheduling with calendar connections and flexible recurring work.
+title: Calendar connections and recurring schedules
+description: Donegeon combines human-friendly scheduling with read-only Google Calendar connections and flexible recurring work.
 category: Operations
 order: 40
 tags: calendar, recurrence, operations
@@ -8,18 +8,19 @@ tags: calendar, recurrence, operations
 
 # Scheduling depth without calendar overload
 
-Donegeon brings together two parts of scheduling that teams usually need at the same time: fast task capture and reliable recurring work.
+Donegeon brings together fast task capture, reliable recurring work, and a read-only view into upcoming Google Calendar activity.
 
-## Calendar connections
+## Google Calendar connection
 
 Users can connect Google Calendar from the profile area and manage the connection lifecycle:
 
-- Connect a provider
+- Connect a Google account through OAuth
 - Inspect current connections
-- Trigger sync
+- Fetch upcoming Google Calendar events
+- See the last successful fetch time
 - Disconnect when needed
 
-This gives teams a path to line up task commitments with the rest of their operating calendar.
+The current integration is intentionally **read-only**. Donegeon fetches upcoming Google Calendar events and reports how many were returned; it does not create, edit, or delete Google Calendar events when a Donegeon task changes, and it does not claim bidirectional task/calendar synchronization.
 
 ## Advanced schedule rules
 
@@ -39,4 +40,4 @@ Supported rule parts include:
 
 ## Why this matters
 
-If a team is comparing Donegeon with more established task tools, this is the kind of scheduling depth they expect to see.
+Recurring task schedules stay authoritative inside Donegeon, while the Google Calendar connection gives users read-only visibility into upcoming provider events without pretending that two-way calendar editing exists.
