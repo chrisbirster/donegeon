@@ -1,5 +1,5 @@
 import { css } from "@linaria/core";
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 
 import Button from "../Button";
 import QuickAddTokenInput, { type QuickAddTokenPiece } from "./QuickAddTokenInput";
@@ -16,6 +16,7 @@ type TaskQuickAddComposerProps = {
 
 export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
   const [helpOpen, setHelpOpen] = createSignal(false);
+  const unsupportedAssignee = createMemo(() => props.tokens.find((token) => token.kind === "assignee")?.value ?? "");
 
   return (
     <form onSubmit={props.onSubmit} class={composer}>
@@ -50,7 +51,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
       </div>
 
       <p id="quick-add-help-summary" class={srOnly}>
-        Quick Add supports project, label, assignee, priority, due date, deadline, recurrence, and description syntax.
+        Quick Add supports project, label, priority, due date, deadline, recurrence, and description syntax. Assignee syntax is recognized for compatibility but is not supported for task creation yet.
       </p>
 
       <Show when={helpOpen()}>
@@ -59,7 +60,7 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
           <dl class={legendGrid}>
             <div><dt>Project</dt><dd><code>#project</code></dd></div>
             <div><dt>Label</dt><dd><code>@label</code></dd></div>
-            <div><dt>Assignee</dt><dd><code>+name</code></dd></div>
+            <div><dt>Assignee</dt><dd><code>+name</code> · not supported yet</dd></div>
             <div><dt>Priority</dt><dd><code>p1</code>–<code>p4</code></dd></div>
             <div><dt>Due</dt><dd><code>due Wednesday at 8pm</code></dd></div>
             <div><dt>Deadline</dt><dd><code>{`{Friday at 8am}`}</code></dd></div>
@@ -69,12 +70,20 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
         </aside>
       </Show>
 
-      <Show when={props.parsedGuidance}>
+      <Show when={unsupportedAssignee()}>
+        {(token) => (
+          <p class={unsupported} role="alert" data-testid="quick-add-unsupported-assignee">
+            Assignees are not supported yet. Remove {token()} before adding this task; Donegeon will not silently discard assignment metadata.
+          </p>
+        )}
+      </Show>
+
+      <Show when={!unsupportedAssignee() && props.parsedGuidance}>
         <p class={guidance}>{props.parsedGuidance}</p>
       </Show>
 
       <div class={actions}>
-        <Button type="submit" variant="primary" data-testid="add-task-submit">Add</Button>
+        <Button type="submit" variant="primary" data-testid="add-task-submit" disabled={!!unsupportedAssignee()}>Add</Button>
       </div>
     </form>
   );
@@ -102,6 +111,10 @@ const legendGrid = css`
 const guidance = css`
   margin:.5rem 0 0; border:1px solid rgba(49,122,86,.42); border-radius:.55rem; padding:.5rem .7rem;
   background:var(--success-bg); color:var(--success); font-size:.75rem;
+`;
+const unsupported = css`
+  margin:.5rem 0 0; border:1px solid rgba(255,107,122,.48); border-radius:.55rem; padding:.5rem .7rem;
+  background:rgba(125,34,48,.2); color:#ffb7c0; font-size:.75rem;
 `;
 const actions = css`display:flex; justify-content:flex-end; margin-top:.65rem;`;
 const srOnly = css`
