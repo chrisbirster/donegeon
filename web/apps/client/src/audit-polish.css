@@ -1,24 +1,23 @@
-/* Team-workspace identity polish. Task-management surfaces own their styling in Linaria components. */
+/* Team-workspace identity polish. All palette values come from theme.css. */
 
 body:has(#team-profile) {
-  --border-strong: rgba(196, 69, 255, .34);
-  --border-soft: rgba(159, 87, 194, .22);
-  --panel-soft: rgba(20, 18, 31, .76);
+  --border-strong: var(--team-border);
+  --border-soft: var(--team-border-soft);
+  --panel-soft: var(--team-panel-soft);
 }
 
 body:has(#team-profile) main {
   background:
-    radial-gradient(circle at 12% 18%, rgba(255,32,114,.085), transparent 31rem),
-    radial-gradient(circle at 83% 26%, rgba(196,69,255,.08), transparent 34rem);
+    radial-gradient(circle at 12% 18%, var(--team-glow-primary), var(--color-transparent) 31rem),
+    radial-gradient(circle at 83% 26%, var(--team-glow-secondary), var(--color-transparent) 34rem);
 }
 
 body:has(#team-profile) header:has(a[href="#team-profile"]) {
   position: relative;
   overflow: hidden;
-  border-color: rgba(218, 67, 255, .43) !important;
-  background:
-    linear-gradient(135deg, rgba(62, 21, 79, .72), rgba(9, 12, 22, .94) 48%, rgba(53, 10, 39, .5)) !important;
-  box-shadow: 0 18px 54px rgba(0,0,0,.46), 0 0 38px rgba(196,69,255,.1) !important;
+  border-color: var(--team-border) !important;
+  background: linear-gradient(135deg, var(--team-header-start), var(--team-header-mid) 48%, var(--team-header-end)) !important;
+  box-shadow: var(--team-header-shadow) !important;
 }
 
 body:has(#team-profile) header:has(a[href="#team-profile"])::before {
@@ -26,11 +25,11 @@ body:has(#team-profile) header:has(a[href="#team-profile"])::before {
   position: absolute;
   top: 1rem;
   right: 1.2rem;
-  border: 1px solid rgba(218,67,255,.36);
+  border: 1px solid var(--team-badge-border);
   border-radius: 999px;
   padding: .25rem .55rem;
-  background: rgba(196,69,255,.1);
-  color: #efc4ff;
+  background: var(--team-badge-bg);
+  color: var(--team-badge-text);
   font: 700 .62rem/1 "IBM Plex Sans", sans-serif;
   letter-spacing: .12em;
 }
@@ -38,14 +37,13 @@ body:has(#team-profile) header:has(a[href="#team-profile"])::before {
 body:has(#team-profile) #plan,
 body:has(#team-profile) #team-profile,
 body:has(#team-profile) #team-members {
-  border-color: rgba(196,69,255,.28) !important;
-  background:
-    linear-gradient(180deg, rgba(17, 16, 28, .96), rgba(8, 11, 19, .96)) !important;
-  box-shadow: 0 16px 42px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.018) !important;
+  border-color: var(--team-border) !important;
+  background: linear-gradient(180deg, var(--panel-strong-start), var(--panel-strong-end)) !important;
+  box-shadow: var(--shadow-soft) !important;
 }
 
 body:has(#team-profile) #plan h2,
 body:has(#team-profile) #team-profile h2,
 body:has(#team-profile) #team-members h2 {
-  color: #eac8f5;
+  color: var(--team-heading);
 }
