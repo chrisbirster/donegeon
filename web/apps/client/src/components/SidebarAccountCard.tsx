@@ -165,8 +165,8 @@ justify-content: center;
 border-radius: calc(infinity * 1px);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(119,155,187,0.32);
-background-color: rgba(255,139,80,0.14);
+border-color: var(--palette-rgba-119-155-187-0-32-d7c870);
+background-color: var(--palette-rgba-255-139-80-0-14-e9a7d7);
 font-size: var(--text-xs);
   line-height: var(--tw-leading, var(--text-xs--line-height));
 --tw-font-weight: var(--font-weight-semibold);
@@ -197,7 +197,7 @@ display: inline-flex;
 border-radius: 0.25rem;
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.24);
+border-color: var(--palette-rgba-255-139-80-0-24-f2fd9a);
 background-color: var(--accent-wash);
 padding-inline: calc(var(--spacing) * 1.5);
 padding-block: calc(var(--spacing) * 0.5);
@@ -236,7 +236,7 @@ transition-property: color, background-color, border-color, outline-color, text-
   transition-duration: var(--tw-duration, var(--default-transition-duration));
 &:hover {
     @media (hover: hover) {
-      background-color: rgba(255,255,255,0.04);
+      background-color: var(--palette-rgba-255-255-255-0-04-84da7a);
     }
   }
 `;

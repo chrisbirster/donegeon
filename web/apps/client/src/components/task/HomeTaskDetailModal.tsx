@@ -358,22 +358,22 @@ const metadataColumn = css`
 `;
 const fieldLabel = css`font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
 const textInput = css`
-  width:100%; border:1px solid var(--border-strong); border-radius:.7rem; padding:.68rem .8rem; background:rgba(255,255,255,.035);
+  width:100%; border:1px solid var(--border-strong); border-radius:.7rem; padding:.68rem .8rem; background:var(--palette-rgba-255-255-255-035-b36273);
   color:var(--text-main); color-scheme:dark; outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const textarea = css`
-  min-height:14rem; resize:vertical; border:1px solid var(--border-strong); border-radius:.7rem; padding:.8rem; background:rgba(255,255,255,.035);
-  color:var(--text-main); outline:none; &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  min-height:14rem; resize:vertical; border:1px solid var(--border-strong); border-radius:.7rem; padding:.8rem; background:var(--palette-rgba-255-255-255-035-b36273);
+  color:var(--text-main); outline:none; &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const inputActionRow = css`display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.45rem; align-items:center;`;
 const helper = css`margin:0; color:var(--text-dim); font-size:.75rem; line-height:1.4;`;
 const originalText = css`margin:-.25rem 0 0; color:var(--text-muted); font-size:.75rem; code{color:var(--text-soft);}`;
-const teamBadge = css`align-self:flex-start; margin:0; border:1px solid rgba(126,141,214,.45); border-radius:.4rem; padding:.2rem .45rem; background:rgba(84,95,168,.22); color:#d8e1ff; font-size:.7rem; text-transform:uppercase;`;
-const errorBanner = css`margin:0; border:1px solid rgba(255,181,173,.35); border-radius:.55rem; padding:.5rem .65rem; background:var(--danger-bg); color:var(--danger); font-size:.78rem;`;
-const warningBanner = css`margin:0; border:1px solid rgba(255,212,161,.3); border-radius:.55rem; padding:.5rem .65rem; background:var(--warning-bg); color:var(--warning); font-size:.78rem;`;
-const successBanner = css`margin:0; border:1px solid rgba(49,122,86,.42); border-radius:.55rem; padding:.5rem .65rem; background:var(--success-bg); color:var(--success); font-size:.78rem;`;
-const boardActivation = css`display:flex; flex-direction:column; gap:.55rem; border:1px solid var(--border-soft); border-radius:.7rem; padding:.75rem; background:rgba(255,255,255,.018);`;
+const teamBadge = css`align-self:flex-start; margin:0; border:1px solid var(--palette-rgba-126-141-214-45-62ebfc); border-radius:.4rem; padding:.2rem .45rem; background:var(--palette-rgba-84-95-168-22-07a96f); color:var(--palette-hex-d8e1ff-4295f7); font-size:.7rem; text-transform:uppercase;`;
+const errorBanner = css`margin:0; border:1px solid var(--palette-rgba-255-181-173-35-962fe8); border-radius:.55rem; padding:.5rem .65rem; background:var(--danger-bg); color:var(--danger); font-size:.78rem;`;
+const warningBanner = css`margin:0; border:1px solid var(--palette-rgba-255-212-161-3-497b7e); border-radius:.55rem; padding:.5rem .65rem; background:var(--warning-bg); color:var(--warning); font-size:.78rem;`;
+const successBanner = css`margin:0; border:1px solid var(--palette-rgba-49-122-86-42-c24687); border-radius:.55rem; padding:.5rem .65rem; background:var(--success-bg); color:var(--success); font-size:.78rem;`;
+const boardActivation = css`display:flex; flex-direction:column; gap:.55rem; border:1px solid var(--border-soft); border-radius:.7rem; padding:.75rem; background:var(--palette-rgba-255-255-255-018-d34853);`;
 const boardActivationHeader = css`display:flex; align-items:center; justify-content:space-between; gap:.75rem; h3{margin:0; font-size:.9rem;}`;
 const successBadge = css`border-radius:.4rem; padding:.2rem .4rem; background:var(--success-bg); color:var(--success); font-size:.7rem;`;
 const requirements = css`display:flex; flex-direction:column; gap:.35rem;`;

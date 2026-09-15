@@ -187,9 +187,9 @@ const labelStyle = css`font-size:.7rem; font-weight:700; letter-spacing:.1em; te
 const trigger = css`
   display:flex; align-items:center; justify-content:space-between; gap:.75rem; width:100%; min-height:2.8rem;
   border:1px solid var(--border-strong); border-radius:.7rem; padding:.68rem .8rem;
-  background:rgba(255,255,255,.035); color:var(--text-main); text-align:left; cursor:pointer;
+  background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-main); text-align:left; cursor:pointer;
   &:hover:not(:disabled){border-color:var(--border-hover); background:var(--panel-soft);}
-  &:focus-visible{outline:2px solid #00e0ff; outline-offset:2px; border-color:var(--accent);}
+  &:focus-visible{outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px; border-color:var(--accent);}
   &:disabled{opacity:.5; cursor:not-allowed;}
 `;
 const triggerValue = css`min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
@@ -203,13 +203,13 @@ const popupStyle = css`
 const optionStyle = css`
   display:flex; align-items:center; justify-content:space-between; gap:.75rem; width:100%; border:0; border-radius:.5rem;
   padding:.6rem .7rem; background:transparent; color:var(--text-main); text-align:left; cursor:pointer;
-  &:hover:not(:disabled), &:focus-visible{background:rgba(196,69,255,.12); outline:none;}
-  &:focus-visible{box-shadow:inset 0 0 0 2px #00e0ff;}
+  &:hover:not(:disabled), &:focus-visible{background:var(--palette-rgba-196-69-255-12-d30007); outline:none;}
+  &:focus-visible{box-shadow:inset 0 0 0 2px var(--palette-hex-00e0ff-93d32f);}
   &:disabled{opacity:.45; cursor:not-allowed;}
 `;
 const optionSelected = css`background:var(--accent-wash); color:var(--accent-text);`;
 const separator = css`height:1px; margin:.2rem .25rem; background:var(--border-soft);`;
 const actionStyle = css`
   width:100%; border:0; border-radius:.5rem; padding:.6rem .7rem; background:transparent; color:var(--accent-text); text-align:left;
-  cursor:pointer; &:hover, &:focus-visible{background:rgba(196,69,255,.12); outline:none; box-shadow:inset 0 0 0 2px #00e0ff;}
+  cursor:pointer; &:hover, &:focus-visible{background:var(--palette-rgba-196-69-255-12-d30007); outline:none; box-shadow:inset 0 0 0 2px var(--palette-hex-00e0ff-93d32f);}
 `;

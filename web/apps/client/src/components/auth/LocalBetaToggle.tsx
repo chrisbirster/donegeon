@@ -55,7 +55,7 @@ border-color: var(--border-strong);
 background-color: var(--panel-overlay);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 3);
---tw-shadow: 0 20px 40px var(--tw-shadow-color, rgba(0,0,0,0.22));
+--tw-shadow: 0 20px 40px var(--tw-shadow-color, var(--palette-rgba-0-0-0-0-22-3065b3));
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 --tw-backdrop-blur: blur(8px);
   -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
@@ -99,7 +99,7 @@ transition-property: color, background-color, border-color, outline-color, text-
   transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
   transition-duration: var(--tw-duration, var(--default-transition-duration));
 &:focus-visible {
-  outline: 2px solid #00e0ff;
+  outline: 2px solid var(--palette-hex-00e0ff-93d32f);
   outline-offset: 3px;
 }
 `;

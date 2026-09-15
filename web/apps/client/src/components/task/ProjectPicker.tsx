@@ -105,12 +105,12 @@ export default function ProjectPicker(props: ProjectPickerProps) {
 }
 
 const wrapper = css`display:flex; flex-direction:column; gap:.45rem;`;
-const creator = css`padding:.7rem; border:1px solid var(--border-soft); border-radius:.7rem; background:rgba(255,255,255,.018);`;
+const creator = css`padding:.7rem; border:1px solid var(--border-soft); border-radius:.7rem; background:var(--palette-rgba-255-255-255-018-d34853);`;
 const creatorLabel = css`display:block; margin-bottom:.4rem; color:var(--text-dim); font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;`;
 const creatorRow = css`display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:.4rem; align-items:center;`;
 const input = css`
   width:100%; min-height:2.3rem; border:1px solid var(--border-strong); border-radius:.55rem; padding:.5rem .6rem;
-  background:rgba(255,255,255,.035); color:var(--text-main); outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-main); outline:none;
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const errorText = css`margin:.45rem 0 0; color:var(--danger); font-size:.78rem;`;

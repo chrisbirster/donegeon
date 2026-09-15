@@ -300,7 +300,7 @@ const style16 = css`
 border-radius: calc(infinity * 1px);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.24);
+border-color: var(--palette-rgba-255-139-80-0-24-f2fd9a);
 background-color: var(--accent-wash);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 1);
@@ -335,7 +335,7 @@ transition-property: color, background-color, border-color, outline-color, text-
 
 const style19 = css`
 background-color: var(--accent-wash);
---tw-shadow: 0 18px 36px var(--tw-shadow-color, rgba(0,0,0,0.12));
+--tw-shadow: 0 18px 36px var(--tw-shadow-color, var(--palette-rgba-0-0-0-0-12-cead0c));
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 `;
 
@@ -374,8 +374,8 @@ const style25 = css`
 border-radius: calc(infinity * 1px);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.24);
-background-color: rgba(255,255,255,0.4);
+border-color: var(--palette-rgba-255-139-80-0-24-f2fd9a);
+background-color: var(--palette-rgba-255-255-255-0-4-2f59e7);
 padding-inline: calc(var(--spacing) * 2);
 padding-block: calc(var(--spacing) * 0.5);
 font-size: 10px;

@@ -142,11 +142,11 @@ function questTypeLabel(value: string): string {
   }
 }
 
-const questBoss = css`border-color: #6d3f3f; background: #2c1718; color: #ffb7b2;`;
-const questStory = css`border-color: #52558d; background: #1d2250; color: #d8dbff;`;
-const questSeasonal = css`border-color: #49636e; background: #17333a; color: #c4f1ff;`;
-const questDaily = css`border-color: #4c6a4d; background: #17321d; color: #c4f2cf;`;
-const questDefault = css`border-color: #425678; background: #1a263f; color: #d3e2ff;`;
+const questBoss = css`border-color: var(--palette-hex-6d3f3f-3f9a0d); background: var(--palette-hex-2c1718-c4cebc); color: var(--palette-hex-ffb7b2-008591);`;
+const questStory = css`border-color: var(--palette-hex-52558d-7d67bd); background: var(--palette-hex-1d2250-255ba2); color: var(--palette-hex-d8dbff-18dd79);`;
+const questSeasonal = css`border-color: var(--palette-hex-49636e-b80849); background: var(--palette-hex-17333a-3a55c8); color: var(--palette-hex-c4f1ff-ef162b);`;
+const questDaily = css`border-color: var(--palette-hex-4c6a4d-d492e5); background: var(--palette-hex-17321d-b8f65a); color: var(--palette-hex-c4f2cf-3d28f2);`;
+const questDefault = css`border-color: var(--palette-hex-425678-739951); background: var(--palette-hex-1a263f-81bec5); color: var(--palette-hex-d3e2ff-8ea484);`;
 
 function questTypeBadgeClass(value: string): string {
   switch (value.trim().toLowerCase()) {

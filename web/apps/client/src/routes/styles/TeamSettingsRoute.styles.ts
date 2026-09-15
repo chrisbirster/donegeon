@@ -37,7 +37,7 @@ export const style5 = css`
 border-radius: var(--radius-2xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.24);
+border-color: var(--palette-rgba-255-139-80-0-24-f2fd9a);
 background-color: var(--accent-wash);
 padding: calc(var(--spacing) * 4);
 --tw-shadow: var(--shadow-elevated);
@@ -48,7 +48,7 @@ export const style6 = css`
 border-radius: calc(infinity * 1px);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.24);
+border-color: var(--palette-rgba-255-139-80-0-24-f2fd9a);
 background-color: var(--accent-wash);
 padding-inline: calc(var(--spacing) * 2.5);
 padding-block: calc(var(--spacing) * 1);
@@ -87,7 +87,7 @@ export const style9 = css`
 border-radius: var(--radius-xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.3);
+border-color: var(--palette-rgba-255-139-80-0-3-03463b);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 2);
 font-size: var(--text-sm);
@@ -100,7 +100,7 @@ transition-property: color, background-color, border-color, outline-color, text-
 &:disabled {
     opacity: 60%;
   }
-background: var(--accent); color: #1d1108; transition: background-color 160ms ease; &:hover { background: var(--accent-soft); }
+background: var(--accent); color: var(--palette-hex-1d1108-4dcb94); transition: background-color 160ms ease; &:hover { background: var(--accent-soft); }
 `;
 
 export const style10 = css`
@@ -141,7 +141,7 @@ export const style12 = css`
 border-radius: var(--radius-lg);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(196,98,91,0.28);
+border-color: var(--palette-rgba-196-98-91-0-28-437088);
 background-color: var(--danger-bg);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 1.5);
@@ -155,7 +155,7 @@ transition-property: color, background-color, border-color, outline-color, text-
   transition-duration: var(--tw-duration, var(--default-transition-duration));
 &:hover {
     @media (hover: hover) {
-      border-color: rgba(196,98,91,0.42);
+      border-color: var(--palette-rgba-196-98-91-0-42-2ce515);
     }
   }
 &:disabled {
@@ -180,7 +180,7 @@ export const style14 = css`
 border-radius: var(--radius-xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(223,173,87,0.24);
+border-color: var(--palette-rgba-223-173-87-0-24-4ece10);
 background-color: var(--warning-bg);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 3);
@@ -193,7 +193,7 @@ export const style15 = css`
 border-radius: var(--radius-xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(196,98,91,0.3);
+border-color: var(--palette-rgba-196-98-91-0-3-db61e2);
 background-color: var(--danger-bg);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 3);
@@ -206,7 +206,7 @@ export const style16 = css`
 border-radius: var(--radius-xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(49,122,86,0.26);
+border-color: var(--palette-rgba-49-122-86-0-26-04e265);
 background-color: var(--success-bg);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 3);

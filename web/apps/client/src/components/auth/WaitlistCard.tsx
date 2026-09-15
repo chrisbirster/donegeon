@@ -149,7 +149,7 @@ display: inline-flex;
 border-radius: calc(infinity * 1px);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.24);
+border-color: var(--palette-rgba-255-139-80-0-24-f2fd9a);
 background-color: var(--accent-wash);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 1);

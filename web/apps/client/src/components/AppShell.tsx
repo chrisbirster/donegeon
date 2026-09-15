@@ -17,20 +17,20 @@ type ShellProps = {
 };
 
 const navBoardActive = css`
-  color: #ff7a1a;
+  color: var(--palette-hex-ff7a1a-9f0c02);
   font-family: "Permanent Marker", cursive;
   font-size: 1.08em;
   transform: rotate(-2deg);
-  text-shadow: 0 0 10px rgba(255, 138, 0, .38);
-  &::before { content: ""; position: absolute; inset: .12rem -.15rem; z-index: -1; border: 1px solid rgba(255, 92, 26, .62); background: rgba(255, 122, 26, .12); clip-path: polygon(5% 3%, 95% 0, 100% 83%, 89% 100%, 3% 91%, 0 18%); transform: rotate(1deg); }
-  &::after { content: ""; position: absolute; left: .55rem; right: .35rem; bottom: .28rem; height: 3px; background: #ff6a1a; clip-path: polygon(0 25%, 90% 0, 100% 60%, 30% 100%); box-shadow: 0 0 8px rgba(255,106,26,.42); }
+  text-shadow: 0 0 10px var(--palette-rgba-255-138-0-38-cc2292);
+  &::before { content: ""; position: absolute; inset: .12rem -.15rem; z-index: -1; border: 1px solid var(--palette-rgba-255-92-26-62-e1c0f7); background: var(--palette-rgba-255-122-26-12-dc3727); clip-path: polygon(5% 3%, 95% 0, 100% 83%, 89% 100%, 3% 91%, 0 18%); transform: rotate(1deg); }
+  &::after { content: ""; position: absolute; left: .55rem; right: .35rem; bottom: .28rem; height: 3px; background: var(--palette-hex-ff6a1a-c06f35); clip-path: polygon(0 25%, 90% 0, 100% 60%, 30% 100%); box-shadow: 0 0 8px var(--palette-rgba-255-106-26-42-b79de3); }
 `;
 const navBoardIdle = css`color: var(--board-control-text); &:hover { background: var(--panel-soft); color: var(--board-chrome-text); }`;
 const navActive = css`background: var(--accent-wash); color: var(--accent-text);`;
 const navIdle = css`color: var(--text-muted); &:hover { background: var(--panel-soft); color: var(--text-main); }`;
-const mobileBoardActive = css`border-color: rgba(255,139,80,.34); background: rgba(255,139,80,.14); color: #b14f00;`;
+const mobileBoardActive = css`border-color: var(--palette-rgba-255-139-80-34-b90d5c); background: var(--palette-rgba-255-139-80-14-9b7d05); color: var(--palette-hex-b14f00-16c481);`;
 const mobileBoardIdle = css`border-color: var(--board-control-border); background: var(--board-control-bg); color: var(--board-control-text); &:hover { border-color: var(--board-control-hover); }`;
-const mobileActive = css`border-color: rgba(255,139,80,.28); background: var(--accent-wash); color: var(--accent-text);`;
+const mobileActive = css`border-color: var(--palette-rgba-255-139-80-28-6f4c9c); background: var(--accent-wash); color: var(--accent-text);`;
 const mobileIdle = css`background: var(--panel-soft); border: 1px solid var(--border-strong); color: var(--text-soft); &:hover { border-color: var(--border-hover); }`;
 
 export default function AppShell(props: ShellProps) {
@@ -242,8 +242,8 @@ align-items: center;
 justify-content: space-between;
 gap: 1.25rem;
 padding-inline: clamp(.75rem, 2vw, 1.75rem);
-border-bottom: 1px solid rgba(196,69,255,.22);
-box-shadow: 0 8px 30px rgba(0,0,0,.16), inset 0 -1px rgba(196,69,255,.1);
+border-bottom: 1px solid var(--palette-rgba-196-69-255-22-7769cd);
+box-shadow: 0 8px 30px var(--palette-rgba-0-0-0-16-dc0c50), inset 0 -1px var(--palette-rgba-196-69-255-1-303e02);
 --tw-backdrop-blur: blur(var(--blur-xl));
   -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
   backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
@@ -301,7 +301,7 @@ letter-spacing: .02em;
 font-family: "Permanent Marker", "Space Grotesk", sans-serif;
 text-transform: uppercase;
 transform: rotate(-2deg);
-text-shadow: 0 0 18px rgba(255,32,114,.42);
+text-shadow: 0 0 18px var(--palette-rgba-255-32-114-42-b4c3f2);
 `;
 
 const style10 = css`
@@ -427,7 +427,7 @@ z-index: 60;
 const style24 = css`
 position: absolute;
 inset: calc(var(--spacing) * 0);
-background-color: color-mix(in srgb, #000 55%, transparent);
+background-color: color-mix(in srgb, var(--palette-hex-000-598b32) 55%, transparent);
   @supports (color: color-mix(in lab, red, red)) {
     background-color: color-mix(in oklab, var(--color-black) 55%, transparent);
   }
@@ -442,7 +442,7 @@ width: min(84vw, 320px);
 overflow-y: auto;
 border-right-style: var(--tw-border-style);
   border-right-width: 1px;
---tw-shadow: 0 20px 50px var(--tw-shadow-color, rgba(0,0,0,0.3));
+--tw-shadow: 0 20px 50px var(--tw-shadow-color, var(--palette-rgba-0-0-0-0-3-869679));
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 --tw-backdrop-blur: blur(var(--blur-xl));
   -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);

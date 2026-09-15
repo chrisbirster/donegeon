@@ -200,12 +200,12 @@ const copy = css`margin:0; max-width:27rem; font-size:.82rem; line-height:1.45; 
 const editor = css`display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.55rem; align-items:end; padding:1rem 1.3rem; border-bottom:1px solid var(--border-soft);`;
 const labelStyle = css`grid-column:1 / -1; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
 const input = css`
-  width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.65rem .75rem; background:rgba(255,255,255,.035); color:var(--text-main); outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  width:100%; border:1px solid var(--border-strong); border-radius:.65rem; padding:.65rem .75rem; background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-main); outline:none;
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const editorActions = css`display:flex; gap:.45rem;`;
 const list = css`display:flex; flex-direction:column; gap:.45rem; padding:1rem 1.3rem 1.3rem;`;
-const row = css`display:grid; grid-template-columns:minmax(0,1fr) 2.6rem; gap:.65rem; align-items:stretch; min-height:3.2rem; border:1px solid var(--border-soft); border-radius:.7rem; padding:.55rem .65rem .55rem .85rem; background:rgba(255,255,255,.018);`;
+const row = css`display:grid; grid-template-columns:minmax(0,1fr) 2.6rem; gap:.65rem; align-items:stretch; min-height:3.2rem; border:1px solid var(--border-soft); border-radius:.7rem; padding:.55rem .65rem .55rem .85rem; background:var(--palette-rgba-255-255-255-018-d34853);`;
 const labelInfo = css`display:flex; flex-direction:column; justify-content:center; min-width:0; gap:.15rem;`;
 const labelName = css`font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
 const usageText = css`color:var(--text-dim); font-size:.74rem;`;
