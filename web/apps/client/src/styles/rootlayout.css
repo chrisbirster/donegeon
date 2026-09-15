@@ -44,5 +44,11 @@
   --board-control-bg: #fff8f0; --board-control-border: #e1b184; --board-control-text: #5b402b; --board-control-hover: #bd783e; --board-sidebar-bg: #fffbf6;
 }
 
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select {
+  color-scheme: light;
+}
+
 body { overflow-x: hidden; overflow-y: auto; background-color: var(--bg-base); background-image: radial-gradient(circle at top left,var(--bg-glow-accent),transparent 32%), radial-gradient(circle at top right,var(--bg-glow-cool),transparent 30%), linear-gradient(var(--bg-grid) 1px,transparent 1px), linear-gradient(90deg,var(--bg-grid) 1px,transparent 1px), var(--bg-gradient); background-size: auto,auto,36px 36px,36px 36px,auto; color: var(--text-main); font-family: "IBM Plex Sans","Segoe UI",sans-serif; text-rendering: optimizeLegibility; }
 ::selection { background: rgba(196,69,255,.32); color: white; }
