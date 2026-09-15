@@ -13,7 +13,7 @@ async function ensureTeamAdminEnabled(page: Page) {
     "The audit account must be able to exercise the owner/admin UI. If Free freezes team administration, the deterministic local trial path must unlock it.",
   ).toBeEnabled();
   await startTrial.click();
-  await expect(page.getByText(/Pro trial activated/i)).toBeVisible();
+  await expect(page.getByRole("main").getByText(/Pro trial activated/i)).toBeVisible();
   await expect(teamName).toBeEnabled();
 }
 
@@ -31,7 +31,7 @@ test.describe("M5 — deterministic collaboration browser surfaces", () => {
     const input = page.getByRole("textbox", { name: /Team name/i });
     await input.fill(name);
     await page.getByRole("button", { name: /^Save team$/i }).click();
-    await expect(page.getByText(/Team settings updated/i)).toBeVisible();
+    await expect(page.getByRole("main").getByText(/Team settings updated/i)).toBeVisible();
     await page.reload();
     await expect(page.getByRole("textbox", { name: /Team name/i })).toHaveValue(name);
   });
