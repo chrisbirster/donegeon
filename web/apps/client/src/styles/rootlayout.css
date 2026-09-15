@@ -10,6 +10,8 @@
   --accent: #c445ff; --accent-soft: #e27aff; --accent-wash: rgba(196,69,255,.16); --accent-text: #f3c9ff;
   --success: #22c55e; --success-bg: rgba(34,197,94,.16); --warning: #ff9e0b; --warning-bg: rgba(255,158,11,.16); --danger: #ff4444; --danger-bg: rgba(255,68,68,.16);
   --shadow-elevated: 0 24px 60px rgba(0,0,0,.48); --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px;
+  --board-chrome-bg: color-mix(in oklab, #11161e 96%, transparent); --board-chrome-border: #252c39; --board-chrome-text: #edf4ff;
+  --board-control-bg: #131b27; --board-control-border: #31445f; --board-control-text: #c9d4e3; --board-control-hover: #466684; --board-sidebar-bg: #151a23;
   /* Linaria migration primitives. These replace the Tailwind theme variables
      referenced by the extracted component declarations. */
   --spacing: .25rem;
@@ -27,5 +29,20 @@
   --tw-inset-shadow: 0 0 #0000; --tw-inset-ring-shadow: 0 0 #0000;
   --tw-ring-offset-shadow: 0 0 #0000; --tw-ring-shadow: 0 0 #0000; --tw-shadow: 0 0 #0000;
 }
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-base: #f4f6fa; --bg-glow-accent: rgba(196,69,255,.09); --bg-glow-cool: rgba(0,152,191,.08); --bg-grid: rgba(43,36,56,.055);
+  --bg-gradient: radial-gradient(circle at top, #ffffff 0%, #f7f8fb 46%, #edf1f6 100%);
+  --panel: rgba(255,255,255,.9); --panel-soft: rgba(31,37,52,.045); --panel-strong-start: rgba(255,255,255,.98); --panel-strong-end: rgba(245,247,251,.96); --panel-overlay: rgba(250,251,254,.94);
+  --border-strong: rgba(119,47,160,.28); --border-soft: rgba(31,37,52,.12); --border-hover: #8e32bd;
+  --text-main: #19151f; --text-soft: #4e4758; --text-muted: #6f6679; --text-dim: #81778c;
+  --accent: #8e32bd; --accent-soft: #a94fd0; --accent-wash: rgba(142,50,189,.11); --accent-text: #6f218f;
+  --success: #16823a; --success-bg: rgba(22,130,58,.11); --warning: #a85f00; --warning-bg: rgba(168,95,0,.11); --danger: #c52c2c; --danger-bg: rgba(197,44,44,.1);
+  --shadow-elevated: 0 18px 46px rgba(36,31,46,.14);
+  --board-chrome-bg: rgba(255,255,255,.94); --board-chrome-border: rgba(198,111,35,.32); --board-chrome-text: #352519;
+  --board-control-bg: #fff8f0; --board-control-border: #e1b184; --board-control-text: #5b402b; --board-control-hover: #bd783e; --board-sidebar-bg: #fffbf6;
+}
+
 body { overflow-x: hidden; overflow-y: auto; background-color: var(--bg-base); background-image: radial-gradient(circle at top left,var(--bg-glow-accent),transparent 32%), radial-gradient(circle at top right,var(--bg-glow-cool),transparent 30%), linear-gradient(var(--bg-grid) 1px,transparent 1px), linear-gradient(90deg,var(--bg-grid) 1px,transparent 1px), var(--bg-gradient); background-size: auto,auto,36px 36px,36px 36px,auto; color: var(--text-main); font-family: "IBM Plex Sans","Segoe UI",sans-serif; text-rendering: optimizeLegibility; }
 ::selection { background: rgba(196,69,255,.32); color: white; }
