@@ -121,7 +121,11 @@ test.describe("M4 — Quick Add and search mirror the human verification sheet",
 
   test("[M4] Upper/lower-case priority", async ({ page }) => {
     await addQuickTask(page, "m4 lower priority p2");
+    await expect(taskRowByContent(page, "m4 lower priority")).toBeVisible();
+
     await addQuickTask(page, "m4 upper priority P2");
+    await expect(taskRowByContent(page, "m4 upper priority")).toBeVisible();
+
     const lower = await openDetail(page, "m4 lower priority");
     await expect(lower.getByTestId("task-detail-priority")).toContainText("P2");
     await lower.getByRole("button", { name: "Close" }).click();
