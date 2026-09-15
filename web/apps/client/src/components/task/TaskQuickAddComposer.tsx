@@ -17,6 +17,7 @@ type TaskQuickAddComposerProps = {
 export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
   const [helpOpen, setHelpOpen] = createSignal(false);
   const unsupportedAssignee = createMemo(() => props.tokens.find((token) => token.kind === "assignee")?.value ?? "");
+  const visibleParsedChips = createMemo(() => props.parsedChips.filter((value) => !/^Assignee:/i.test(value)));
 
   return (
     <form onSubmit={props.onSubmit} class={composer}>
@@ -32,8 +33,8 @@ export default function TaskQuickAddComposer(props: TaskQuickAddComposerProps) {
 
       <div class={utilityRow}>
         <div class={chipArea} aria-live="polite">
-          <Show when={props.parsedChips.length > 0}>
-            <For each={props.parsedChips}>
+          <Show when={visibleParsedChips().length > 0}>
+            <For each={visibleParsedChips()}>
               {(chip) => <span class={chip}>{chip}</span>}
             </For>
           </Show>
