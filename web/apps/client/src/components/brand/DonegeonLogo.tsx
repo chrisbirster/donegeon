@@ -16,14 +16,14 @@ export default function DonegeonLogo(props: DonegeonLogoProps) {
 const logo = css`
   position: relative;
   display: inline-block;
-  color: #ff3f86;
+  color: var(--palette-hex-ff3f86-7a0916);
   font-family: "Permanent Marker", cursive;
   font-size: clamp(1.65rem, 2.2vw, 2.35rem);
   line-height: .85;
   letter-spacing: -.065em;
   text-transform: uppercase;
   transform: skew(-7deg) rotate(-1deg);
-  text-shadow: 2px 2px 0 #6e1239, 0 0 14px rgba(255, 32, 114, .35);
+  text-shadow: 2px 2px 0 var(--palette-hex-6e1239-ad6bca), 0 0 14px var(--palette-rgba-255-32-114-35-c66dac);
 
   &::after {
     content: "";
@@ -32,10 +32,10 @@ const logo = css`
     right: -.16em;
     bottom: -.28em;
     height: .18em;
-    background: #ff2072;
+    background: var(--palette-hex-ff2072-43b6fd);
     clip-path: polygon(0 38%, 78% 0, 100% 35%, 67% 61%, 91% 100%, 0 72%);
     opacity: .9;
-    filter: drop-shadow(0 0 4px rgba(255, 32, 114, .5));
+    filter: drop-shadow(0 0 4px var(--palette-rgba-255-32-114-5-0f2a9d));
   }
 `;
 

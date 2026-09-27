@@ -108,6 +108,8 @@ func New(
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", api.handleHealth)
+	mux.HandleFunc("GET /readyz", api.handleHealth)
 	mux.HandleFunc("GET /api/health", api.handleHealth)
 	mux.HandleFunc("GET /api/public/config", api.handlePublicConfig)
 	mux.HandleFunc("POST /api/public/waitlist", api.handlePublicWaitlist)

@@ -52,10 +52,10 @@ border-radius: var(--radius-2xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
 border-color: var(--border-strong);
-background-color: rgba(6,10,16,0.92);
+background-color: var(--panel-overlay);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 3);
---tw-shadow: 0 20px 40px var(--tw-shadow-color, rgba(0,0,0,0.35));
+--tw-shadow: 0 20px 40px var(--tw-shadow-color, var(--palette-rgba-0-0-0-0-22-3065b3));
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 --tw-backdrop-blur: blur(8px);
   -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
@@ -99,27 +99,27 @@ transition-property: color, background-color, border-color, outline-color, text-
   transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
   transition-duration: var(--tw-duration, var(--default-transition-duration));
 &:focus-visible {
-  outline: 2px solid #00e0ff;
+  outline: 2px solid var(--palette-hex-00e0ff-93d32f);
   outline-offset: 3px;
 }
 `;
 
 const style5 = css`
 background-color: var(--success);
-border-color: #61dd8e;
-color: #102117;
-box-shadow: 0 0 16px rgba(34,197,94,.24);
+border-color: var(--success);
+color: var(--success-contrast);
+box-shadow: 0 0 16px var(--success-bg);
 `;
 
 const style6 = css`
-background-color: rgba(255,255,255,0.03);
-border-color: rgba(255,255,255,.08);
+background-color: var(--panel-soft);
+border-color: var(--border-soft);
 color: var(--text-soft);
 `;
 
 const style7 = css`
 background-color: var(--accent);
 border-color: var(--accent-soft);
-color: #1d1108;
-box-shadow: 0 0 16px rgba(196,69,255,.24);
+color: var(--accent-contrast);
+box-shadow: 0 0 16px var(--accent-wash);
 `;

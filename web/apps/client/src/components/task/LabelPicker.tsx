@@ -177,10 +177,10 @@ const field = css`position:relative; display:flex; flex-direction:column; gap:.4
 const labelStyle = css`font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
 const trigger = css`
   display:flex; align-items:center; justify-content:space-between; gap:.75rem; width:100%; min-height:2.8rem;
-  border:1px solid var(--border-strong); border-radius:.7rem; padding:.68rem .8rem; background:rgba(255,255,255,.035);
+  border:1px solid var(--border-strong); border-radius:.7rem; padding:.68rem .8rem; background:var(--palette-rgba-255-255-255-035-b36273);
   color:var(--text-main); text-align:left; cursor:pointer;
   &:hover{border-color:var(--border-hover); background:var(--panel-soft);}
-  &:focus-visible{outline:2px solid #00e0ff; outline-offset:2px; border-color:var(--accent);}
+  &:focus-visible{outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px; border-color:var(--accent);}
 `;
 const summaryStyle = css`min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
 const description = css`margin:0; color:var(--text-dim); font-size:.72rem; line-height:1.35;`;
@@ -192,19 +192,19 @@ const popup = css`
 const option = css`
   display:flex; align-items:center; justify-content:space-between; gap:.75rem; width:100%; border:0; border-radius:.5rem;
   padding:.6rem .7rem; background:transparent; color:var(--text-main); text-align:left; cursor:pointer;
-  &:hover, &:focus-visible{background:rgba(196,69,255,.12); outline:none; box-shadow:inset 0 0 0 2px #00e0ff;}
+  &:hover, &:focus-visible{background:var(--palette-rgba-196-69-255-12-d30007); outline:none; box-shadow:inset 0 0 0 2px var(--palette-hex-00e0ff-93d32f);}
 `;
 const selectedOption = css`background:var(--accent-wash); color:var(--accent-text);`;
 const separator = css`height:1px; margin:.2rem .25rem; background:var(--border-soft);`;
 const createAction = css`
   width:100%; border:0; border-radius:.5rem; padding:.6rem .7rem; background:transparent; color:var(--accent-text); text-align:left; cursor:pointer;
-  &:hover, &:focus-visible{background:rgba(196,69,255,.12); outline:none; box-shadow:inset 0 0 0 2px #00e0ff;}
+  &:hover, &:focus-visible{background:var(--palette-rgba-196-69-255-12-d30007); outline:none; box-shadow:inset 0 0 0 2px var(--palette-hex-00e0ff-93d32f);}
 `;
 const creator = css`display:flex; flex-direction:column; gap:.45rem; padding:.45rem;`;
 const creatorLabel = css`font-size:.68rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim);`;
 const input = css`
-  width:100%; min-height:2.3rem; border:1px solid var(--border-strong); border-radius:.55rem; padding:.5rem .6rem; background:rgba(255,255,255,.035);
-  color:var(--text-main); outline:none; &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  width:100%; min-height:2.3rem; border:1px solid var(--border-strong); border-radius:.55rem; padding:.5rem .6rem; background:var(--palette-rgba-255-255-255-035-b36273);
+  color:var(--text-main); outline:none; &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const creatorActions = css`display:flex; gap:.4rem; justify-content:flex-end;`;
 const empty = css`margin:.4rem; color:var(--text-dim); font-size:.78rem;`;

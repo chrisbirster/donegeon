@@ -337,29 +337,29 @@ export function createBoardControllerSync(context: BoardControllerLifecycleConte
 }
 
 export type BoardControllerSyncContext = BoardControllerLifecycleContext & ReturnType<typeof createBoardControllerSync>;
-const boardModalBackdrop = css`background: rgba(3, 6, 13, .86);`;
-const boardPriorityButton = css`border: 1px solid var(--border-strong); border-radius: 6px; padding: .6rem .8rem; background: #101522; color: var(--text-main); font-weight: 700;`;
-const boardPrioritySelected = css`border: 1px solid #ff8a00; border-radius: 6px; padding: .6rem .8rem; background: #17121a; color: #ffb13b; font-weight: 700; box-shadow: 0 0 16px rgba(255,138,0,.25);`;
-const boardMapToggle = css`position: absolute; right: .75rem; top: .75rem; z-index: 40; border: 1px solid #ff2072; border-radius: 5px; background: rgba(8,11,20,.94); color: #fff; padding: .35rem .6rem; font: 700 12px 'Bebas Neue', sans-serif; letter-spacing: .12em; text-transform: uppercase; box-shadow: 0 0 18px rgba(255,32,114,.24); @media (min-width: 768px) { display: none; }`;
-const boardMapPanel = css`pointer-events: auto; border: 1px solid #ff2072; border-radius: 9px; padding: .75rem; background: rgba(6,10,20,.94); box-shadow: 0 0 0 1px rgba(0,224,255,.1) inset, 0 16px 40px rgba(0,0,0,.6), 0 0 22px rgba(255,32,114,.16); backdrop-filter: blur(8px);`;
-const boardMapTitle = css`color: #fff2dc; font: 700 15px 'Bebas Neue', sans-serif; letter-spacing: .1em; text-transform: uppercase;`;
-const boardMapStatus = css`color: #8ea0bc;`;
-const boardMapWarning = css`color: #ffb13b;`;
-const boardMinimapSurface = css`position: relative; width: 220px; height: 144px; overflow: hidden; cursor: crosshair; border: 1px solid #00e0ff; border-radius: 6px; background: radial-gradient(circle at 30% 0%, rgba(138,43,226,.28), transparent 48%), #07111f; box-shadow: 0 0 16px rgba(0,224,255,.14) inset;`;
-const boardMinimapGrid = css`pointer-events: none; position: absolute; inset: 0; opacity: .6; background-size: 15px 15px; background-image: linear-gradient(rgba(96,126,160,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(96,126,160,.13) 1px, transparent 1px);`;
-const boardMinimapViewport = css`pointer-events: none; position: absolute; border: 1px solid #ff2072; border-radius: 2px; background: rgba(255,32,114,.1); box-shadow: 0 0 8px rgba(255,32,114,.5);`;
-const deckHubBackdrop = css`position: absolute; inset: 0; z-index: 50; background: rgba(2,4,10,.64); backdrop-filter: blur(2px);`;
-const deckHubPanel = css`position: absolute; right: .75rem; top: .75rem; width: min(460px, calc(100% - 1.5rem)); border: 1px solid #ff2072; border-radius: 10px; padding: .9rem; background: rgba(7,11,21,.98); box-shadow: 0 20px 60px rgba(0,0,0,.72), 0 0 24px rgba(138,43,226,.18);`;
-const deckHubTitle = css`color: #fff2dc; font: 700 24px 'Bebas Neue', sans-serif; letter-spacing: .08em; text-transform: uppercase;`;
-const deckHubText = css`color: #9aabc5;`;
-const deckHubClose = css`border: 1px solid #8a2be2; border-radius: 5px; padding: .3rem .55rem; color: #fff; background: #101522; &:hover { border-color: #ff2072; box-shadow: 0 0 12px rgba(255,32,114,.25); }`;
-const deckHubSectionTitle = css`color: #c8d4e8; font: 700 14px 'Bebas Neue', sans-serif; letter-spacing: .08em; text-transform: uppercase;`;
-const deckHubSectionMeta = css`color: #7487a4;`;
-const deckHubRowZone = css`margin-top: .25rem; padding: .55rem; border: 1px solid #284c68; border-radius: 7px; background: rgba(8,30,44,.82); & > * + * { margin-top: .25rem; }`;
-const deckHubReserveZone = css`margin-top: .25rem; padding: .55rem; border: 1px solid #4a2d63; border-radius: 7px; background: rgba(25,14,39,.82); & > * + * { margin-top: .25rem; }`;
-const boardCanvas = css`position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; background-color: #050914; background-image: radial-gradient(circle at 50% 25%, rgba(16,31,52,.24), transparent 52%), url('/images/donegeon-board-city.png'); background-position: center; background-size: cover;`;
-const boardGridOverlay = css`pointer-events: none; position: absolute; inset: 0; opacity: .38; background-size: 24px 24px; background-image: linear-gradient(rgba(80,112,145,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(80,112,145,.13) 1px, transparent 1px), radial-gradient(circle at center, transparent 40%, rgba(0,0,0,.48) 100%);`;
-const boardCanvasFade = css`pointer-events: none; position: absolute; left: 0; right: 0; bottom: 0; z-index: 0; height: 170px; background: linear-gradient(to top, rgba(3,5,12,.78), transparent);`;
+const boardModalBackdrop = css`background: var(--palette-rgba-3-6-13-86-9ae547);`;
+const boardPriorityButton = css`border: 1px solid var(--border-strong); border-radius: 6px; padding: .6rem .8rem; background: var(--palette-hex-101522-c8c204); color: var(--text-main); font-weight: 700;`;
+const boardPrioritySelected = css`border: 1px solid var(--palette-hex-ff8a00-51eaff); border-radius: 6px; padding: .6rem .8rem; background: var(--palette-hex-17121a-3144d2); color: var(--palette-hex-ffb13b-a8378a); font-weight: 700; box-shadow: 0 0 16px var(--palette-rgba-255-138-0-25-7df6dc);`;
+const boardMapToggle = css`position: absolute; right: .75rem; top: .75rem; z-index: 40; border: 1px solid var(--palette-hex-ff2072-43b6fd); border-radius: 5px; background: var(--palette-rgba-8-11-20-94-abfb7b); color: var(--palette-hex-fff-d14f90); padding: .35rem .6rem; font: 700 12px 'Bebas Neue', sans-serif; letter-spacing: .12em; text-transform: uppercase; box-shadow: 0 0 18px var(--palette-rgba-255-32-114-24-6d44f3); @media (min-width: 768px) { display: none; }`;
+const boardMapPanel = css`pointer-events: auto; border: 1px solid var(--palette-hex-ff2072-43b6fd); border-radius: 9px; padding: .75rem; background: var(--palette-rgba-6-10-20-94-781211); box-shadow: 0 0 0 1px var(--palette-rgba-0-224-255-1-6b2429) inset, 0 16px 40px var(--palette-rgba-0-0-0-6-b597da), 0 0 22px var(--palette-rgba-255-32-114-16-1a6f05); backdrop-filter: blur(8px);`;
+const boardMapTitle = css`color: var(--palette-hex-fff2dc-c2092d); font: 700 15px 'Bebas Neue', sans-serif; letter-spacing: .1em; text-transform: uppercase;`;
+const boardMapStatus = css`color: var(--palette-hex-8ea0bc-39e74b);`;
+const boardMapWarning = css`color: var(--palette-hex-ffb13b-a8378a);`;
+const boardMinimapSurface = css`position: relative; width: 220px; height: 144px; overflow: hidden; cursor: crosshair; border: 1px solid var(--palette-hex-00e0ff-93d32f); border-radius: 6px; background: radial-gradient(circle at 30% 0%, var(--palette-rgba-138-43-226-28-c4bbdb), transparent 48%), var(--palette-hex-07111f-f0ecda); box-shadow: 0 0 16px var(--palette-rgba-0-224-255-14-3b917d) inset;`;
+const boardMinimapGrid = css`pointer-events: none; position: absolute; inset: 0; opacity: .6; background-size: 15px 15px; background-image: linear-gradient(var(--palette-rgba-96-126-160-13-fdd4a4) 1px, transparent 1px), linear-gradient(90deg, var(--palette-rgba-96-126-160-13-fdd4a4) 1px, transparent 1px);`;
+const boardMinimapViewport = css`pointer-events: none; position: absolute; border: 1px solid var(--palette-hex-ff2072-43b6fd); border-radius: 2px; background: var(--palette-rgba-255-32-114-1-740ffb); box-shadow: 0 0 8px var(--palette-rgba-255-32-114-5-0f2a9d);`;
+const deckHubBackdrop = css`position: absolute; inset: 0; z-index: 50; background: var(--palette-rgba-2-4-10-64-bc3ab9); backdrop-filter: blur(2px);`;
+const deckHubPanel = css`position: absolute; right: .75rem; top: .75rem; width: min(460px, calc(100% - 1.5rem)); border: 1px solid var(--palette-hex-ff2072-43b6fd); border-radius: 10px; padding: .9rem; background: var(--palette-rgba-7-11-21-98-69daaf); box-shadow: 0 20px 60px var(--palette-rgba-0-0-0-72-551182), 0 0 24px var(--palette-rgba-138-43-226-18-600419);`;
+const deckHubTitle = css`color: var(--palette-hex-fff2dc-c2092d); font: 700 24px 'Bebas Neue', sans-serif; letter-spacing: .08em; text-transform: uppercase;`;
+const deckHubText = css`color: var(--palette-hex-9aabc5-e99449);`;
+const deckHubClose = css`border: 1px solid var(--palette-hex-8a2be2-2dbd0f); border-radius: 5px; padding: .3rem .55rem; color: var(--palette-hex-fff-d14f90); background: var(--palette-hex-101522-c8c204); &:hover { border-color: var(--palette-hex-ff2072-43b6fd); box-shadow: 0 0 12px var(--palette-rgba-255-32-114-25-6a3217); }`;
+const deckHubSectionTitle = css`color: var(--palette-hex-c8d4e8-a8be71); font: 700 14px 'Bebas Neue', sans-serif; letter-spacing: .08em; text-transform: uppercase;`;
+const deckHubSectionMeta = css`color: var(--palette-hex-7487a4-ac1fef);`;
+const deckHubRowZone = css`margin-top: .25rem; padding: .55rem; border: 1px solid var(--palette-hex-284c68-c99c87); border-radius: 7px; background: var(--palette-rgba-8-30-44-82-cc286e); & > * + * { margin-top: .25rem; }`;
+const deckHubReserveZone = css`margin-top: .25rem; padding: .55rem; border: 1px solid var(--palette-hex-4a2d63-b1209b); border-radius: 7px; background: var(--palette-rgba-25-14-39-82-28280a); & > * + * { margin-top: .25rem; }`;
+const boardCanvas = css`position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; background-color: var(--palette-hex-050914-9ed8f3); background-image: radial-gradient(circle at 50% 25%, var(--palette-rgba-16-31-52-24-9e483c), transparent 52%), url('/images/donegeon-board-city.png'); background-position: center; background-size: cover;`;
+const boardGridOverlay = css`pointer-events: none; position: absolute; inset: 0; opacity: .38; background-size: 24px 24px; background-image: linear-gradient(var(--palette-rgba-80-112-145-13-04dfb7) 1px, transparent 1px), linear-gradient(90deg, var(--palette-rgba-80-112-145-13-04dfb7) 1px, transparent 1px), radial-gradient(circle at center, transparent 40%, var(--palette-rgba-0-0-0-48-c5c38f) 100%);`;
+const boardCanvasFade = css`pointer-events: none; position: absolute; left: 0; right: 0; bottom: 0; z-index: 0; height: 170px; background: linear-gradient(to top, var(--palette-rgba-3-5-12-78-4b8c61), transparent);`;
 const style1 = css`
 border-radius: var(--radius-md);
 padding-inline: calc(var(--spacing) * 2);
@@ -402,8 +402,8 @@ border-bottom-style: var(--tw-border-style);
 border-color: var(--border-strong);
 padding-inline: calc(var(--spacing) * 4);
 padding-block: calc(var(--spacing) * 3);
-background: linear-gradient(180deg, rgba(8,13,24,.92), rgba(5,9,17,.88));
-box-shadow: inset -1px 0 rgba(255,32,114,.08);
+background: linear-gradient(180deg, var(--palette-rgba-8-13-24-92-fd8363), var(--palette-rgba-5-9-17-88-2392b7));
+box-shadow: inset -1px 0 var(--palette-rgba-255-32-114-08-dd7e73);
 `;
 
 const style5 = css`
@@ -411,8 +411,8 @@ font-family: "Permanent Marker", cursive;
 font-size: .95rem;
 line-height: 1.1;
 letter-spacing: .035em;
-color: #ff4d89;
-text-shadow: 0 0 9px rgba(255,32,114,.3);
+color: var(--palette-hex-ff4d89-16af87);
+text-shadow: 0 0 9px var(--palette-rgba-255-32-114-3-b072eb);
 text-transform: uppercase;
 `;
 
@@ -420,7 +420,7 @@ const style6 = css`
 border-radius: 7px;
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 3);
-background: linear-gradient(145deg, rgba(8,14,25,.96), rgba(5,9,17,.92)); border: 1px solid rgba(255,32,114,.42); box-shadow: inset 0 0 20px rgba(0,0,0,.32); backdrop-filter: blur(12px);
+background: linear-gradient(145deg, var(--palette-rgba-8-14-25-96-8b8a7a), var(--palette-rgba-5-9-17-92-a8fc70)); border: 1px solid var(--palette-rgba-255-32-114-42-b4c3f2); box-shadow: inset 0 0 20px var(--palette-rgba-0-0-0-32-78ad00); backdrop-filter: blur(12px);
 `;
 
 const style7 = css`
@@ -456,7 +456,7 @@ const style9 = css`
 border-radius: var(--radius-md);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(223,173,87,0.24);
+border-color: var(--palette-rgba-223-173-87-0-24-4ece10);
 background-color: var(--warning-bg);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 1);
@@ -477,7 +477,7 @@ const style10 = css`
 border-radius: var(--radius-md);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(196,98,91,0.28);
+border-color: var(--palette-rgba-196-98-91-0-28-437088);
 background-color: var(--danger-bg);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 1);
@@ -594,7 +594,7 @@ const style19 = css`
 border-radius: var(--radius-xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(223,173,87,0.24);
+border-color: var(--palette-rgba-223-173-87-0-24-4ece10);
 background-color: var(--warning-bg);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 2);
@@ -619,8 +619,8 @@ const style21 = css`
 border-radius: var(--radius-lg);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(103,187,255,0.28);
-background-color: rgba(103,187,255,0.14);
+border-color: var(--palette-rgba-103-187-255-0-28-51e811);
+background-color: var(--palette-rgba-103-187-255-0-14-b92a76);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 1);
 font-size: var(--text-lg);
@@ -632,7 +632,7 @@ const style22 = css`
 border-radius: var(--radius-lg);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(255,139,80,0.28);
+border-color: var(--palette-rgba-255-139-80-0-28-f7bbb1);
 background-color: var(--accent-wash);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 1);

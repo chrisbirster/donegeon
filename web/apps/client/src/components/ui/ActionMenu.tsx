@@ -172,7 +172,7 @@ const triggerStyle = css`
   display:flex; align-items:center; justify-content:center; width:100%; min-width:2.4rem; height:100%; min-height:2.4rem;
   border:1px solid var(--border-strong); border-radius:.65rem; background:var(--panel-soft); color:var(--text-dim); cursor:pointer;
   &:hover{border-color:var(--border-hover); color:var(--text-main);}
-  &:focus-visible{outline:2px solid #00e0ff; outline-offset:2px;}
+  &:focus-visible{outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const menuStyle = css`
   position:absolute; z-index:130; top:calc(100% + .3rem); right:0; min-width:9rem; display:flex; flex-direction:column; gap:.18rem;
@@ -180,7 +180,7 @@ const menuStyle = css`
 `;
 const menuItemStyle = css`
   width:100%; border:0; border-radius:.45rem; padding:.55rem .65rem; background:transparent; color:var(--text-main); text-align:left; cursor:pointer;
-  &:hover, &:focus-visible{background:rgba(196,69,255,.12); outline:none; box-shadow:inset 0 0 0 2px #00e0ff;}
+  &:hover, &:focus-visible{background:var(--palette-rgba-196-69-255-12-d30007); outline:none; box-shadow:inset 0 0 0 2px var(--palette-hex-00e0ff-93d32f);}
   &:disabled{opacity:.45; cursor:not-allowed;}
 `;
 const dangerStyle = css`color:var(--danger);`;

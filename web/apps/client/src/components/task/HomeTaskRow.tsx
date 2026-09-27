@@ -237,12 +237,12 @@ const taskRow = css`
   grid-template-columns:auto auto minmax(0,1fr) auto auto;
   gap:.7rem;
   align-items:center;
-  border:1px solid rgba(119,155,187,.18);
+  border:1px solid var(--palette-rgba-119-155-187-18-fb1b78);
   border-radius:.75rem;
   padding:.7rem .75rem;
   background:var(--panel-soft);
   transition:border-color 150ms ease, background 150ms ease;
-  &:hover{border-color:rgba(119,155,187,.34);}
+  &:hover{border-color:var(--palette-rgba-119-155-187-34-b37df8);}
   &:focus-within{border-color:var(--border-hover);}
   @media (max-width:60rem){
     grid-template-columns:auto auto minmax(0,1fr) auto;
@@ -251,32 +251,32 @@ const taskRow = css`
   @media (prefers-reduced-motion: reduce){transition:none;}
 `;
 const completedRow = css`opacity:.78;`;
-const dropTarget = css`border-color:var(--accent); background:rgba(255,139,80,.08);`;
-const nextAction = css`border-color:rgba(255,139,80,.28); background:rgba(255,139,80,.06);`;
-const dragHandle = css`border:0; background:transparent; color:var(--text-muted); cursor:grab; padding:.25rem; &:focus-visible{outline:2px solid #00e0ff; outline-offset:2px;}`;
+const dropTarget = css`border-color:var(--accent); background:var(--palette-rgba-255-139-80-08-f3d10f);`;
+const nextAction = css`border-color:var(--palette-rgba-255-139-80-28-6f4c9c); background:var(--palette-rgba-255-139-80-06-75a0b4);`;
+const dragHandle = css`border:0; background:transparent; color:var(--text-muted); cursor:grab; padding:.25rem; &:focus-visible{outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}`;
 const dragActive = css`color:var(--accent-text); cursor:grabbing;`;
-const completionButton = css`width:1.25rem; height:1.25rem; border:2px solid var(--accent); border-radius:50%; background:transparent; &:focus-visible{outline:2px solid #00e0ff; outline-offset:2px;}`;
+const completionButton = css`width:1.25rem; height:1.25rem; border:2px solid var(--accent); border-radius:50%; background:transparent; &:focus-visible{outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}`;
 const completedStatus = css`display:flex; align-items:center; justify-content:center; width:1.25rem; height:1.25rem; color:var(--success);`;
 const taskBody = css`min-width:0;`;
 const taskTitle = css`margin:0; color:var(--text-main); font-weight:650; overflow-wrap:anywhere;`;
 const completedTitle = css`text-decoration:line-through; color:var(--text-muted);`;
 const description = css`margin:.2rem 0 0; color:var(--text-dim); font-size:.78rem; line-height:1.35;`;
 const metadataStyle = css`display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.4rem;`;
-const dueBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(110,78,21,.34); color:#ffd4a1;`;
-const deadlineBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(74,78,156,.35); color:#ddd9ff;`;
-const reminderBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(32,95,105,.34); color:#bff5ff;`;
-const warningBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(129,61,28,.35); color:#ffd4b5;`;
-const neutralBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(97,76,132,.26); color:#d9c6ff;`;
-const successBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(24,88,57,.33); color:#c7f6d4;`;
-const labelBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(84,95,168,.22); color:#e0d8ff;`;
-const projectBadge = css`display:inline-flex; align-items:center; gap:.3rem; border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:rgba(120,37,34,.26); color:#ffd4cf;`;
-const teamChip = css`font-size:.58rem; text-transform:uppercase; color:#d8e1ff;`;
+const dueBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-110-78-21-34-b00d78); color:var(--palette-hex-ffd4a1-b83647);`;
+const deadlineBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-74-78-156-35-8ee061); color:var(--palette-hex-ddd9ff-e3a001);`;
+const reminderBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-32-95-105-34-bc8751); color:var(--palette-hex-bff5ff-561a2a);`;
+const warningBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-129-61-28-35-540f97); color:var(--palette-hex-ffd4b5-fb24c9);`;
+const neutralBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-97-76-132-26-b672c3); color:var(--palette-hex-d9c6ff-c45a1a);`;
+const successBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-24-88-57-33-9ac90a); color:var(--palette-hex-c7f6d4-5832b1);`;
+const labelBadge = css`border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-84-95-168-22-07a96f); color:var(--palette-hex-e0d8ff-07fbaf);`;
+const projectBadge = css`display:inline-flex; align-items:center; gap:.3rem; border-radius:.42rem; padding:.18rem .42rem; font-size:.7rem; line-height:1.2; background:var(--palette-rgba-120-37-34-26-9e3a5b); color:var(--palette-hex-ffd4cf-e8c243);`;
+const teamChip = css`font-size:.58rem; text-transform:uppercase; color:var(--palette-hex-d8e1ff-4295f7);`;
 const priority = css`border-radius:.45rem; padding:.25rem .45rem; font-size:.72rem; font-weight:700; text-transform:lowercase;`;
-const priorityHigh = css`background:rgba(154,52,18,.35); color:#ffd7b7;`;
-const priorityNormal = css`background:rgba(255,255,255,.05); color:var(--text-dim);`;
+const priorityHigh = css`background:var(--palette-rgba-154-52-18-35-ffa599); color:var(--palette-hex-ffd7b7-e9306f);`;
+const priorityNormal = css`background:var(--palette-rgba-255-255-255-05-44501a); color:var(--text-dim);`;
 const actions = css`display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:.35rem;`;
 const inlineEdit = css`display:flex; align-items:center; gap:.4rem;`;
 const inlineInput = css`
-  min-width:0; flex:1; border:1px solid var(--border-strong); border-radius:.55rem; padding:.5rem .6rem; background:rgba(255,255,255,.035); color:var(--text-main); outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  min-width:0; flex:1; border:1px solid var(--border-strong); border-radius:.55rem; padding:.5rem .6rem; background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-main); outline:none;
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;

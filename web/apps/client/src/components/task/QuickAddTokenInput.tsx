@@ -29,13 +29,13 @@ export type QuickAddTokenInputProps = {
 };
 
 const tokenStyles: Record<Exclude<QuickAddTokenKind, "text">, string> = {
-  project: css`border-radius:.28rem; background:rgba(120,37,34,.36); color:#ffd4cf;`,
-  label: css`border-radius:.28rem; background:rgba(97,76,132,.3); color:#edd8ff;`,
-  assignee: css`border-radius:.28rem; background:rgba(26,78,95,.34); color:#d2f4ff;`,
-  priority: css`border-radius:.28rem; background:rgba(255,139,80,.22); color:#ffd7b7;`,
-  deadline: css`border-radius:.28rem; background:rgba(74,78,156,.35); color:#ddd9ff;`,
-  recurrence: css`border-radius:.28rem; background:rgba(24,88,57,.33); color:#c7f6d4;`,
-  due: css`border-radius:.28rem; background:rgba(110,78,21,.34); color:#ffd4a1;`,
+  project: css`border-radius:.28rem; background:var(--palette-rgba-120-37-34-36-ffcac1); color:var(--palette-hex-ffd4cf-e8c243);`,
+  label: css`border-radius:.28rem; background:var(--palette-rgba-97-76-132-3-ded828); color:var(--palette-hex-edd8ff-825a92);`,
+  assignee: css`border-radius:.28rem; background:var(--palette-rgba-26-78-95-34-b1bcae); color:var(--palette-hex-d2f4ff-85642c);`,
+  priority: css`border-radius:.28rem; background:var(--palette-rgba-255-139-80-22-006f79); color:var(--palette-hex-ffd7b7-e9306f);`,
+  deadline: css`border-radius:.28rem; background:var(--palette-rgba-74-78-156-35-8ee061); color:var(--palette-hex-ddd9ff-e3a001);`,
+  recurrence: css`border-radius:.28rem; background:var(--palette-rgba-24-88-57-33-9ac90a); color:var(--palette-hex-c7f6d4-5832b1);`,
+  due: css`border-radius:.28rem; background:var(--palette-rgba-110-78-21-34-b00d78); color:var(--palette-hex-ffd4a1-b83647);`,
 };
 const plainToken = css`color:var(--text-main);`;
 
@@ -86,7 +86,7 @@ const highlightLayer = css`
   letter-spacing:normal;
   font-variant-ligatures:none;
   white-space:pre;
-  box-shadow:0 18px 38px rgba(0,0,0,.16);
+  box-shadow:0 18px 38px var(--palette-rgba-0-0-0-16-dc0c50);
   backdrop-filter:blur(8px);
 `;
 const placeholderStyle = css`color:var(--text-dim);`;
@@ -105,5 +105,5 @@ const input = css`
   letter-spacing:normal;
   font-variant-ligatures:none;
   outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;

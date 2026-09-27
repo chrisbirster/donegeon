@@ -102,26 +102,26 @@ export function cardIcon(card: BoardCard | null): string {
 }
 
 const artworkShell = `background-position: center; background-size: cover; background-repeat: no-repeat;`;
-const packShell = css`${artworkShell} border-color: #00e0ff; background-image: url('/images/cards/deck.png'); color: #121722;`;
-const packTitle = css`background: rgba(193,216,239,.9); color: #07111e;`;
-const taskShell = css`${artworkShell} border-color: #ff2072; background-image: url('/images/cards/task.png'); color: #241417;`;
-const taskTitle = css`background: rgba(247,167,181,.88); color: #19080d;`;
-const villagerShell = css`${artworkShell} border-color: #ff9e0b; background-image: url('/images/cards/villager.png'); color: #211609;`;
-const villagerTitle = css`background: rgba(244,190,82,.9); color: #1d1305;`;
-const resourceShell = css`${artworkShell} border-color: #77df49; background-image: url('/images/cards/resource.png'); color: #10200c;`;
-const resourceTitle = css`background: rgba(190,236,171,.9); color: #0a1c07;`;
-const foodShell = css`${artworkShell} border-color: #ff8a00; background-image: url('/images/cards/food.png'); color: #251508;`;
-const foodTitle = css`background: rgba(255,166,48,.9); color: #211204;`;
-const zombieShell = css`border-color: #6f3f4a; background: #cf9ba7; color: #220e12;`;
-const zombieTitle = css`background: #bb7f8c; color: #2a0f14;`;
-const deckShell = css`${artworkShell} border-color: #00e0ff; background-image: url('/images/cards/deck.png'); color: #121722;`;
-const deckTitle = css`background: rgba(193,216,239,.9); color: #07111e;`;
-const modifierShell = css`${artworkShell} border-color: #00e0ff; background-image: url('/images/cards/modifier.png'); color: #121722;`;
-const modifierTitle = css`background: rgba(206,222,238,.9); color: #07111e;`;
-const lootShell = css`${artworkShell} border-color: #ffc229; background-image: url('/images/cards/loot-coin.svg'); color: #1d1807;`;
+const packShell = css`${artworkShell} border-color: var(--palette-hex-00e0ff-93d32f); background-image: url('/images/cards/deck.png'); color: var(--palette-hex-121722-749dc7);`;
+const packTitle = css`background: var(--palette-rgba-193-216-239-9-ff258f); color: var(--palette-hex-07111e-9493d8);`;
+const taskShell = css`${artworkShell} border-color: var(--palette-hex-ff2072-43b6fd); background-image: url('/images/cards/task.png'); color: var(--palette-hex-241417-1377d4);`;
+const taskTitle = css`background: var(--palette-rgba-247-167-181-88-aaf253); color: var(--palette-hex-19080d-a8bedb);`;
+const villagerShell = css`${artworkShell} border-color: var(--palette-hex-ff9e0b-e22759); background-image: url('/images/cards/villager.png'); color: var(--palette-hex-211609-30e3d7);`;
+const villagerTitle = css`background: var(--palette-rgba-244-190-82-9-37f1e4); color: var(--palette-hex-1d1305-9bf100);`;
+const resourceShell = css`${artworkShell} border-color: var(--palette-hex-77df49-9a7836); background-image: url('/images/cards/resource.png'); color: var(--palette-hex-10200c-8d23f4);`;
+const resourceTitle = css`background: var(--palette-rgba-190-236-171-9-d505b2); color: var(--palette-hex-0a1c07-f1c74e);`;
+const foodShell = css`${artworkShell} border-color: var(--palette-hex-ff8a00-51eaff); background-image: url('/images/cards/food.png'); color: var(--palette-hex-251508-38cf8f);`;
+const foodTitle = css`background: var(--palette-rgba-255-166-48-9-d0e3f5); color: var(--palette-hex-211204-4fe94a);`;
+const zombieShell = css`border-color: var(--palette-hex-6f3f4a-07b566); background: var(--palette-hex-cf9ba7-7b6210); color: var(--palette-hex-220e12-765ad7);`;
+const zombieTitle = css`background: var(--palette-hex-bb7f8c-755890); color: var(--palette-hex-2a0f14-dd4ca9);`;
+const deckShell = css`${artworkShell} border-color: var(--palette-hex-00e0ff-93d32f); background-image: url('/images/cards/deck.png'); color: var(--palette-hex-121722-749dc7);`;
+const deckTitle = css`background: var(--palette-rgba-193-216-239-9-ff258f); color: var(--palette-hex-07111e-9493d8);`;
+const modifierShell = css`${artworkShell} border-color: var(--palette-hex-00e0ff-93d32f); background-image: url('/images/cards/modifier.png'); color: var(--palette-hex-121722-749dc7);`;
+const modifierTitle = css`background: var(--palette-rgba-206-222-238-9-255746); color: var(--palette-hex-07111e-9493d8);`;
+const lootShell = css`${artworkShell} border-color: var(--palette-hex-ffc229-7a6498); background-image: url('/images/cards/loot-coin.svg'); color: var(--palette-hex-1d1807-757efd);`;
 const lootTitle = css`background: transparent; color: transparent;`;
-const defaultShell = css`border-color: #4b505a; background: #bbc2cc; color: #141820;`;
-const defaultTitle = css`background: #9ea7b3; color: #111722;`;
+const defaultShell = css`border-color: var(--palette-hex-4b505a-64fb41); background: var(--palette-hex-bbc2cc-12f214); color: var(--palette-hex-141820-656757);`;
+const defaultTitle = css`background: var(--palette-hex-9ea7b3-82a25d); color: var(--palette-hex-111722-d9f8be);`;
 
 export function cardSkin(kind: string, defID: string): { shellClass: string; titleClass: string } {
   if (isPackDef(defID)) {

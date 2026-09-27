@@ -33,9 +33,9 @@
         "Unauthorized invitation action": "semantic",
         "Cross-workspace access attempt": "semantic",
         "Connect calendar account": "external-manual",
-        "OAuth callback/failure": "semantic",
-        "Task/calendar mapping": "semantic",
-        "Update synchronization": "semantic",
+        "OAuth callback/failure": "playwright-provider-stub",
+        "Provider event fetch": "semantic",
+        "Fetch status persistence": "semantic",
         "Tenant isolation": "semantic"
       }
     },
@@ -56,7 +56,7 @@
   "notes": [
     "M0 is intentionally not a browser milestone; its document explicitly defines it as an inventory review.",
     "M7 is a truth-in-support review and M8 is a CI/release-structure review; Playwright is not allowed to masquerade as proof for those rows.",
-    "M5 mixes browser, semantic/API, and live-provider evidence. Cross-user authorization and Google OAuth semantics stay deterministic in Go/API integration tests; the user-facing owner/admin and invite-create surfaces are still exercised in Playwright.",
+    "M5 mixes browser, semantic/API, and live-provider evidence. Cross-user authorization and provider read semantics stay deterministic in Go/API integration tests; owner/admin, invite-create, and OAuth callback feedback are exercised in Playwright. A real Google OAuth consent round-trip remains external-manual evidence.",
     "The contract test auto-discovers milestone documents. Adding M9/M10 later will fail CI until they are classified here."
   ]
 }

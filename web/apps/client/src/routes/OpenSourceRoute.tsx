@@ -39,22 +39,22 @@ const page = css`
   display: grid;
   place-items: center;
   padding: 2rem;
-  background: var(--bg, #090b12);
-  color: var(--text-main, #f5f7fb);
+  background: var(--bg, var(--palette-hex-090b12-0bb840));
+  color: var(--text-main, var(--palette-hex-f5f7fb-fcca35));
 `;
 
 const card = css`
   width: min(46rem, 100%);
   padding: clamp(1.5rem, 5vw, 3rem);
-  border: 1px solid var(--border-strong, rgba(255,255,255,.16));
+  border: 1px solid var(--border-strong, var(--palette-rgba-255-255-255-16-ae5def));
   border-radius: 1.5rem;
-  background: var(--panel, rgba(18,22,34,.96));
-  box-shadow: 0 24px 80px rgba(0,0,0,.35);
+  background: var(--panel, var(--palette-rgba-18-22-34-96-3cee69));
+  box-shadow: 0 24px 80px var(--palette-rgba-0-0-0-35-630345);
 `;
 
 const eyebrow = css`
   margin: 0 0 .75rem;
-  color: var(--accent-text, #ffae7a);
+  color: var(--accent-text, var(--palette-hex-ffae7a-19bae2));
   font-size: .8rem;
   font-weight: 700;
   letter-spacing: .14em;
@@ -69,7 +69,7 @@ const title = css`
 
 const copy = css`
   margin: 0 0 1rem;
-  color: var(--text-soft, #c7cedb);
+  color: var(--text-soft, var(--palette-hex-c7cedb-23f9aa));
   line-height: 1.7;
 `;
 
@@ -85,8 +85,8 @@ const primary = css`
   align-items: center;
   padding: .75rem 1rem;
   border-radius: .75rem;
-  background: var(--accent, #ff8b50);
-  color: #1d1108;
+  background: var(--accent, var(--palette-hex-ff8b50-43fd80));
+  color: var(--palette-hex-1d1108-4dcb94);
   font-weight: 700;
   text-decoration: none;
 `;
@@ -95,8 +95,8 @@ const secondary = css`
   display: inline-flex;
   align-items: center;
   padding: .75rem 1rem;
-  border: 1px solid var(--border-strong, rgba(255,255,255,.16));
+  border: 1px solid var(--border-strong, var(--palette-rgba-255-255-255-16-ae5def));
   border-radius: .75rem;
-  color: var(--text-main, #f5f7fb);
+  color: var(--text-main, var(--palette-hex-f5f7fb-fcca35));
   text-decoration: none;
 `;

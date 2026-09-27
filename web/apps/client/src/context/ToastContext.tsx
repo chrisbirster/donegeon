@@ -33,9 +33,9 @@ const toastBridge: ToastAPI = {
 };
 const ToastContext = createContext<ToastAPI>(toastBridge);
 let nextToastID = 1;
-const toastSuccess = css`border-color: #3d6b4e; background: #12281d; color: #baf2cd;`;
-const toastError = css`border-color: #734040; background: #2b1717; color: #ffbaba;`;
-const toastInfo = css`border-color: #415779; background: #152238; color: #d6e6ff;`;
+const toastSuccess = css`border-color: var(--palette-hex-3d6b4e-d3e626); background: var(--palette-hex-12281d-f44b53); color: var(--palette-hex-baf2cd-a4469a);`;
+const toastError = css`border-color: var(--palette-hex-734040-9836b8); background: var(--palette-hex-2b1717-8739ca); color: var(--palette-hex-ffbaba-a04e1b);`;
+const toastInfo = css`border-color: var(--palette-hex-415779-f91635); background: var(--palette-hex-152238-9f8936); color: var(--palette-hex-d6e6ff-26bb11);`;
 
 function toastToneClass(tone: ToastTone): string {
   switch (tone) {
@@ -148,7 +148,7 @@ border-style: var(--tw-border-style);
   border-width: 1px;
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 2);
---tw-shadow: 0 18px 36px var(--tw-shadow-color, rgba(0,0,0,0.45));
+--tw-shadow: 0 18px 36px var(--tw-shadow-color, var(--palette-rgba-0-0-0-0-45-17ab3d));
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 --tw-backdrop-blur: blur(var(--blur-sm));
   -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
@@ -174,13 +174,13 @@ const style5 = css`
 border-radius: 0.25rem;
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: #5f7292;
+border-color: var(--palette-hex-5f7292-5b833c);
 padding-inline: calc(var(--spacing) * 1.5);
 padding-block: calc(var(--spacing) * 0.5);
 font-size: 10px;
 --tw-tracking: 0.08em;
   letter-spacing: 0.08em;
-color: #d7e6ff;
+color: var(--palette-hex-d7e6ff-ec0a9d);
 text-transform: uppercase;
 transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
   transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));

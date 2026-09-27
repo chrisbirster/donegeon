@@ -342,20 +342,20 @@ const metadataColumn = css`
 const fieldLabel = css`margin-top:.45rem; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);`;
 const textInput = css`
   width:100%; border:1px solid var(--border-strong); border-radius:.7rem; padding:.72rem .8rem;
-  background:rgba(255,255,255,.035); color:var(--text-main); color-scheme:dark; outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-main); color-scheme:dark; outline:none;
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const textarea = css`
   min-height:14rem; resize:vertical; border:1px solid var(--border-strong); border-radius:.7rem; padding:.8rem;
-  background:rgba(255,255,255,.035); color:var(--text-main); outline:none;
-  &:focus-visible{border-color:var(--accent); outline:2px solid #00e0ff; outline-offset:2px;}
+  background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-main); outline:none;
+  &:focus-visible{border-color:var(--accent); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px;}
 `;
 const helper = css`margin:0; color:var(--text-dim); font-size:.75rem; line-height:1.4;`;
 const parsedChipsStyle = css`display:flex; flex-wrap:wrap; gap:.4rem;`;
 const parsedChip = css`border:1px solid var(--border-soft); border-radius:.5rem; padding:.25rem .45rem; background:var(--panel-soft); color:var(--text-soft); font-size:.72rem;`;
 const unsupported = css`
-  margin:.35rem 0 0; border:1px solid rgba(255,107,122,.48); border-radius:.55rem; padding:.5rem .7rem;
-  background:rgba(125,34,48,.2); color:#ffb7c0; font-size:.75rem;
+  margin:.35rem 0 0; border:1px solid var(--palette-rgba-255-107-122-48-27d271); border-radius:.55rem; padding:.5rem .7rem;
+  background:var(--palette-rgba-125-34-48-2-283bc2); color:var(--palette-hex-ffb7c0-2623f0); font-size:.75rem;
 `;
 const footer = css`display:flex; justify-content:flex-end; gap:1rem; padding:1rem 1.5rem; border-top:1px solid var(--border-strong);`;
 const errorText = css`margin:0; padding:.75rem 1.5rem; color:var(--danger); border-top:1px solid var(--border-strong);`;

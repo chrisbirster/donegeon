@@ -115,24 +115,24 @@ export default function HomeSearchModal() {
 const palette = css`
   width:min(760px,100%);
   overflow:hidden;
-  border-color:rgba(196,69,255,.46);
-  background:linear-gradient(180deg, rgba(11,14,25,.985), rgba(8,10,19,.985));
-  box-shadow:0 28px 90px rgba(0,0,0,.7), 0 0 42px rgba(196,69,255,.12);
+  border-color:var(--palette-rgba-196-69-255-46-dadebf);
+  background:linear-gradient(180deg, var(--palette-rgba-11-14-25-985-d5c449), var(--palette-rgba-8-10-19-985-8bc958));
+  box-shadow:0 28px 90px var(--palette-rgba-0-0-0-7-a6668f), 0 0 42px var(--palette-rgba-196-69-255-12-d30007);
 `;
 const searchHeader = css`
   display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.8rem;
   padding:1rem 1.1rem .65rem;
 `;
-const searchGlyph = css`font-size:1.35rem; color:#e59cff; text-shadow:0 0 14px rgba(196,69,255,.5);`;
+const searchGlyph = css`font-size:1.35rem; color:var(--palette-hex-e59cff-70194a); text-shadow:0 0 14px var(--palette-rgba-196-69-255-5-684b1e);`;
 const searchInput = css`
   width:100%; border:0; outline:0; background:transparent; color:var(--text-main);
   font:500 1.12rem/1.4 "Space Grotesk","IBM Plex Sans",sans-serif;
   &::placeholder { color:var(--text-dim); }
-  &:focus-visible { outline:2px solid #00e0ff; outline-offset:4px; border-radius:.25rem; }
+  &:focus-visible { outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:4px; border-radius:.25rem; }
 `;
 const shortcut = css`
-  border:1px solid var(--border-strong); border-bottom-color:rgba(196,69,255,.4); border-radius:.45rem;
-  padding:.22rem .42rem; background:rgba(255,255,255,.035); color:var(--text-dim); font-size:.68rem;
+  border:1px solid var(--border-strong); border-bottom-color:var(--palette-rgba-196-69-255-4-af19a3); border-radius:.45rem;
+  padding:.22rem .42rem; background:var(--palette-rgba-255-255-255-035-b36273); color:var(--text-dim); font-size:.68rem;
 `;
 const subheader = css`display:flex; align-items:center; justify-content:space-between; gap:.8rem; padding:0 1.1rem .8rem; border-bottom:1px solid var(--border-strong);`;
 const searchHint = css`margin:0; color:var(--text-dim); font-size:.78rem;`;
@@ -141,19 +141,19 @@ const emptyState = css`
   display:flex; align-items:center; justify-content:center; gap:.6rem; min-height:7rem; margin:0; padding:1rem;
   color:var(--text-dim); font-size:.9rem; text-align:center;
 `;
-const emptyGlyph = css`font-size:1.2rem; color:rgba(229,156,255,.72);`;
+const emptyGlyph = css`font-size:1.2rem; color:var(--palette-rgba-229-156-255-72-8dd3fe);`;
 const resultHeading = css`margin:0; padding:.2rem .45rem .55rem; color:var(--text-dim); font-size:.68rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;`;
 const resultList = css`display:flex; flex-direction:column; gap:.4rem;`;
 const resultButton = css`
   display:flex; align-items:center; justify-content:space-between; gap:1rem; width:100%;
   border:1px solid transparent; border-radius:.85rem; padding:.8rem .9rem;
-  background:rgba(255,255,255,.018); color:var(--text-main); text-align:left;
-  &:hover, &:focus-visible { border-color:rgba(196,69,255,.34); background:rgba(196,69,255,.075); outline:2px solid #00e0ff; outline-offset:2px; }
+  background:var(--palette-rgba-255-255-255-018-d34853); color:var(--text-main); text-align:left;
+  &:hover, &:focus-visible { border-color:var(--palette-rgba-196-69-255-34-3a2502); background:var(--palette-rgba-196-69-255-075-e4e941); outline:2px solid var(--palette-hex-00e0ff-93d32f); outline-offset:2px; }
 `;
 const resultMain = css`display:flex; min-width:0; flex:1; flex-direction:column; gap:.2rem;`;
 const resultTitle = css`overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.98rem; font-weight:650;`;
 const resultDescription = css`overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-soft); font-size:.8rem;`;
 const metadata = css`display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.18rem;`;
-const metadataBadge = css`border-radius:.42rem; padding:.12rem .38rem; background:rgba(103,187,255,.08); color:var(--text-dim); font-size:.68rem;`;
-const projectBadge = css`border-radius:.42rem; padding:.12rem .38rem; background:rgba(196,69,255,.11); color:#e9c7ff; font-size:.68rem;`;
+const metadataBadge = css`border-radius:.42rem; padding:.12rem .38rem; background:var(--palette-rgba-103-187-255-08-6175aa); color:var(--text-dim); font-size:.68rem;`;
+const projectBadge = css`border-radius:.42rem; padding:.12rem .38rem; background:var(--palette-rgba-196-69-255-11-5200d9); color:var(--palette-hex-e9c7ff-b399cc); font-size:.68rem;`;
 const openHint = css`flex:0 0 auto; color:var(--text-dim); font-size:.72rem;`;

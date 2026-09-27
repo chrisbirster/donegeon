@@ -357,14 +357,14 @@ export function createBoardControllerMinimap(context: BoardControllerDeckEffects
   };
 }
 
-const minimapExhausted = css`background: #f87171; color: #f87171;`;
-const minimapNextAction = css`background: #facc15; color: #facc15;`;
-const minimapTask = css`background: #ff3f86; color: #ff3f86;`;
-const minimapVillager = css`background: #ffb13b; color: #ffb13b;`;
-const minimapZombie = css`background: #c98697; color: #c98697;`;
-const minimapResource = css`background: #77df49; color: #77df49;`;
-const minimapFood = css`background: #ff8a00; color: #ff8a00;`;
-const minimapDeck = css`background: #38b2f6; color: #38b2f6;`;
-const minimapDefault = css`background: #9aa9c3; color: #9aa9c3;`;
+const minimapExhausted = css`background: var(--palette-hex-f87171-7062ff); color: var(--palette-hex-f87171-7062ff);`;
+const minimapNextAction = css`background: var(--palette-hex-facc15-fb73b2); color: var(--palette-hex-facc15-fb73b2);`;
+const minimapTask = css`background: var(--palette-hex-ff3f86-7a0916); color: var(--palette-hex-ff3f86-7a0916);`;
+const minimapVillager = css`background: var(--palette-hex-ffb13b-a8378a); color: var(--palette-hex-ffb13b-a8378a);`;
+const minimapZombie = css`background: var(--palette-hex-c98697-d5c538); color: var(--palette-hex-c98697-d5c538);`;
+const minimapResource = css`background: var(--palette-hex-77df49-9a7836); color: var(--palette-hex-77df49-9a7836);`;
+const minimapFood = css`background: var(--palette-hex-ff8a00-51eaff); color: var(--palette-hex-ff8a00-51eaff);`;
+const minimapDeck = css`background: var(--palette-hex-38b2f6-f05825); color: var(--palette-hex-38b2f6-f05825);`;
+const minimapDefault = css`background: var(--palette-hex-9aa9c3-0d9b79); color: var(--palette-hex-9aa9c3-0d9b79);`;
 
 export type BoardControllerMinimapContext = BoardControllerDeckEffectsContext & ReturnType<typeof createBoardControllerMinimap>;

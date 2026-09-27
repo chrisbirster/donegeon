@@ -177,7 +177,7 @@ const backdrop = css`
   justify-content: center;
   overflow: auto;
   padding: 1rem;
-  background: rgba(0, 0, 0, .72);
+  background: var(--palette-rgba-0-0-0-72-551182);
   backdrop-filter: blur(8px);
 `;
 

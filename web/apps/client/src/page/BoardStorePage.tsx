@@ -307,7 +307,7 @@ export default function BoardStorePage() {
         class={style9}
         style={{
           background:
-            "radial-gradient(circle at top left, rgba(212,169,95,0.18), transparent 26%), radial-gradient(circle at top right, rgba(96,132,196,0.16), transparent 24%), linear-gradient(180deg, #09101b 0%, #070c15 100%)",
+            "radial-gradient(circle at top left, var(--palette-rgba-212-169-95-0-18-40769d), transparent 26%), radial-gradient(circle at top right, var(--palette-rgba-96-132-196-0-16-cb76f3), transparent 24%), linear-gradient(180deg, var(--palette-hex-09101b-91223f) 0%, var(--palette-hex-070c15-9e72b5) 100%)",
         }}
         data-testid="board-store-page"
       >

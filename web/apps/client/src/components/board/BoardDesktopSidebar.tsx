@@ -457,11 +457,11 @@ color: var(--text-soft);
 `;
 
 const style8 = css`
-color: #ff8c8c;
+color: var(--palette-hex-ff8c8c-71b27a);
 `;
 
 const style9 = css`
-color: #7ddf98;
+color: var(--palette-hex-7ddf98-541a53);
 `;
 
 const style10 = css`
@@ -591,13 +591,13 @@ color: var(--text-main);
 const style28 = css`
 margin-top: calc(var(--spacing) * 1);
 font-size: 11px;
-color: #b7c9e8;
+color: var(--palette-hex-b7c9e8-1b5be8);
 `;
 
 const style29 = css`
 margin-top: calc(var(--spacing) * 1);
 font-size: 11px;
-color: #9ec4b1;
+color: var(--palette-hex-9ec4b1-6cbc98);
 `;
 
 const style30 = css`
@@ -618,19 +618,19 @@ font-size: 11px;
 `;
 
 const style32 = css`
-color: #89dc9a;
+color: var(--palette-hex-89dc9a-8a54a4);
 `;
 
 const style33 = css`
-color: #c8d3e8;
+color: var(--palette-hex-c8d3e8-defb80);
 `;
 
 const style34 = css`
-color: #79d78e;
+color: var(--palette-hex-79d78e-71844d);
 `;
 
 const style35 = css`
-color: #8ca4cf;
+color: var(--palette-hex-8ca4cf-59fe7d);
 `;
 
 const style36 = css`
@@ -644,13 +644,13 @@ margin-top: calc(var(--spacing) * 1);
 
 const style37 = css`
 font-size: 10px;
-color: #88a2c7;
+color: var(--palette-hex-88a2c7-042765);
 `;
 
 const style38 = css`
 margin-top: calc(var(--spacing) * 1);
 font-size: 11px;
-color: #ebcf8b;
+color: var(--palette-hex-ebcf8b-f3c685);
 `;
 
 const style39 = css`
@@ -658,14 +658,14 @@ margin-top: calc(var(--spacing) * 2);
 border-radius: var(--radius-md);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: #456a41;
-background-color: #112a1d;
+border-color: var(--palette-hex-456a41-74d962);
+background-color: var(--palette-hex-112a1d-acc0c2);
 padding-inline: calc(var(--spacing) * 2);
 padding-block: calc(var(--spacing) * 1);
 font-size: 11px;
 --tw-font-weight: var(--font-weight-semibold);
   font-weight: var(--font-weight-semibold);
-color: #b9efc4;
+color: var(--palette-hex-b9efc4-c19958);
 &:disabled {
     opacity: 50%;
   }
@@ -686,7 +686,7 @@ margin-bottom: calc(var(--spacing) * 4);
 border-radius: var(--radius-xl);
 border-style: var(--tw-border-style);
   border-width: 1px;
-border-color: rgba(196,98,91,0.3);
+border-color: var(--palette-rgba-196-98-91-0-3-db61e2);
 background-color: var(--danger-bg);
 padding-inline: calc(var(--spacing) * 3);
 padding-block: calc(var(--spacing) * 2);

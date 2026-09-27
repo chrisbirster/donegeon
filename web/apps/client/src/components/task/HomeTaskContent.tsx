@@ -195,7 +195,7 @@ const statusHeader = css`
   span{color:var(--text-dim); font-size:.75rem;}
 `;
 const groups = css`display:flex; flex-direction:column; gap:1rem;`;
-const group = css`border:1px solid var(--border-soft); border-radius:.8rem; padding:.75rem; background:rgba(255,255,255,.012);`;
+const group = css`border:1px solid var(--border-soft); border-radius:.8rem; padding:.75rem; background:var(--palette-rgba-255-255-255-012-6b00d3);`;
 const groupHeader = css`
   display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:.6rem;
   h4{margin:0; color:var(--text-main); font-size:.95rem;}
@@ -204,4 +204,4 @@ const groupHeader = css`
 `;
 const list = css`display:flex; flex-direction:column; gap:.55rem; margin:0; padding:0; list-style:none;`;
 const emptyState = css`margin:0; border:1px dashed var(--border-soft); border-radius:.7rem; padding:1rem; color:var(--text-dim); font-size:.8rem;`;
-const errorText = css`margin:.55rem 0; border:1px solid rgba(255,181,173,.35); border-radius:.55rem; padding:.5rem .65rem; background:var(--danger-bg); color:var(--danger); font-size:.78rem;`;
+const errorText = css`margin:.55rem 0; border:1px solid var(--palette-rgba-255-181-173-35-962fe8); border-radius:.55rem; padding:.5rem .65rem; background:var(--danger-bg); color:var(--danger); font-size:.78rem;`;

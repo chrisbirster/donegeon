@@ -7,12 +7,12 @@ import Button from "../Button";
 import Dialog, { dialogEyebrow, dialogHeader, dialogTitle } from "../ui/Dialog";
 
 const successTone = css`
-  border-color: rgba(70,140,98,.34);
+  border-color: var(--palette-rgba-70-140-98-34-914b88);
   background: var(--success-bg);
   color: var(--success);
 `;
 const errorTone = css`
-  border-color: rgba(196,98,91,.28);
+  border-color: var(--palette-rgba-196-98-91-28-b375a6);
   background: var(--danger-bg);
   color: var(--danger);
 `;
@@ -104,7 +104,7 @@ const notificationCard = css`
   border:1px solid var(--border-strong);
   border-radius:.75rem;
   padding:.75rem .85rem;
-  box-shadow:0 12px 28px rgba(0,0,0,.25);
+  box-shadow:0 12px 28px var(--palette-rgba-0-0-0-25-a59544);
 `;
 const notificationBody = css`display:flex; align-items:flex-start; justify-content:space-between; gap:.8rem;`;
 const messageColumn = css`min-width:0;`;
