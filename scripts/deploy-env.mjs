@@ -270,6 +270,7 @@ function buildValues() {
     DONEGEON_HTTP_PORT: "42069",
     DONEGEON_LOG_LEVEL: "info",
     DONEGEON_REQUIRE_AUTH: "true",
+    DONEGEON_OPEN_BETA: "true",
     DONEGEON_REQUEST_TIMEOUT: "15s",
     DONEGEON_SHUTDOWN_TIMEOUT: "10s",
     DONEGEON_APP_BASE_URL: "https://app.donegeon.com",
