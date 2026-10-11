@@ -1,0 +1,46 @@
+name: Fix CI audit 2 (one-off)
+
+on:
+  push:
+    branches-ignore: [main]
+    paths: ['.github/workflows/fix-ci-audit2.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.9'
+      - name: Bump go.mod
+        run: |
+          sed -i -E 's/^go 1\.26\.[0-9]+$/go 1.26.9/' go.mod
+          grep '^go ' go.mod
+          go mod tidy
+          go vet ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Web audit fix
+        working-directory: web
+        run: |
+          npm ci
+          npm audit fix || true
+          npm pkg set 'overrides.seroval=^1.6.9' 'overrides.seroval-plugins=^1.6.9'
+          npm install
+          npm audit --omit=dev --audit-level=high
+          npm run typecheck --workspaces --if-present
+          npm test --workspaces --if-present
+          npm run build --workspaces --if-present
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add go.mod go.sum web/package.json web/package-lock.json web/apps/*/package.json
+          git commit -m "fix(ci): go 1.26.9 and web audit fixes"
+          git push origin HEAD:${{ github.ref_name }}
