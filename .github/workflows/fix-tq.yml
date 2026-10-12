@@ -1,0 +1,41 @@
+name: Fix tanstack v6 rename (one-off)
+
+on:
+  push:
+    branches-ignore: [main]
+    paths: ['.github/workflows/fix-tq.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Rename createQuery/createMutation
+        run: |
+          grep -rlE '\bcreate(Query|Mutation)\b' web/apps --include=*.ts --include=*.tsx | grep -v node_modules | xargs -r sed -i -E 's/\bcreateQuery\b/useQuery/g; s/\bcreateMutation\b/useMutation/g'
+          git diff --stat
+      - name: Install
+        working-directory: web
+        run: npm ci 2>&1 | tail -15
+      - name: Typecheck
+        working-directory: web
+        continue-on-error: true
+        run: npm run typecheck --workspaces --if-present 2>&1 | tail -150
+      - name: Build
+        working-directory: web
+        continue-on-error: true
+        run: npm run build --workspaces --if-present 2>&1 | tail -100
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/apps
+          git commit -m "refactor(web): tanstack solid-query v6 hook names" || echo nothing
+          git push origin HEAD:${{ github.ref_name }}
