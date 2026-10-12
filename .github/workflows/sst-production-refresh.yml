@@ -56,4 +56,18 @@ jobs:
           DONEGEON_EMAIL_API_AUTH_HEADER: ${{ vars.DONEGEON_EMAIL_API_AUTH_HEADER }}
         run: |
           set -euo pipefail
+          echo "== SST state bucket versioning (backup safety)"
+          buckets=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'sst-state')].Name" --output text)
+          echo "state buckets: ${buckets:-none found}"
+          for b in $buckets; do
+            v=$(aws s3api get-bucket-versioning --bucket "$b" --query Status --output text)
+            echo "$b versioning: $v"
+            if [ "$v" != "Enabled" ]; then
+              echo "State bucket $b has no versioning; refusing to refresh." >&2
+              exit 1
+            fi
+          done
+          echo "== sst diff (preview)"
+          npx --no-install sst diff --stage production
+          echo "== sst refresh"
           npx --no-install sst refresh --stage production
