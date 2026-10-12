@@ -1,6 +1,6 @@
 import Button from "../components/Button";
 import { css } from "@linaria/core";
-import { createQuery } from "@tanstack/solid-query";
+import { useQuery } from "@tanstack/solid-query";
 import { For, Show } from "solid-js";
 
 import AppShell from "../components/AppShell";
@@ -39,7 +39,7 @@ function preferenceLabel(value: "system" | "light" | "dark"): string {
 export default function SettingsRoute() {
   const api = useApi();
   const theme = useTheme();
-  const sessionQuery = createQuery(() => ({
+  const sessionQuery = useQuery(() => ({
     queryKey: ["auth", "me"],
     queryFn: async () => {
       const response = await api.auth.me();

@@ -144,8 +144,8 @@ export default function BoardTaskDetailModal() {
           <section class={panel} aria-labelledby="board-tags-heading">
             <h3 id="board-tags-heading" class={sectionTitle}>Tags</h3>
             <div class={chipRow}>
-              <span class={projectChip}>#{activeBoardProjectID()}</span>
-              <For each={detailVisibleLabels()}>{(tag) => <span class={labelChip}>@{tag}</span>}</For>
+              <span class={`${chip} ${projectChip}`}>#{activeBoardProjectID()}</span>
+              <For each={detailVisibleLabels()}>{(tag) => <span class={`${chip} ${labelChip}`}>@{tag}</span>}</For>
             </div>
           </section>
 
@@ -205,8 +205,8 @@ const sectionTitle = css`margin:0; color:var(--text-main); font-size:.82rem; let
 const tokenPreview = css`display:flex; flex-wrap:wrap; gap:.15rem; color:var(--text-main); line-height:1.55;`;
 const chipRow = css`display:flex; flex-wrap:wrap; gap:.4rem;`;
 const chip = css`border:1px solid var(--border-soft); border-radius:.45rem; padding:.2rem .45rem; background:rgba(255,255,255,.035); color:var(--text-soft); font-size:.72rem;`;
-const projectChip = css`${chip} border-color:rgba(196,69,255,.28); color:#efc4ff;`;
-const labelChip = css`${chip} border-color:rgba(84,95,168,.32); color:#e0d8ff;`;
+const projectChip = css`border-color:rgba(196,69,255,.28); color:#efc4ff;`;
+const labelChip = css`border-color:rgba(84,95,168,.32); color:#e0d8ff;`;
 const muted = css`margin:0; color:var(--text-dim); font-size:.78rem; line-height:1.45;`;
 const warning = css`margin:0; border:1px solid rgba(255,177,59,.25); border-radius:.65rem; padding:.6rem .7rem; background:rgba(255,138,0,.08); color:#ffd4a1; font-size:.78rem;`;
 const messageStack = css`display:grid; gap:.45rem;`;
