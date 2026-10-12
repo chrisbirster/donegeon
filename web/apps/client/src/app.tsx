@@ -1,6 +1,6 @@
 import { css } from "@linaria/core";
 import { createRouter, useNavigate } from "@solidjs/router";
-import { createQuery } from "@tanstack/solid-query";
+import { useQuery } from "@tanstack/solid-query";
 import { Dynamic } from "@solidjs/web";
 import { Match, Switch, onSettled, type Component } from "solid-js";
 
@@ -28,7 +28,7 @@ function Redirect(props: { href: string }) {
 
 function ProtectedRoute(props: { component: Component }) {
   const api = useApi();
-  const session = createQuery(() => ({
+  const session = useQuery(() => ({
     queryKey: ["auth", "me"],
     queryFn: async () => (await api.auth.me()).session,
   }), () => queryClient);

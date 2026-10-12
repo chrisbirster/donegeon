@@ -1,6 +1,6 @@
 import { createTrackedEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { createQuery } from "@tanstack/solid-query";
+import { useQuery } from "@tanstack/solid-query";
 
 import type { Project, QuickAddParsed, Task } from "../server/api";
 import { useApi } from "../context/ApiContext";
@@ -67,11 +67,11 @@ export function createHomeControllerState() {
   const [detailNewProjectName, setDetailNewProjectName] = createSignal<string | null>(null);
   const [detailProjectAssigning, setDetailProjectAssigning] = createSignal(false);
 
-  const tasksQuery = createQuery(() => ({
+  const tasksQuery = useQuery(() => ({
     queryKey: ["tasks", "list"],
     queryFn: () => api.tasks.list(),
   }), () => queryClient);
-  const projectsQuery = createQuery(() => ({
+  const projectsQuery = useQuery(() => ({
     queryKey: ["projects", "list"],
     queryFn: () => api.projects.list(),
   }), () => queryClient);

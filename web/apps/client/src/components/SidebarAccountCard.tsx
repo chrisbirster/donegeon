@@ -1,6 +1,6 @@
 import Button from "./Button";
 import { css } from "@linaria/core";
-import { createMutation, createQuery } from "@tanstack/solid-query";
+import { useMutation, useQuery } from "@tanstack/solid-query";
 import { Show, createMemo, createSignal } from "solid-js";
 
 import { workspacePlanLabel } from "../../../../shared/pricing/catalog";
@@ -19,14 +19,14 @@ type SidebarAccountCardProps = {
 export default function SidebarAccountCard(props: SidebarAccountCardProps) {
   const api = useApi();
   const [accountMenuOpen, setAccountMenuOpen] = createSignal(false);
-  const sessionQuery = createQuery(() => ({
+  const sessionQuery = useQuery(() => ({
     queryKey: ["auth", "me"],
     queryFn: async () => {
       const response = await api.auth.me();
       return response.session as AuthSession;
     },
   }), () => queryClient);
-  const logout = createMutation(() => ({
+  const logout = useMutation(() => ({
     mutationFn: () => api.auth.logout(),
     onSettled: () => {
       queryClient.clear();
