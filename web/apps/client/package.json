@@ -27,7 +27,7 @@
     "test:audit:m6": "playwright test tests/e2e/audit/m6-browser-acceptance.spec.ts"
   },
   "dependencies": {
-    "@linaria/core": "^8.2.0",
+    "@linaria/core": "^8.3.0",
     "@solidjs/router": "2.0.0-next.38",
     "@solidjs/web": "2.0.0-rc.14",
     "@tanstack/solid-query": "6.0.0-rc.5",
@@ -35,12 +35,12 @@
     "solid-js": "2.0.0-rc.14"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.0",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^24.3.0",
     "@vite-pwa/assets-generator": "^1.0.2",
-    "@wyw-in-js/vite": "^2.4.1",
+    "@wyw-in-js/vite": "^2.7.1",
     "typescript": "^5.9.2",
-    "vite": "^8.3.4",
+    "vite": "^8.3.8",
     "vite-plugin-pwa": "^2.0.0",
     "vite-plugin-solid": "3.0.0-next.27",
     "workbox-build": "^7.4.0",
